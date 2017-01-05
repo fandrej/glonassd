@@ -2,7 +2,8 @@
 GPS/GLONASS tracker server for Debian
 
 ### About
-**glonassd** is a linux daemon that receives data from a GPS / GLONASS trackers, processing and preserving them in a database.
+**glonassd** is a linux daemon that receives data from a GPS / GLONASS trackers, processing and preserving them in a database.<br>
+Written in C, Compiled with gcc (Debian 4.9.2-10) 4.9.2 for x86_64-linux-gnu.
 
 ### Tracker protocols
 **Receiving:** Arnavi, Galileo (all versions), GPS101-GPS103, SAT-LITE / SAT-LITE2, Wialon IPS, Wialon NIS (SOAP / Olympstroy), EGTS (ERA-GLONASS).<br>
