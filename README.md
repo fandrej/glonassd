@@ -64,4 +64,5 @@ The glonassd is open-sourced software licensed under the [MIT license](http://op
 Documentation to be written.
 
 ### Epilog
-This daemon is part of navigation service of [locman.org](http://locman.org/map/index.php).
+This daemon is part of navigation service of [locman.org](http://locman.org/map/index.php).<br>
+Scold author can be reached at <mailto:mail@locman.org>.
