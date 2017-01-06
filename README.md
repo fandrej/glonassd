@@ -32,13 +32,15 @@ Databases can be added using plug libraries.
 ### Installation
 Create folder for daemon an copy in it files **glonassd, *.so, *.sql**, or use folder where project compiled.<br>
 In you PostgreSQL database create table "tgpsdata" (see script tgpsdata.sql).<br>
+If you use firewall, enable ports for incoming terminal connections.
 
 ### Configuration
 In **glonassd.conf** file in **server** section edit values for:<br>
 **listen** - IP addres listen trackers interface<br>
 **transmit** - IP addres retranslation to remote server interface<br>
 **log_file** - full path to log file<br>
-**db_host, db_port, db_name, db_schema, db_user, db_pass** - parameters for you PostgreSQL database
+**db_host, db_port, db_name, db_schema, db_user, db_pass** - parameters for you PostgreSQL database<br>
+Comment or uncomment terminals sections for used terminals and edit listeners ports.
 
 For forwarding terminals data to remote server see comments in **forward** section of the **glonassd.conf** file.<br>
 For schedule database tasks see comments about **timer** parameter in **server** section of the **glonassd.conf** file.
