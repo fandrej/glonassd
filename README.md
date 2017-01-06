@@ -1,3 +1,5 @@
+[This file by Russian](ru/README.md)
+
 # glonassd
 GPS/GLONASS tracker server for Debian
 
