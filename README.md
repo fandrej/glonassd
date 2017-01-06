@@ -21,7 +21,7 @@ Databases can be added using plug libraries.
 * Automatic restoration of connections to the remote server when the connection is broken.
 * Storing data at the time of connection failure with the remote server and sending the stored data after the restoration of communication.
 * The maximum number of relay servers: 3 for each terminal.
-* Perform scheduled tasks.
+* Perform scheduled tasks (maximum 5 timers).
 * Easy configuration using .conf files
 * Extensibility through plug libraries without recompilation daemon.
 
