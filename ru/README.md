@@ -46,23 +46,23 @@ GPS/GLONASS трекер для ОС Debian.
 Для включения задач по расписанию изучить комментарии к параметру **timer** в секции **server** в файле **glonassd.conf**.
 
 ### Запуск
-From daemon folder use **./glonassd start** command for start daemon, **stop** | **restart** parameters for stop and restart daemon.<br>
-Use -c path/to/config/file parameter for config file not in daemon folder.
+Командой **./glonassd start** из папки с демоном, параметры **stop** или **restart** для остановки или перезапуска.<br>
+Параметр -c path/to/config/file используется для указания файла настроек, находящегося в другой папке.
 
-### Autostart configure
-Edit **DAEMON** variable in **glonassd.sh** file for correct path to daemon folder.<br>
-Copy **glonassd.sh** file in **/etc/init.d** folder.<br>
-Use **chmod 0755 /etc/init.d/glonassd.sh** for make it executable.<br>
-Use **systemctl daemon-reload** and **update-rc.d glonassd.sh defaults** for enable autostart daemon.<br>
-Use **update-rc.d -f glonassd.sh remove** for diasble autostart without delete glonassd.sh file.<br>
-Delete /etc/init.d/glonassd.sh file and use **systemctl daemon-reload** for fully cleanup daemon info.
+### Автозапуск при старте системы
+Отредактировать значение переменной **DAEMON** в файле **glonassd.sh**, указав полный путь к файлу **glonassd**.<br>
+скопировать файл **glonassd.sh** в папку **/etc/init.d**.<br>
+Сделать этот файл исполняемым командой **chmod 0755 /etc/init.d/glonassd.sh**.<br>
+Командами **systemctl daemon-reload** и **update-rc.d glonassd.sh defaults** разрешить автоматический запуск демона.<br>
+Командой **update-rc.d -f glonassd.sh remove** запретить автоматический запуск демона без удаления файла glonassd.sh.<br>
+Удалить файл /etc/init.d/glonassd.sh и командой **systemctl daemon-reload** очистить информацию о демоне в системе.
 
-### License
-The glonassd is open-sourced software licensed under the [MIT license](http://opensource.org/licenses/MIT).
+### Лицензия
+glonassd это открытое ПО под лицензией [MIT](http://licenseit.ru/wiki/index.php/MIT_License).
 
-### Documentation and API
-Documentation to be written.
+### Документация и API
+Документация в процессе написания.
 
-### Epilog
-This daemon is part of navigation service of [locman.org](http://locman.org/map/index.php).<br>
-Scold author can be reached at <mailto:mail@locman.org>.
+### Эпилог
+Демон glonassd это часть навигационного сервиса [locman.org](http://locman.org/map/index.php).<br>
+Ругать автора можно здесь <mailto:mail@locman.org>.
