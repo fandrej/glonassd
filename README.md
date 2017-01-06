@@ -56,3 +56,12 @@ Use **chmod 0755 /etc/init.d/glonassd.sh** for make it executable.<br>
 Use **systemctl daemon-reload** and **update-rc.d glonassd.sh defaults** for enable autostart daemon.<br>
 Use **update-rc.d -f glonassd.sh remove** for diasble autostart without delete glonassd.sh file.<br>
 Delete /etc/init.d/glonassd.sh file and use **systemctl daemon-reload** for fully cleanup daemon info.
+
+### License
+The glonassd is open-sourced software licensed under the [MIT license](http://opensource.org/licenses/MIT).
+
+### Documentation
+Documentation to be written.
+
+### Epilog
+This daemon is part of navigation service of [locman.org](http://locman.org/map/index.php).
