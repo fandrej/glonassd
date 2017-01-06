@@ -11,8 +11,6 @@
 # Description:       Start glonassd
 ### END INIT INFO
 
-# ! 30.12.16 this file edited. Monitor glonassd autostart !
-
 # after change this file run: systemctl daemon-reload
 
 # if run error: 
