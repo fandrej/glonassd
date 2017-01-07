@@ -1,3 +1,6 @@
+# main daemon executable
+glonassd
+
 # my notes
 *.txt
 
