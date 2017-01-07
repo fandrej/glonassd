@@ -96,3 +96,6 @@ prototest: prototest.c de.h glonassd.h logger.h
 
 # all
 all: $(PROJECT) pg galileo nts satlite favw fava wialonips gps103 soap egts arnavi prototest
+
+clean:
+	rm -f *.o
