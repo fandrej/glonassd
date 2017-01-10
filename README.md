@@ -49,7 +49,8 @@ For schedule database tasks see comments about **timer** parameter in **server**
 
 ### Run
 From daemon folder use **./glonassd start** command for start daemon, **stop** | **restart** parameters for stop and restart daemon.<br>
-Use -c path/to/config/file parameter for config file not in daemon folder.
+Use -c path/to/config/file parameter for config file not in daemon folder.<br>
+If daemon configured as automatically startup, use **service glonassd start** and **service glonassd stop** for start/stop if needded.
 
 ### Autostart configure
 Edit **DAEMON** variable in **glonassd.sh** file for correct path to daemon folder.<br>
