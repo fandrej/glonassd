@@ -7,7 +7,10 @@ glonassd
 # daemon settings
 *.conf
 
-# Code::work
+# daemon local scripts
+*.sh
+
+# Code::Work environment
 *.layout
 
 # from template:
