@@ -1,5 +1,6 @@
 # main daemon executable
 glonassd
+bin/*
 /bin/*
 
 # my notes
