@@ -52,7 +52,7 @@
 
 ### Автозапуск при старте системы
 Отредактировать значение переменной **DAEMON** в файле **glonassd.sh**, указав полный путь к файлу **glonassd**.<br>
-скопировать файл **glonassd.sh** в папку **/etc/init.d**.<br>
+Cкопировать файл **glonassd.sh** в папку **/etc/init.d**.<br>
 Сделать этот файл исполняемым командой **chmod 0755 /etc/init.d/glonassd.sh**.<br>
 Командами **systemctl daemon-reload** и **update-rc.d glonassd.sh defaults** разрешить автоматический запуск демона.<br>
 Командой **update-rc.d -f glonassd.sh remove** запретить автоматический запуск демона без удаления файла glonassd.sh.<br>
