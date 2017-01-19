@@ -64,6 +64,9 @@ glonassd это открытое ПО под лицензией [MIT](http://lic
 ### Документация и API
 Документация в процессе написания.
 
+### Автор
+Федоров Андрей, Курган, Россия.<br>
+<mailto:mail@locman.org>
+
 ### Эпилог
-Демон glonassd это часть навигационного сервиса [locman.org](http://locman.org/map/index.php).<br>
-Ругать автора можно здесь <mailto:mail@locman.org>.
+Демон glonassd это часть навигационного сервиса [locman.org](http://locman.org/map/index.php).
