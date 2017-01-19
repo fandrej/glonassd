@@ -66,6 +66,9 @@ The glonassd is open-sourced software licensed under the [MIT license](http://op
 ### Documentation and API
 Documentation to be written.
 
+### Author
+Andrey Fedorov, Kurgan, Russia.<br>
+<mailto:mail@locman.org>
+
 ### Epilog
-This daemon is part of navigation service of [locman.org](http://locman.org/map/index.php).<br>
-Scold author can be reached at <mailto:mail@locman.org>.
+This daemon is part of navigation service of [locman.org](http://locman.org/map/index.php).
