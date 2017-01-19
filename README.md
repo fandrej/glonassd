@@ -64,7 +64,7 @@ Delete /etc/init.d/glonassd.sh file and use **systemctl daemon-reload** for full
 The glonassd is open-sourced software licensed under the [MIT license](http://opensource.org/licenses/MIT).
 
 ### Documentation and API
-Documentation to be written.
+[Documentation](https://github.com/fandrej/glonassd/wiki) to be written.
 
 ### Author
 Andrey Fedorov, Kurgan, Russia.<br>
