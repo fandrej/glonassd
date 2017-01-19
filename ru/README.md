@@ -62,7 +62,7 @@ Cкопировать файл **glonassd.sh** в папку **/etc/init.d**.<br
 glonassd это открытое ПО под лицензией [MIT](http://licenseit.ru/wiki/index.php/MIT_License).
 
 ### Документация и API
-Документация в процессе написания.
+[Документация](https://github.com/fandrej/glonassd/wiki) в процессе написания.
 
 ### Автор
 Федоров Андрей, Курган, Россия.<br>
