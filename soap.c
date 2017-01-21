@@ -13,14 +13,13 @@
 #include "de.h"     // ST_ANSWER
 #include "lib.h"    // MIN, MAX, BETWEEN, CRC, etc...
 #include "logger.h"
-#include "forwarder.h"
 
 
 /*
    decode function
    parcel - the raw data from socket
-   parcel_size - it length
-   answer - pointer to ST_ANSWER structure
+   parcel_size - the length of the data
+   answer - a pointer to ST_ANSWER structure
 */
 void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 {
@@ -145,10 +144,10 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 /*
    encode function
    records - pointer to array of ST_RECORD struct.
-   reccount - number of struct in array, and returning
+   reccount - number of structs (records) in array
    buffer - buffer for encoded data
-   bufsize - size of buffer
-   return size of data in the buffer for encoded data
+   bufsize - size of the buffer
+   return size of data in the buffer for encoded data in bytes
 */
 int terminal_encode(ST_RECORD *records, int reccount, char *buffer, int bufsize)
 {
