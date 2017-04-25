@@ -88,17 +88,19 @@ unsigned int test_forward(ST_WORKER *config, char *imei, ST_FORWARD_ATTR *forwar
 
 		// search imei of the terminal in forwarded terminals list
 		for(i = 0; i < stForwarders.listcount; i++) {
-			if( !strcmp(imei, stForwarders.list[i].imei) ) {	// terminal exists in list
+			if( !strcmp(imei, stForwarders.terminals[i].imei) ) {	// terminal exists in list
 
-				// search need forwarder by name & get his protocol
+				// search needded forwarder by name & get his protocol
 				for(j = 0; j < stForwarders.count; j++) {
-					if( !strcmp(stForwarders.list[i].forward, stForwarders.forwarder[j].name) ) {
+					if( !strcmp(stForwarders.terminals[i].forward, stForwarders.forwarder[j].name) ) {
 						// forwarder exists
 
 						// try to create forward socket
-						if( set_forward_socket(config, stForwarders.list[i].forward, &forward_attr[retval].forward_socket) ) {
+						if( set_forward_socket(config, stForwarders.terminals[i].forward, &forward_attr[retval].forward_socket) ) {
 							// encode need?
-							forward_attr[retval].forward_encode = strcmp(stForwarders.forwarder[j].app, config->listener->name);
+							forward_attr[retval].forward_encode = (0 != strcmp(stForwarders.forwarder[j].app, config->listener->name));
+							// forwarder index in forwarders list
+							forward_attr[retval].forward_index = j;
 
 							++retval;
 						}
@@ -137,11 +139,14 @@ static void send_data_to_forward(ST_WORKER *config, void *data, int data_size, S
 			full_size = sizeof(ST_FORWARD_MSG) + sizeof(ST_RECORD) * data_size;
 
 			if( full_size > SOCKET_BUF_SIZE ) {
+				// truncate records
 				data_size = ceil((SOCKET_BUF_SIZE - sizeof(ST_FORWARD_MSG)) / sizeof(ST_RECORD));
 				full_size = sizeof(ST_FORWARD_MSG) + sizeof(ST_RECORD) * data_size;
 			}
-		} else	// data - char* & data_size - length of the data
+		}
+		else {	// data - char* & data_size - length of the data
 			full_size = sizeof(ST_FORWARD_MSG) + data_size;
+		}
 
 		memcpy(msg->imei, config->imei, SIZE_TRACKER_FIELD);
 		msg->encode = fa->forward_encode;
@@ -154,10 +159,29 @@ static void send_data_to_forward(ST_WORKER *config, void *data, int data_size, S
 				logging("%s[%ld]: send(forward_socket) error %d: %s\n", config->listener->name, syscall(SYS_gettid), errno, strerror(errno));
 				set_forward_socket(config, NULL, &fa->forward_socket);	// close socket
 			}	// if( send(
+			else {
+				if( stConfigServer.log_enable > 1 ){
+					if( msg->encode )
+						logging("%s[%ld]: %s: send to forward %d records, encode=%d\n", config->listener->name, syscall(SYS_gettid), msg->imei, msg->len, msg->encode);
+					else
+						logging("%s[%ld]: %s: send to forward %d bytes, encode=%d\n", config->listener->name, syscall(SYS_gettid), msg->imei, msg->len, msg->encode);
+				}
+			}	// else if( send(
 		}
+		else {
+			if( stConfigServer.log_enable )
+				logging("%s[%ld]: send_data_to_forward: %s full_size(%ld) > SOCKET_BUF_SIZE\n", config->listener->name, syscall(SYS_gettid), msg->imei, full_size);
+		}	// else if( full_size <= SOCKET_BUF_SIZE )
 
 	}	// if( data && data_size )
-	// else hui s nim
+	else {
+		if( stConfigServer.log_enable > 1 ){
+			if( data_size )
+				logging("%s[%ld]: send_data_to_forward: %s data is NULL\n", config->listener->name, syscall(SYS_gettid), config->imei);
+			else
+				logging("%s[%ld]: send_data_to_forward: %s data_size <= 0\n", config->listener->name, syscall(SYS_gettid), config->imei);
+		}	// if( stConfigServer.log_enable > 1 )
+	}	// else if( data && data_size )
 }
 //------------------------------------------------------------------------------
 
@@ -446,7 +470,8 @@ void *worker_thread(void *st_worker)
 
 					if( forward_attr[i].forward_encode ) {	// terminal & forward protocols not equal
 						send_data_to_forward(config, answer.records, answer.count, &forward_attr[i]);	// forward decoded records
-					} else { // terminal & forward protocols is equal
+					}
+					else { // terminal & forward protocols is equal
 						send_data_to_forward(config, socket_buf, bytes_read, &forward_attr[i]);	// forward raw data
 					}
 				}	// if( forward_attr[i].forward_socket != BAD_OBJ )

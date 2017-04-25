@@ -12,6 +12,7 @@
 typedef struct {
 	int forward_socket; // socket for forwarding
 	int forward_encode;	// flag for encode data into another protocol for forward
+	int forward_index;	// index of forwarder in forwarders list
 } ST_FORWARD_ATTR;
 
 // worker structure
@@ -21,7 +22,7 @@ typedef struct {
 	struct sockaddr_in client_addr;
 	char imei[SIZE_TRACKER_FIELD];	// may be volatile!!!
 	ST_LISTENER *listener;	// pointer to listener structure
-	mqd_t db_queue;	// Posix IPC queue, created in database module (e.g. pg.c for PostgreSQL)
+	mqd_t db_queue;		// Posix IPC queue, created in database module (e.g. pg.c for PostgreSQL)
 } ST_WORKER;
 
 void *worker_thread(void *st_worker);

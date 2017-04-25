@@ -759,15 +759,13 @@ int responce_add_subrecord_EGTS_SR_COMMAND_DATA(char *buffer, int pointer, EGTS_
 
 /* encode function
    records - pointer to array of ST_RECORD struct.
-   reccount - number of struct in array, and returning
+   reccount - number of struct in array, and returning (negative if authentificate required)
    buffer - buffer for encoded data
    bufsize - size of buffer
    return size of data in the buffer for encoded data
 */
 int terminal_encode(ST_RECORD *records, int reccount, char *buffer, int bufsize)
 {
-	static int terminals_cnt = 0;	// length of the terminals array
-	static char terminals[MAX_TERMINALS][SIZE_TRACKER_FIELD];	// authentificated terminals array
 	EGTS_RECORD_HEADER *record_header = NULL;
 	EGTS_SUBRECORD_HEADER *subrecord_header = NULL;
 	int i, top = 0;
@@ -776,51 +774,32 @@ int terminal_encode(ST_RECORD *records, int reccount, char *buffer, int bufsize)
 	top = packet_create(buffer, EGTS_PT_APPDATA);
 
 	/*
-	   test for imei logon on the remote server
-	   important: we not forwarding forwarded records, therefore use one imei only in record set
+	   test for imei logging on the remote server
 	*/
-	if( terminals_cnt ) {
-		for(i = 0; i < terminals_cnt; i++) {
-			if( records[0].imei[0] == terminals[i][0] && strcmp(records[0].imei, terminals[i]) == 0 )
-				break;
-		}
-	} else {
-		i = terminals_cnt = 0;
-	}
+	if( reccount < 0 ) {	// not logged to remote server
+		// EGTS_AUTH_SERVICE
+		// add record (SDR) EGTS_RECORD_HEADER
+		record_header = (EGTS_RECORD_HEADER *)&buffer[top];
+		top = packet_add_record_header(buffer, top, EGTS_AUTH_SERVICE, EGTS_AUTH_SERVICE);
 
+		// add subrecord header (SRD) EGTS_SR_TERM_IDENTITY
+		subrecord_header = (EGTS_SUBRECORD_HEADER *)&buffer[top];
+		top = packet_add_subrecord_header(buffer, top, record_header, EGTS_SR_TERM_IDENTITY);
 
-	/* !!! считаем терминал залогиненым на сервер, не дожидаясь ответа сервера */
-	if( i == terminals_cnt ) {	// not logged to remote server
-		if( terminals_cnt < MAX_TERMINALS - 1 ) {
-			// EGTS_AUTH_SERVICE
-			// add record (SDR) EGTS_RECORD_HEADER
-			record_header = (EGTS_RECORD_HEADER *)&buffer[top];
-			top = packet_add_record_header(buffer, top, EGTS_AUTH_SERVICE, EGTS_AUTH_SERVICE);
+		// add subrecord (SRD) EGTS_SR_TERM_IDENTITY
+		top = packet_add_subrecord_EGTS_SR_TERM_IDENTITY(buffer, top, record_header, subrecord_header, records[0].imei);
 
-			// add subrecord header (SRD) EGTS_SR_TERM_IDENTITY
-			subrecord_header = (EGTS_SUBRECORD_HEADER *)&buffer[top];
-			top = packet_add_subrecord_header(buffer, top, record_header, EGTS_SR_TERM_IDENTITY);
+		// add CRC
+		top += packet_finalize(buffer, top);
 
-			// add subrecord (SRD) EGTS_SR_TERM_IDENTITY
-			top = packet_add_subrecord_EGTS_SR_TERM_IDENTITY(buffer, top, record_header, subrecord_header, records[0].imei);
+		// authentificate complete, return
+		return top;
+		// !!! считаем терминал залогиненым на сервер, не дожидаясь ответа сервера
+	}	// if( reccount < 0 )
 
-			// add CRC
-			top += packet_finalize(buffer, top);
-
-			terminals_cnt++;
-			memset(terminals[i], 0, SIZE_TRACKER_FIELD);
-			snprintf(terminals[i], SIZE_TRACKER_FIELD, "%s", records[0].imei);
-
-			// authentificate complete, return
-			return top;
-		}	// if( terminals_cnt < MAX_TERMINALS - 1 )
-		else	// too many terminals
-			return 0;
-	}	// if( i == terminals_cnt )
-
-	// logged to remote server,
-	// EGTS_TELEDATA_SERVICE
+	// here we logged to remote server,
 	// create naviagtion data records (EGTS_SR_POS_DATA_RECORD, EGTS_SR_EXT_POS_DATA_RECORD, EGTS_SR_LIQUID_LEVEL_SENSOR_RECORD)
+	// EGTS_TELEDATA_SERVICE
 
 	for(i = 0; i < reccount; i++) {
 

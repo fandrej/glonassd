@@ -344,7 +344,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 /*
    encode function
    records - pointer to array of ST_RECORD struct.
-   reccount - number of struct in array, and returning
+   reccount - number of struct in array, and returning (negative if authentificate required)
    buffer - buffer for encoded data
    bufsize - size of buffer
    return size of data in the buffer for encoded data

@@ -29,7 +29,6 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <dirent.h>
 #include <fcntl.h>
 #include "glonassd.h"
 #include "forwarder.h"
@@ -53,6 +52,52 @@ static __thread int out_connected = 0;					// out connection flag
 /*
     utility functions
 */
+
+/*
+reset logged flag to "no" for all terminals
+called when socket to remote server disconnect
+*/
+static void terimal_reset_logged(char *forward_name)
+{
+	unsigned int i;
+
+	for(i = 0; i < stForwarders.listcount; i++) {
+		if( forward_name[0] == stForwarders.terminals[i].forward[0] )
+		{
+			if( !strcmp(forward_name, stForwarders.terminals[i].forward) )
+			{
+				stForwarders.terminals[i].logged = 0;
+			}
+		}
+	}	// for(i = 0; i < stForwarders.listcount; i++)
+}
+//------------------------------------------------------------------------------
+
+/*
+test: logged terminal on remote server or not
+always set logged flag to "yes"
+*/
+static int terimal_logged(char *imei, char *forward_name)
+{
+	unsigned int i, retval = 1;
+
+	if( imei ){
+		for(i = 0; i < stForwarders.listcount; i++) {
+			if( forward_name[0] == stForwarders.terminals[i].forward[0] && imei[0] == stForwarders.terminals[i].imei[0] )
+			{
+				if( !strcmp(forward_name, stForwarders.terminals[i].forward) && !strcmp(imei, stForwarders.terminals[i].imei) )
+				{
+					retval = stForwarders.terminals[i].logged;
+					stForwarders.terminals[i].logged = 1;
+					break;
+				}
+			}
+		}	// for(i = 0; i < stForwarders.listcount; i++)
+	}	// if( imei )
+
+	return retval;
+}
+//------------------------------------------------------------------------------
 
 /*
     save forwarding data to file (!!! data encoded to required protocol !!!)
@@ -88,8 +133,16 @@ static void data_save(char *config_name, char *imei, char *content, ssize_t cont
 			write(fHandle, content, content_size);
 
 			close(fHandle);
+
+			if( stConfigServer.log_enable > 1 )
+				logging("forwarder[%s][%ld]: data_save: written %ld bytes to file\n", config_name, syscall(SYS_gettid), content_size);
+		}
+		else {
+			logging("forwarder[%s][%ld]: data_save: open(%s) error %d: %s\n", config_name, syscall(SYS_gettid), fName, errno, strerror(errno));
 		}
 	}	// if( content && content_size )
+	else if( stConfigServer.log_enable > 1 )
+		logging("forwarder[%s][%ld]: data_save: content is NULL or content_size=%ld\n", config_name, syscall(SYS_gettid), content_size);
 }
 //---------------------------------------------------------------------------
 
@@ -102,6 +155,9 @@ static int set_out_socket(ST_FORWARDER *config, int create)
 	disconnect_time = seconds();
 
 	if( create ) {	// create socket
+		if( stConfigServer.log_enable > 1 )
+			logging("forwarder[%s][%ld]: start connect to remote host %s:%d\n", config->name, syscall(SYS_gettid), config->server, config->port);
+
 		if( config->sockets[OUT_SOCKET] == -1 ) {
 			config->sockets[OUT_SOCKET] = socket(AF_INET, config->protocol, 0);
 			if( config->sockets[OUT_SOCKET] < 0 ) {
@@ -168,8 +224,11 @@ static int set_out_socket(ST_FORWARDER *config, int create)
 				config->sockets[OUT_SOCKET] = -1;
 			}
 			// else connection in progress, see result of poll()
-		} else
+		}
+		/* 24.04.17
+		else
 			out_connected = 1;
+		*/
 
 	}	// if( create )
 	else {	// destroy socket
@@ -177,6 +236,8 @@ static int set_out_socket(ST_FORWARDER *config, int create)
 		shutdown(config->sockets[OUT_SOCKET], SHUT_RDWR);
 		close(config->sockets[OUT_SOCKET]);
 		config->sockets[OUT_SOCKET] = -1;
+
+		terimal_reset_logged(config->name);
 	}
 
 	return( create ? (config->sockets[OUT_SOCKET] != BAD_OBJ) : 1);
@@ -193,18 +254,41 @@ static void process_terminal(ST_FORWARDER *config, char *bufer, ssize_t size)
 	ST_FORWARD_MSG *msg;
 	ssize_t data_len = 0, sended = 0;
 
-	if( !bufer || !size )
+	if( !bufer ){
+		if( stConfigServer.log_enable > 1 )
+			logging("forwarder[%s][%ld]: process_terminal %s: bufer is NULL\n", config->name, syscall(SYS_gettid), msg->imei);
 		return;
+	}
+
+	if( !size ){
+		if( stConfigServer.log_enable > 1 )
+			logging("forwarder[%s][%ld]: process_terminal %s: size = 0\n", config->name, syscall(SYS_gettid), msg->imei);
+		return;
+	}
 
 	msg = (ST_FORWARD_MSG *)bufer;
-	if( !msg->len )
+	if( !msg->len ){
+		if( stConfigServer.log_enable > 1 )
+			logging("forwarder[%s][%ld]: process_terminal %s: msg->len = 0\n", config->name, syscall(SYS_gettid), msg->imei);
 		return;
+	}
 
 	if( msg->encode ) {	// encode need, data = ST_RECORD*, msg->len = number of the records in data
+		/* check: terminal authentificated or no on remote server,
+		if no (ST_FORWARD_TERMINAL[imei][config->name].logged == 0) then set msg->len = -1 * msg->len
+		else msg->len not change
+		*/
+		if( !terimal_logged(msg->imei, config->name) )
+			msg->len *= -1;
+
+		//if( strcmp(msg->imei, "868204004255146")==0 )
+		//	logging("forwarder[%s][%ld]: process_terminal: %s msg->len=%d\n", config->name, syscall(SYS_gettid), msg->imei, msg->len);
+
 		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);	// do not disturb :)
 		data_len = config->terminal_encode((ST_RECORD*)&bufer[sizeof(ST_FORWARD_MSG)], msg->len, config->buffers[OUT_WRBUF], SOCKET_BUF_SIZE);
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);  // can disturb :)
-	} else {	// data = raw terminal data, msg->len = data size
+	}
+	else {	// data = raw terminal data, msg->len = data size
 		// copy data part to out buffer
 		memcpy(config->buffers[OUT_WRBUF], &bufer[sizeof(ST_FORWARD_MSG)], msg->len);
 		data_len = msg->len;
@@ -214,21 +298,28 @@ static void process_terminal(ST_FORWARDER *config, char *bufer, ssize_t size)
 		if( out_connected ) {
 			sended = send(config->sockets[OUT_SOCKET], config->buffers[OUT_WRBUF], data_len, 0);
 			if( sended <= 0 ) {	// socket error or disconnect
-				logging("forwarder[%s][%ld]: send() error %d: %s\n", config->name, syscall(SYS_gettid), errno, strerror(errno));
+				logging("forwarder[%s][%ld]: process_terminal: send() error %d: %s\n", config->name, syscall(SYS_gettid), errno, strerror(errno));
 				set_out_socket(config, 0);	// disconnect outer socket
 			}	// if( sended <= 0 )
+			else {
+				if( stConfigServer.log_enable > 1 )
+				//if( strcmp(msg->imei, "868204004255146")==0 )
+					logging("forwarder[%s][%ld]: process_terminal %s: sended %ld bytes to remote server\n", config->name, syscall(SYS_gettid), msg->imei, sended);
+			}
 		}	// if( out_connected )
-		/*  29.11.16
-		    else {
-			set_out_socket(config, 1);	// try to connect outer socket
-		    }
-		*/
 
 		if( sended <= 0 ) {
 			// save buffer to file for send later
 			data_save(config->name, msg->imei, config->buffers[OUT_WRBUF], data_len);
 		}
+
+		//if( strcmp(msg->imei, "868204004255146")==0 )
+			//log2file("/opt/glonassd/logs/868204004255146", config->buffers[OUT_WRBUF], data_len);
 	}	// if( data_len )
+	else {
+		if( stConfigServer.log_enable > 1 )
+			logging("forwarder[%s][%ld]: process_terminal %s: data_len = 0\n", config->name, syscall(SYS_gettid), msg->imei);
+	}	// else if( data_len )
 }
 //------------------------------------------------------------------------------
 
@@ -308,9 +399,8 @@ void *forwarder_thread(void *st_forwarder)
 	static __thread int i, fHandle, so_error;
 	static __thread socklen_t so_error_len = sizeof(int);
 	static __thread ssize_t bytes_read = 0;
-	static __thread DIR *data_dir;
-	static __thread struct dirent *dir_item;
 	static __thread char fName[FILENAME_MAX];
+	static __thread struct dirent *result;
 
 	// eror handler:
 	void exit_forwarder_thread(void * arg) {
@@ -321,6 +411,7 @@ void *forwarder_thread(void *st_forwarder)
 			if( config->sockets[i] != -1 ) {
 				shutdown(config->sockets[i], SHUT_RDWR);
 				close(config->sockets[i]);
+				config->sockets[i] = -1;
 			}
 		}
 
@@ -329,6 +420,14 @@ void *forwarder_thread(void *st_forwarder)
 		*/
 		if( strlen(config->addr_un.sun_path) )
 			unlink(config->addr_un.sun_path);
+
+		if( config->data_dir )
+			closedir(config->data_dir);
+
+		if( config->dir_item )
+			free(config->dir_item);
+
+		terimal_reset_logged(config->name);
 
 		logging("forwarder %s[%ld] destroyed\n", config->name, syscall(SYS_gettid));
 	}	// exit_forwarder_thread
@@ -353,12 +452,9 @@ void *forwarder_thread(void *st_forwarder)
 		return NULL;
 	}
 
-	// set outer socket
+	// set outer server socket
 	config->sockets[OUT_SOCKET] = -1;
-	if( !set_out_socket(config, 1) ) {
-		exit_forwarder_thread(NULL);
-		return NULL;
-	}
+	set_out_socket(config, 1);	// if not connected, will retry
 
 	memset(&answer, 0, sizeof(ST_ANSWER));
 
@@ -389,21 +485,23 @@ void *forwarder_thread(void *st_forwarder)
 				break;
 			default:
 
-				/* read saved parcels and send to destination */
-				data_dir = opendir(stConfigServer.forward_files);	// use malloc internally
+				if( stConfigServer.log_enable > 1 )
+					logging("forwarder[%s][%ld]: read and send saved parcels\n", config->name, syscall(SYS_gettid));
 
-				if( data_dir ) {
+				/* read saved parcels and send to destination */
+				if( config->data_dir ) {
+					rewinddir(config->data_dir);	// resets the position of the directory stream to the beginning of the directory
 					i = 0;	// number of files to read
 
 					// iterate files in directory
-					while( (dir_item = readdir(data_dir)) != NULL ) {
+					while( !readdir_r(config->data_dir, config->dir_item, &result) && result != NULL ) {
 						// is file name OK & contain this forwarder name & contain ".bin"?
-						if( strlen(dir_item->d_name)
-								&& strstr(dir_item->d_name, config->name)
-								&& strstr(dir_item->d_name, ".bin") ) {
+						if( strlen(config->dir_item->d_name)
+								&& strstr(config->dir_item->d_name, config->name)
+								&& strstr(config->dir_item->d_name, ".bin") ) {
 
 							// generate full file name
-							snprintf(fName, FILENAME_MAX, "%s/%s", stConfigServer.forward_files, dir_item->d_name);
+							snprintf(fName, FILENAME_MAX, "%s/%s", stConfigServer.forward_files, config->dir_item->d_name);
 
 							// open file for read
 							if( (fHandle = open(fName, O_RDONLY | O_NOATIME)) != -1 ) {
@@ -413,7 +511,12 @@ void *forwarder_thread(void *st_forwarder)
 									process_terminal(config, config->buffers[IN_RDBUF], bytes_read);
 
 								close(fHandle);
+
+								if( stConfigServer.log_enable > 1 )
+									logging("forwarder[%s][%ld]: send saved file %s\n", config->name, syscall(SYS_gettid), config->dir_item->d_name);
 							}	// if( (fHandle = open(fName
+							else if( stConfigServer.log_enable > 1 )
+								logging("forwarder[%s][%ld]: read saved file %s error: %d: %s\n", config->name, syscall(SYS_gettid), config->dir_item->d_name, errno, strerror(errno));
 
 							// delete file
 							unlink(fName);
@@ -423,10 +526,9 @@ void *forwarder_thread(void *st_forwarder)
 						}	// if( strlen(dir_item->d_name) &&
 					}	// while( (dir_item = readdir(data_dir)) != NULL )
 
-					closedir(data_dir);
 				}	// if( data_dir )
 				else {
-					logging("forwarder[%s][%ld]: opendir(%s) error %d: %s\n", config->name, syscall(SYS_gettid), stConfigServer.forward_files, errno, strerror(errno));
+					logging("forwarder[%s][%ld]: directory %s is not opened\n", config->name, syscall(SYS_gettid), stConfigServer.forward_files);
 				}	// else if( data_dir )
 
 			}	// switch( config->sockets[OUT_SOCKET] )
@@ -439,10 +541,13 @@ void *forwarder_thread(void *st_forwarder)
 				i = OUT_SOCKET;
 
 				if( (config->pollset[i].revents & POLLOUT) || (config->pollset[i].revents & POLLWRNORM) ) {
-					out_connected = 0 == getsockopt(config->sockets[OUT_SOCKET], SOL_SOCKET, SO_ERROR, &so_error, &so_error_len) + so_error;
+					out_connected = !getsockopt(config->sockets[OUT_SOCKET], SOL_SOCKET, SO_ERROR, &so_error, &so_error_len) && !so_error;
 					if( out_connected )
 						logging("forwarder[%s][%ld]: remote host %s:%d connected\n", config->name, syscall(SYS_gettid), config->server, config->port);
-				} else if( (config->pollset[i].revents & POLLIN) || (config->pollset[i].revents & POLLRDNORM) ) {
+					else
+						logging("forwarder[%s][%ld]: connecting to remote host %s:%d socket error %d: %s\n", config->name, syscall(SYS_gettid), config->server, config->port, so_error, strerror(so_error));
+				}
+				else if( (config->pollset[i].revents & POLLIN) || (config->pollset[i].revents & POLLRDNORM) ) {
 
 					if( out_connected ) {
 
@@ -451,8 +556,10 @@ void *forwarder_thread(void *st_forwarder)
 
 						bytes_read = recv(config->sockets[OUT_SOCKET], config->buffers[OUT_RDBUF], SOCKET_BUF_SIZE, 0);
 						if( bytes_read > 0 ) { // data
+							if( stConfigServer.log_enable > 1 )
+								logging("forwarder[%s][%ld]: received %ld bytes from remote host %s\n", config->name, syscall(SYS_gettid), bytes_read, config->server);
 
-							/*  28.11.16 errors in galileo.c & satlite.c FIXED!, this block can be used safely
+						    // decode server answer
 						    if( config->terminal_decode ) {
 								pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);	// do not disturb :)
 								config->terminal_decode(config->buffers[OUT_RDBUF], bytes_read, &answer);
@@ -460,23 +567,25 @@ void *forwarder_thread(void *st_forwarder)
 						    }	// if( config->terminal_decode )
 
 						    if( answer.size ) {
+								// send answer to terminal
+								/*
 								memcpy(config->buffers[OUT_WRBUF], answer.answer, answer.size);
-								if( send(config->sockets[OUT_SOCKET], config->buffers[OUT_WRBUF], answer.size, 0) <= 0 ) {	// socket error or disconnect
-									logging("forwarder[%s][%ld]: send() error %d: %s\n", config->name, syscall(SYS_gettid), errno, strerror(errno));
-									set_out_socket(config, 0);
-								}
+								*/
 						    }	// if( answer.size )
-							*/
 
 						}	// if( bytes_read > 0 )
 						else { // nothing respond or error or close remote connection
 							if( errno ) {
-								set_out_socket(config, 0);
 								logging("forwarder[%s][%ld]: remote host %s:%d error %d: %s\n", config->name, syscall(SYS_gettid), config->server, config->port, errno, strerror(errno));
+								set_out_socket(config, 0);
 							}
 						}	// else if( bytes_read > 0 )
 
 					}	// if( out_connected )
+					else {
+						if( stConfigServer.log_enable > 1 )
+							logging("forwarder[%s][%ld]: events %u from socket, but socket not connected\n", config->name, syscall(SYS_gettid), config->pollset[i].revents);
+					}
 
 				}	// else if( (config->pollset[i].revents & POLLIN)
 				else {	// error or close remote connection
@@ -497,6 +606,12 @@ void *forwarder_thread(void *st_forwarder)
 					if( bytes_read > 0 ) {
 						process_terminal(config, config->buffers[IN_RDBUF], bytes_read);
 					}	// if( bytes_read > 0 )
+					else {
+						if( errno )
+							logging("forwarder[%s][%ld]: local socket recv error %d: %s\n", config->name, syscall(SYS_gettid), errno, strerror(errno));
+						else if( stConfigServer.log_enable > 1 )
+							logging("forwarder[%s][%ld]: local socket recv return 0 bytes\n", config->name, syscall(SYS_gettid));
+					}
 
 				}	// if( config->pollset[i].revents & POLLIN )
 				else {

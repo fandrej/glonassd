@@ -236,7 +236,7 @@ int set_config(char *section, char *param, char *value)
 
 		if( strcmp(param, "list") == 0 ) {
 			// load list of forwarding terminals
-			stForwarders.listcount = load_terminals(value, &stForwarders.list);
+			stForwarders.listcount = load_terminals(value, &stForwarders.terminals);
 		} else {
 			// froward packets configuration
 			stForwarders.count++;

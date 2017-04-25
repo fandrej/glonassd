@@ -68,6 +68,8 @@
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
+#include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
@@ -525,12 +527,21 @@ static int forwarders_start()
 {
 	unsigned int i = 0, cnt = 0;
 	int thread_ok;
+	long name_max, len;
 
 	// iterate forwarders
 	for(i = 0; i < stForwarders.count; i++) {
 
 		// load library for encode/decode functions
 		if( library_load(stForwarders.forwarder[i].app, &stForwarders.forwarder[i].library_handle, (void*)&stForwarders.forwarder[i].terminal_decode, (void*)&stForwarders.forwarder[i].terminal_encode) ) {
+
+			// open saved files directory
+			stForwarders.forwarder[i].data_dir = opendir(stConfigServer.forward_files);	// use malloc internally
+			name_max = pathconf(stConfigServer.forward_files, _PC_NAME_MAX);
+			if (name_max == -1)         /* Limit not defined, or error */
+				name_max = FILENAME_MAX;         /* Take a guess */
+			len = offsetof(struct dirent, d_name) + name_max + 1;
+			stForwarders.forwarder[i].dir_item = malloc(len);
 
 			// start forwarder in separate thread, passing point to his config (last parameter)
 			if( attr_init )
@@ -576,9 +587,9 @@ static int forwarders_stop()
 	stForwarders.count = 0;
 
 	// clear list of the forwarding terminals
-	if( stForwarders.list ) {
-		free(stForwarders.list);
-		stForwarders.list = NULL;
+	if( stForwarders.terminals ) {
+		free(stForwarders.terminals);
+		stForwarders.terminals = NULL;
 	}
 	stForwarders.listcount = 0;
 
