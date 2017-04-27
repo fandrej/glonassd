@@ -39,15 +39,15 @@
 /*
     treads shared globals
 */
-#define CONNECT_SOCKET_TIMEOUT (5)	// socket timeout in seconds for connect
-#define POLL_SOCKET_TIMEOUT (3)		// socket timeout in seconds for poll (select)
-#define OUT_SOCKET_WAIT_TIME (60)	// wait time for outer socket reconnect
+#define CONNECT_SOCKET_TIMEOUT (5)	// socket timeout in seconds for connect()
+#define SELECT_SOCKET_TIMEOUT (3)	// socket timeout in seconds for select()
+#define OUT_SOCKET_WAIT_TIME (30)	// wait time for outer socket reconnect, seconds
 
 /*
     thread locals
 */
 static __thread unsigned long long int disconnect_time = 0;	// time in seconds when out socket disconnected
-static __thread int out_connected = 0;					// out connection flag
+static __thread int out_connected = 0;					// out connection established flag
 
 /*
     utility functions
@@ -158,7 +158,7 @@ static int set_out_socket(ST_FORWARDER *config, int create)
 		if( stConfigServer.log_enable > 1 )
 			logging("forwarder[%s][%ld]: start connect to remote host %s:%d\n", config->name, syscall(SYS_gettid), config->server, config->port);
 
-		if( config->sockets[OUT_SOCKET] == -1 ) {
+		if( config->sockets[OUT_SOCKET] == BAD_OBJ ) {
 			config->sockets[OUT_SOCKET] = socket(AF_INET, config->protocol, 0);
 			if( config->sockets[OUT_SOCKET] < 0 ) {
 				logging("forwarder[%s][%ld]: socket() error %d: %s\n", config->name, syscall(SYS_gettid), errno, strerror(errno));
@@ -169,7 +169,7 @@ static int set_out_socket(ST_FORWARDER *config, int create)
 			if( fcntl(config->sockets[OUT_SOCKET], F_SETFL, O_NONBLOCK) < 0 ) {
 				logging("forwarder[%s][%ld]: fcntl(OUT_SOCKET, O_NONBLOCK) error %d: %s\n", config->name, syscall(SYS_gettid), errno, strerror(errno));
 				close(config->sockets[OUT_SOCKET]);
-				config->sockets[OUT_SOCKET] = -1;
+				config->sockets[OUT_SOCKET] = BAD_OBJ;
 				return 0;
 			}
 
@@ -207,10 +207,10 @@ static int set_out_socket(ST_FORWARDER *config, int create)
 			if( bind(config->sockets[OUT_SOCKET], (struct sockaddr *)&addr_in, sizeof(struct sockaddr_in)) < 0 ) {
 				logging("forwarder[%s][%ld]: bind(%s) error %d: %s\n", config->name, syscall(SYS_gettid), stConfigServer.transmit, errno, strerror(errno));
 				close(config->sockets[OUT_SOCKET]);
-				config->sockets[OUT_SOCKET] = -1;
+				config->sockets[OUT_SOCKET] = BAD_OBJ;
 				return 0;
 			}
-		}	// if( config->sockets[OUT_SOCKET] == -1 )
+		}	// if( config->sockets[OUT_SOCKET] == BAD_OBJ )
 
 		// connect socket to external address
 		memset(&addr_in, 0, sizeof(struct sockaddr_in));
@@ -221,21 +221,17 @@ static int set_out_socket(ST_FORWARDER *config, int create)
 			if( errno != EINPROGRESS ) {	// non-blocking socket, connection not in progress (error)
 				logging("forwarder[%s][%ld]: connect(%s:%d) error %d: %s\n", config->name, syscall(SYS_gettid), config->server, config->port, errno, strerror(errno));
 				close(config->sockets[OUT_SOCKET]);
-				config->sockets[OUT_SOCKET] = -1;
+				config->sockets[OUT_SOCKET] = BAD_OBJ;
 			}
 			// else connection in progress, see result of poll()
-		}
-		/* 24.04.17
-		else
-			out_connected = 1;
-		*/
+		}	// if( connect(
 
 	}	// if( create )
 	else {	// destroy socket
-		out_connected = 0;
+		out_connected = 0;	// reset connetion established flag
 		shutdown(config->sockets[OUT_SOCKET], SHUT_RDWR);
 		close(config->sockets[OUT_SOCKET]);
-		config->sockets[OUT_SOCKET] = -1;
+		config->sockets[OUT_SOCKET] = BAD_OBJ;
 
 		terimal_reset_logged(config->name);
 	}
@@ -301,32 +297,24 @@ static void process_terminal(ST_FORWARDER *config, char *bufer, ssize_t size)
 				logging("forwarder[%s][%ld]: process_terminal: send() error %d: %s\n", config->name, syscall(SYS_gettid), errno, strerror(errno));
 				set_out_socket(config, 0);	// disconnect outer socket
 			}	// if( sended <= 0 )
-			else {
-				if( stConfigServer.log_enable > 1 )
-				//if( strcmp(msg->imei, "868204004255146")==0 )
-					logging("forwarder[%s][%ld]: process_terminal %s: sended %ld bytes to remote server\n", config->name, syscall(SYS_gettid), msg->imei, sended);
-			}
+			else if( stConfigServer.log_enable > 1 )
+				logging("forwarder[%s][%ld]: process_terminal %s: sended %ld bytes to remote server\n", config->name, syscall(SYS_gettid), msg->imei, sended);
 		}	// if( out_connected )
 
-		if( sended <= 0 ) {
-			// save buffer to file for send later
+		if( sended <= 0 )	// save buffer to file for send later
 			data_save(config->name, msg->imei, config->buffers[OUT_WRBUF], data_len);
-		}
 
 		//if( strcmp(msg->imei, "868204004255146")==0 )
 			//log2file("/opt/glonassd/logs/868204004255146", config->buffers[OUT_WRBUF], data_len);
 	}	// if( data_len )
-	else {
-		if( stConfigServer.log_enable > 1 )
-			logging("forwarder[%s][%ld]: process_terminal %s: data_len = 0\n", config->name, syscall(SYS_gettid), msg->imei);
-	}	// else if( data_len )
+	else if( stConfigServer.log_enable > 1 )
+		logging("forwarder[%s][%ld]: process_terminal %s: data_len=%ld\n", config->name, syscall(SYS_gettid), msg->imei, data_len);
 }
 //------------------------------------------------------------------------------
 
 // set up inner listener socket
 static int set_listen_socket(ST_FORWARDER *config)
 {
-
 	// create socket
 	config->sockets[IN_SOCKET] = socket(AF_UNIX, SOCK_DGRAM, 0);
 	if( config->sockets[IN_SOCKET] < 0 ) {
@@ -361,30 +349,31 @@ static int set_listen_socket(ST_FORWARDER *config)
 // wait sockets activity
 static int wait_sockets(ST_FORWARDER *config)
 {
-	unsigned int cnt = 1;
+	unsigned int cnt;
+	struct timeval tv;
 
 	// test out socket and reconnect if disconnected
-	if( config->sockets[OUT_SOCKET] == -1 && (seconds() - disconnect_time >= OUT_SOCKET_WAIT_TIME)) {
+	if( config->sockets[OUT_SOCKET] == BAD_OBJ && (seconds() - disconnect_time >= OUT_SOCKET_WAIT_TIME)) {
 		set_out_socket(config, 1);
 	}
 
-	memset(&config->pollset, 0, CNT_SOCKETS * sizeof(struct pollfd));
+	FD_ZERO(&config->fdset[0]);	// read
+	FD_ZERO(&config->fdset[1]);	// write
+	FD_SET(config->sockets[IN_SOCKET], &config->fdset[0]);
 
-	config->pollset[IN_SOCKET].fd = config->sockets[IN_SOCKET];
-	config->pollset[IN_SOCKET].events = POLLIN + POLLRDHUP;
-	config->pollset[IN_SOCKET].revents = 0;
-
-	if( config->sockets[OUT_SOCKET] != -1 ) {
-		config->pollset[OUT_SOCKET].fd = config->sockets[OUT_SOCKET];
-		config->pollset[OUT_SOCKET].events = POLLIN + POLLRDHUP;
-		if( !out_connected )
-			config->pollset[OUT_SOCKET].events += POLLOUT;
-		config->pollset[OUT_SOCKET].revents = 0;
-		++cnt;
+	if( config->sockets[OUT_SOCKET] != BAD_OBJ ) {
+		if( out_connected )
+			FD_SET(config->sockets[OUT_SOCKET], &config->fdset[0]);	// read
+		else
+			FD_SET(config->sockets[OUT_SOCKET], &config->fdset[1]);	// write
 	}
 
-	//                        milliseconds
-	return poll(config->pollset, cnt, POLL_SOCKET_TIMEOUT * 1000);
+	tv.tv_sec = SELECT_SOCKET_TIMEOUT;
+	tv.tv_usec = 0;
+
+	cnt = config->sockets[OUT_SOCKET] > config->sockets[IN_SOCKET] ? config->sockets[OUT_SOCKET] : config->sockets[IN_SOCKET];
+
+	return select(cnt + 1, &config->fdset[0], &config->fdset[1], NULL, &tv);
 }
 //------------------------------------------------------------------------------
 
@@ -408,10 +397,10 @@ void *forwarder_thread(void *st_forwarder)
 
 		// clear sockets
 		for(i = 0; i < CNT_SOCKETS; i++ ) {
-			if( config->sockets[i] != -1 ) {
+			if( config->sockets[i] != BAD_OBJ ) {
 				shutdown(config->sockets[i], SHUT_RDWR);
 				close(config->sockets[i]);
-				config->sockets[i] = -1;
+				config->sockets[i] = BAD_OBJ;
 			}
 		}
 
@@ -446,14 +435,14 @@ void *forwarder_thread(void *st_forwarder)
 	}
 
 	// set inner listener socket
-	config->sockets[IN_SOCKET] = -1;
+	config->sockets[IN_SOCKET] = BAD_OBJ;
 	if( !set_listen_socket(config) ) {
 		exit_forwarder_thread(NULL);
 		return NULL;
 	}
 
 	// set outer server socket
-	config->sockets[OUT_SOCKET] = -1;
+	config->sockets[OUT_SOCKET] = BAD_OBJ;
 	set_out_socket(config, 1);	// if not connected, will retry
 
 	memset(&answer, 0, sizeof(ST_ANSWER));
@@ -467,158 +456,131 @@ void *forwarder_thread(void *st_forwarder)
 
 		pthread_testcancel();
 
-		i = wait_sockets(config);
-		switch( i ) {
-		case -1:	// poll() error
-			logging("forwarder[%s][%ld]: poll() error %d: %s\n", config->name, syscall(SYS_gettid), errno, strerror(errno));
+		switch( wait_sockets(config) ) {
+		case -1:	// select() error
+
+			logging("forwarder[%s][%ld]: select() error %d: %s\n", config->name, syscall(SYS_gettid), errno, strerror(errno));
 			exit_forwarder_thread(NULL);
 			return NULL;
+
 		case 0:	// timeout
 
-			switch( config->sockets[OUT_SOCKET] ) {
-			case -1:
+			if( stConfigServer.log_enable > 1 )
+				logging("forwarder[%s][%ld]: read and send saved parcels\n", config->name, syscall(SYS_gettid));
 
-				if( seconds() - disconnect_time >= OUT_SOCKET_WAIT_TIME ) {	// reconnect if disconnected
-					set_out_socket(config, 1);
-				}
+			/* read saved parcels and send to destination */
+			if( out_connected && config->data_dir ) {
+				rewinddir(config->data_dir);	// resets the position of the directory stream to the beginning of the directory
+				i = 0;	// number of files to read
 
-				break;
-			default:
+				// iterate files in directory
+				while( !readdir_r(config->data_dir, config->dir_item, &result) && result != NULL ) {
+					// is file name OK & contain this forwarder name & contain ".bin"?
+					if( strlen(config->dir_item->d_name)
+							&& strstr(config->dir_item->d_name, config->name)
+							&& strstr(config->dir_item->d_name, ".bin") ) {
 
-				if( stConfigServer.log_enable > 1 )
-					logging("forwarder[%s][%ld]: read and send saved parcels\n", config->name, syscall(SYS_gettid));
+						// generate full file name
+						snprintf(fName, FILENAME_MAX, "%s/%s", stConfigServer.forward_files, config->dir_item->d_name);
 
-				/* read saved parcels and send to destination */
-				if( config->data_dir ) {
-					rewinddir(config->data_dir);	// resets the position of the directory stream to the beginning of the directory
-					i = 0;	// number of files to read
+						// open file for read
+						if( (fHandle = open(fName, O_RDONLY | O_NOATIME)) != -1 ) {
 
-					// iterate files in directory
-					while( !readdir_r(config->data_dir, config->dir_item, &result) && result != NULL ) {
-						// is file name OK & contain this forwarder name & contain ".bin"?
-						if( strlen(config->dir_item->d_name)
-								&& strstr(config->dir_item->d_name, config->name)
-								&& strstr(config->dir_item->d_name, ".bin") ) {
+							bytes_read = read(fHandle, config->buffers[IN_RDBUF], SOCKET_BUF_SIZE);
+							if( bytes_read > 0 )
+								process_terminal(config, config->buffers[IN_RDBUF], bytes_read);
 
-							// generate full file name
-							snprintf(fName, FILENAME_MAX, "%s/%s", stConfigServer.forward_files, config->dir_item->d_name);
+							close(fHandle);
 
-							// open file for read
-							if( (fHandle = open(fName, O_RDONLY | O_NOATIME)) != -1 ) {
+							if( stConfigServer.log_enable > 1 )
+								logging("forwarder[%s][%ld]: send saved file %s\n", config->name, syscall(SYS_gettid), config->dir_item->d_name);
+						}	// if( (fHandle = open(fName
+						else if( stConfigServer.log_enable > 1 )
+							logging("forwarder[%s][%ld]: read saved file %s error: %d: %s\n", config->name, syscall(SYS_gettid), config->dir_item->d_name, errno, strerror(errno));
 
-								bytes_read = read(fHandle, config->buffers[IN_RDBUF], SOCKET_BUF_SIZE);
-								if( bytes_read > 0 )
-									process_terminal(config, config->buffers[IN_RDBUF], bytes_read);
+						// delete file
+						unlink(fName);
 
-								close(fHandle);
+						if( ++i >= CNT_FILES_SEND )
+							break;	// max files reached, cancel
+					}	// if( strlen(dir_item->d_name) &&
+				}	// while( (dir_item = readdir(data_dir)) != NULL )
 
-								if( stConfigServer.log_enable > 1 )
-									logging("forwarder[%s][%ld]: send saved file %s\n", config->name, syscall(SYS_gettid), config->dir_item->d_name);
-							}	// if( (fHandle = open(fName
-							else if( stConfigServer.log_enable > 1 )
-								logging("forwarder[%s][%ld]: read saved file %s error: %d: %s\n", config->name, syscall(SYS_gettid), config->dir_item->d_name, errno, strerror(errno));
-
-							// delete file
-							unlink(fName);
-
-							if( ++i >= CNT_FILES_SEND )
-								break;	// max files reached, cancel
-						}	// if( strlen(dir_item->d_name) &&
-					}	// while( (dir_item = readdir(data_dir)) != NULL )
-
-				}	// if( data_dir )
-				else {
-					logging("forwarder[%s][%ld]: directory %s is not opened\n", config->name, syscall(SYS_gettid), stConfigServer.forward_files);
-				}	// else if( data_dir )
-
-			}	// switch( config->sockets[OUT_SOCKET] )
+			}	// if( out_connected && config->data_dir )
+			else if( !config->data_dir ){
+				logging("forwarder[%s][%ld]: directory %s is not opened\n", config->name, syscall(SYS_gettid), stConfigServer.forward_files);
+			}	// else if( data_dir )
 
 			break;
-		default:	// the number of structures which have nonzero revents fields
+		default:	// number of ready file descriptors
 
-			if( config->pollset[OUT_SOCKET].revents ) {
-				// messages from remote server
-				i = OUT_SOCKET;
+			// OUT_SOCKET
 
-				if( (config->pollset[i].revents & POLLOUT) || (config->pollset[i].revents & POLLWRNORM) ) {
-					out_connected = !getsockopt(config->sockets[OUT_SOCKET], SOL_SOCKET, SO_ERROR, &so_error, &so_error_len) && !so_error;
-					if( out_connected )
-						logging("forwarder[%s][%ld]: remote host %s:%d connected\n", config->name, syscall(SYS_gettid), config->server, config->port);
-					else
-						logging("forwarder[%s][%ld]: connecting to remote host %s:%d socket error %d: %s\n", config->name, syscall(SYS_gettid), config->server, config->port, so_error, strerror(so_error));
-				}
-				else if( (config->pollset[i].revents & POLLIN) || (config->pollset[i].revents & POLLRDNORM) ) {
+			if( FD_ISSET(config->sockets[OUT_SOCKET], &config->fdset[1]) ) {
+				// connection to remote server complete
 
-					if( out_connected ) {
+				if( !getsockopt(config->sockets[OUT_SOCKET], SOL_SOCKET, SO_ERROR, &so_error, &so_error_len) )
+					out_connected = !so_error;
 
-						// receive data
-						memset(config->buffers[OUT_RDBUF], 0, SOCKET_BUF_SIZE);
+				if( out_connected )
+					logging("forwarder[%s][%ld]: remote host %s:%d connected\n", config->name, syscall(SYS_gettid), config->server, config->port);
+				else {
+					switch(so_error){
+					case 0:		// Sucess
+						if( errno != EINPROGRESS ){
+							logging("forwarder[%s][%ld]: remote host %s:%d connection error %d: %s\n", config->name, syscall(SYS_gettid), config->server, config->port, errno, strerror(errno));
+							set_out_socket(config, 0);
+						}
+						break;
+					default:
+						logging("forwarder[%s][%ld]: remote host %s:%d %s (%d)\n", config->name, syscall(SYS_gettid), config->server, config->port, strerror(so_error), so_error);
+						set_out_socket(config, 0);
+					}	// switch(so_error)
+				}	// else if( out_connected )
 
-						bytes_read = recv(config->sockets[OUT_SOCKET], config->buffers[OUT_RDBUF], SOCKET_BUF_SIZE, 0);
-						if( bytes_read > 0 ) { // data
-							if( stConfigServer.log_enable > 1 )
-								logging("forwarder[%s][%ld]: received %ld bytes from remote host %s\n", config->name, syscall(SYS_gettid), bytes_read, config->server);
+			}	// if( FD_ISSET(config->sockets[OUT_SOCKET], &config->fdset[1]) )
+			else if( FD_ISSET(config->sockets[OUT_SOCKET], &config->fdset[0]) ) {
+				// has incoming messages from remote server
 
-						    // decode server answer
-						    if( config->terminal_decode ) {
-								pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);	// do not disturb :)
-								config->terminal_decode(config->buffers[OUT_RDBUF], bytes_read, &answer);
-								pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);  // can disturb :)
-						    }	// if( config->terminal_decode )
+				if( out_connected ){
+					// receive data
+					memset(config->buffers[OUT_RDBUF], 0, SOCKET_BUF_SIZE);
 
-						    if( answer.size ) {
-								// send answer to terminal
-								/*
-								memcpy(config->buffers[OUT_WRBUF], answer.answer, answer.size);
-								*/
-						    }	// if( answer.size )
+					bytes_read = recv(config->sockets[OUT_SOCKET], config->buffers[OUT_RDBUF], SOCKET_BUF_SIZE, 0);
+					if( bytes_read > 0 ) { // data
 
-						}	// if( bytes_read > 0 )
-						else { // nothing respond or error or close remote connection
-							if( errno ) {
-								logging("forwarder[%s][%ld]: remote host %s:%d error %d: %s\n", config->name, syscall(SYS_gettid), config->server, config->port, errno, strerror(errno));
-								set_out_socket(config, 0);
-							}
-						}	// else if( bytes_read > 0 )
+						// decode server answer
+						if( config->terminal_decode ) {
+							pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);	// do not disturb :)
+							config->terminal_decode(config->buffers[OUT_RDBUF], bytes_read, &answer);
+							pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);  // can disturb :)
+						}	// if( config->terminal_decode )
 
-					}	// if( out_connected )
-					else {
-						if( stConfigServer.log_enable > 1 )
-							logging("forwarder[%s][%ld]: events %u from socket, but socket not connected\n", config->name, syscall(SYS_gettid), config->pollset[i].revents);
-					}
+						if( answer.size ) {
+							// send answer to terminal
+						}	// if( answer.size )
 
-				}	// else if( (config->pollset[i].revents & POLLIN)
-				else {	// error or close remote connection
-					set_out_socket(config, 0);
-					logging("forwarder[%s][%ld]: remote host %s:%d error %d: %s, revents=%u\n", config->name, syscall(SYS_gettid), config->server, config->port, errno, strerror(errno), config->pollset[i].revents);
-				}
-
-			}	// if( config->pollset[OUT_SOCKET].revents )
-			else if( config->pollset[IN_SOCKET].revents ) {
-
-				// messages from workers
-				i = IN_SOCKET;
-
-				if( (config->pollset[i].revents & POLLIN) || (config->pollset[i].revents & POLLRDNORM) ) {	// receive data
-
-					memset(config->buffers[IN_RDBUF], 0, SOCKET_BUF_SIZE);
-					bytes_read = recv(config->sockets[IN_SOCKET], config->buffers[IN_RDBUF], SOCKET_BUF_SIZE, 0);
-					if( bytes_read > 0 ) {
-						process_terminal(config, config->buffers[IN_RDBUF], bytes_read);
 					}	// if( bytes_read > 0 )
 					else {
-						if( errno )
-							logging("forwarder[%s][%ld]: local socket recv error %d: %s\n", config->name, syscall(SYS_gettid), errno, strerror(errno));
-						else if( stConfigServer.log_enable > 1 )
-							logging("forwarder[%s][%ld]: local socket recv return 0 bytes\n", config->name, syscall(SYS_gettid));
+						logging("forwarder[%s][%ld]: remote host %s:%d %s (%d)\n", config->name, syscall(SYS_gettid), config->server, config->port, strerror(errno), errno);
+						set_out_socket(config, 0);
 					}
+				}	// if( out_connected )
 
-				}	// if( config->pollset[i].revents & POLLIN )
-				else {
-					logging("forwarder[%s][%ld]: local socket error %d: %s, revents=%u\n", config->name, syscall(SYS_gettid), errno, strerror(errno), config->pollset[i].revents);
-				}
+			}	// if( FD_ISSET(config->sockets[OUT_SOCKET], &config->fdset[0]) )
 
-			}	// if( config->pollset[IN_SOCKET].revents )
+
+			// IN_SOCKET
+
+			if( FD_ISSET(config->sockets[IN_SOCKET], &config->fdset[0]) ) {
+				// messages from workers
+				memset(config->buffers[IN_RDBUF], 0, SOCKET_BUF_SIZE);
+				bytes_read = recv(config->sockets[IN_SOCKET], config->buffers[IN_RDBUF], SOCKET_BUF_SIZE, 0);
+				if( bytes_read > 0 )
+					process_terminal(config, config->buffers[IN_RDBUF], bytes_read);
+				// else worker terminated
+
+			}	// if( FD_ISSET(config->sockets[IN_SOCKET], &config->fdset[0]) )
 
 		}	// switch( wait_sockets(config) )
 

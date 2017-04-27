@@ -2,7 +2,7 @@
 #define __FORWARDER__
 
 #define _GNU_SOURCE
-#include <poll.h>
+#include <sys/select.h>
 #include <sys/un.h>
 #include <dirent.h>
 #include "de.h"
@@ -31,7 +31,7 @@ typedef struct {
     void (*terminal_decode)(char*, int, ST_ANSWER*);        // pointer to decode terminal message function
     int (*terminal_encode)(ST_RECORD*, int, char*, int);    // pointer to encode terminal message function
     int sockets[CNT_SOCKETS];		    // sockets
-    struct pollfd pollset[CNT_SOCKETS];	// pull of the sockets
+    fd_set fdset[2];	// pull of the sockets
     struct sockaddr_un addr_un;			// unix socket struct
     char buffers[CNT_SOCBUF][SOCKET_BUF_SIZE];	// read & write buffers for sockets
 	DIR *data_dir;              // saved files directory
