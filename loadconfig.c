@@ -148,11 +148,13 @@ int set_config(char *section, char *param, char *value)
 			snprintf(stConfigServer.log_file, FILENAME_MAX, "%s", value);
 		}
 
+		if( strcmp(param, "log_imei") == 0 && strlen(value) > 0 ) {
+			snprintf(stConfigServer.log_imei, SIZE_TRACKER_FIELD, "%s", value);
+		}
+
 		if( strcmp(param, "log_enable") == 0 ) {
 			if( strlen(value) )
 				stConfigServer.log_enable = atoi(value);
-			else
-				stConfigServer.log_enable = 0;
 		}
 
 		if( strcmp(param, "log_maxsize") == 0 ) {
@@ -184,8 +186,6 @@ int set_config(char *section, char *param, char *value)
 		if( strcmp(param, "db_port") == 0 ) {
 			if( strlen(value) )
 				stConfigServer.db_port = abs(atoi(value));
-			else
-				stConfigServer.db_port = 0;
 		}
 
 		if( strcmp(param, "db_name") == 0 ) {
@@ -207,15 +207,21 @@ int set_config(char *section, char *param, char *value)
 		if( strcmp(param, "socket_queue") == 0 ) {
 			if( strlen(value) )
 				stConfigServer.socket_queue = abs(atoi(value));
-			else
-				stConfigServer.socket_queue = 50;
 		}
 
 		if( strcmp(param, "socket_timeout") == 0 ) {
 			if( strlen(value) )
-				stConfigServer.socket_timeout = abs(MIN(atoi(value), 600));
-			else
-				stConfigServer.socket_timeout = 600;
+				stConfigServer.socket_timeout = MIN(abs(atoi(value)), 600);
+		}
+
+		if( strcmp(param, "forward_timeout") == 0 ) {
+			if( strlen(value) )
+				stConfigServer.forward_timeout = abs(atoi(value));
+		}
+
+		if( strcmp(param, "forward_wait") == 0 ) {
+			if( strlen(value) )
+				stConfigServer.forward_wait = abs(atoi(value));
 		}
 
 		if( strcmp(param, "forward_files_dir") == 0 && strlen(value) > 0 ) {
@@ -352,8 +358,13 @@ int loadConfig(char *cPathToFile)
 	stConfigServer.log_maxsize = 1024 * 1024;
 	memset(stConfigServer.log_file, 0, FILENAME_MAX);
 	strcpy(stConfigServer.log_file, "/var/log/glonassd.log");
-	stConfigServer.socket_queue = 50;
 	snprintf(stConfigServer.forward_files, FILENAME_MAX, "%s", stParams.start_path);
+	stConfigServer.socket_queue = 50;
+	stConfigServer.socket_timeout = 600;
+	stConfigServer.db_port = 0;
+	stConfigServer.log_enable = 1;
+	stConfigServer.forward_timeout = 1;
+	stConfigServer.forward_wait = 30;
 
 	iRetval = 1;
 	i = 0;
@@ -380,7 +391,10 @@ int loadConfig(char *cPathToFile)
 			if( 2 == sscanf(cBuf, "%[A-Za-z0-9.,:_/]=%[A-Za-z0-9.,:_/]", cName, cValue) ||
 					2 == sscanf(cBuf, "%[A-Za-z0-9.,:_/]= %[A-Za-z0-9.,:_/]", cName, cValue) ||
 					2 == sscanf(cBuf, "%[A-Za-z0-9.,:_/] =%[A-Za-z0-9.,:_/]", cName, cValue) ||
-					2 == sscanf(cBuf, "%[A-Za-z0-9.,:_/] = %[A-Za-z0-9.,:_/]", cName, cValue) ) {
+					2 == sscanf(cBuf, "%[A-Za-z0-9.,:_/] = %[A-Za-z0-9.,:_/]", cName, cValue) ||
+					1 == sscanf(cBuf, "%[A-Za-z0-9.,:_/] =", cName) ||
+					1 == sscanf(cBuf, "%[A-Za-z0-9.,:_/]=", cName) ||
+					1 == sscanf(cBuf, "%[A-Za-z0-9.,:_/]= ", cName) ) {
 				set_config(cSection, cName, cValue);
 			}	// if( sscanf
 			else {

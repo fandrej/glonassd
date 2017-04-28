@@ -436,7 +436,7 @@ static int listeners_start()
 				// create listener socket
 				stListeners.listener[i].socket = socket(AF_INET, stListeners.listener[i].protocol, 0);
 				if( stListeners.listener[i].socket < 0 ) {
-					logging("listener %s: socket() error %d: %s\n", stListeners.listener[i].name, errno, strerror(errno));
+					logging("listener[%s]: socket() error %d: %s\n", stListeners.listener[i].name, errno, strerror(errno));
 					continue;	// next listener
 				}
 
@@ -447,7 +447,7 @@ static int listeners_start()
 				    Block error with: SO_REUSEADDR & SO_REUSEPORT
 				*/
 				if (setsockopt(stListeners.listener[i].socket, SOL_SOCKET, SO_REUSEADDR, &(int) {1}, sizeof(int)) < 0)
-					logging("listener %s: setsockopt(SO_REUSEADDR) error %d: %s\n", stListeners.listener[i].name, errno, strerror(errno));
+					logging("listener[%s]: setsockopt(SO_REUSEADDR) error %d: %s\n", stListeners.listener[i].name, errno, strerror(errno));
 
 #ifdef SO_REUSEPORT
 				if (setsockopt(stListeners.listener[i].socket, SOL_SOCKET, SO_REUSEPORT, &(int) {1}, sizeof(int)) < 0)
@@ -461,7 +461,7 @@ static int listeners_start()
 				in_addr.sin_port = htons(stListeners.listener[i].port);
 
 				if( bind(stListeners.listener[i].socket, (struct sockaddr *)&in_addr, sizeof(struct sockaddr_in)) < 0 ) {
-					logging("listener %s: bind() error %d: %s\n", stListeners.listener[i].name, errno, strerror(errno));
+					logging("listener[%s]: bind() error %d: %s\n", stListeners.listener[i].name, errno, strerror(errno));
 					close(stListeners.listener[i].socket);
 					stListeners.listener[i].socket = BAD_OBJ;
 					continue;
@@ -469,7 +469,7 @@ static int listeners_start()
 
 				// listen terminals, second param. - listener queue size
 				if( listen(stListeners.listener[i].socket, stConfigServer.socket_queue) < 0 ) {
-					logging("listener %s: listen() error %d: %s\n", stListeners.listener[i].name, errno, strerror(errno));
+					logging("listener[%s]: listen() error %d: %s\n", stListeners.listener[i].name, errno, strerror(errno));
 					close(stListeners.listener[i].socket);
 					stListeners.listener[i].socket = BAD_OBJ;
 					continue;
@@ -483,7 +483,7 @@ static int listeners_start()
 				pollset[pollcnt - 1].events = POLLIN;
 				pollset[pollcnt - 1].revents = 0;	// filled by the kernel
 
-				logging("listener %s started\n", stListeners.listener[i].name);
+				logging("listener[%s] started on port %d\n", stListeners.listener[i].name, stListeners.listener[i].port);
 			}	// if( library_load(
 
 		}	// if( stListeners.listener[i].enabled )
@@ -504,7 +504,7 @@ static int listeners_stop()
 		if( stListeners.listener[i].socket != BAD_OBJ ) {
 			shutdown(stListeners.listener[i].socket, SHUT_RDWR);
 			close(stListeners.listener[i].socket);
-			logging("listener %s stopped\n", stListeners.listener[i].name);
+			logging("listener[%s] stopped\n", stListeners.listener[i].name);
 		}
 
 		if( stListeners.listener[i].library_handle )
@@ -550,7 +550,7 @@ static int forwarders_start()
 				thread_ok = pthread_create(&stForwarders.forwarder[i].thread, NULL, forwarder_thread, &stForwarders.forwarder[i]);
 
 			if( thread_ok )	// error
-				logging("glonassd[%d]: start forwarder %s: error %d: %s\n", (int)getpid(), stForwarders.forwarder[i].name, errno, strerror(errno));
+				logging("glonassd[%d]: start forwarder[%s]: error %d: %s\n", (int)getpid(), stForwarders.forwarder[i].name, errno, strerror(errno));
 			else
 				++cnt;
 
@@ -573,10 +573,10 @@ static int forwarders_stop()
 		// stop forwarder if worked
 		if( stForwarders.forwarder[i].thread ) {
 			if( pthread_cancel(stForwarders.forwarder[i].thread) )
-				logging("cancel forwarder %s error %d: %s\n", stForwarders.forwarder[i].name, errno, strerror(errno));
+				logging("cancel forwarder[%s] error %d: %s\n", stForwarders.forwarder[i].name, errno, strerror(errno));
 
 			if( pthread_join(stForwarders.forwarder[i].thread, NULL) )
-				logging("stop forwarder %s error %d: %s\n", stForwarders.forwarder[i].name, errno, strerror(errno));
+				logging("stop forwarder[%s] error %d: %s\n", stForwarders.forwarder[i].name, errno, strerror(errno));
 
 			if( stForwarders.forwarder[i].library_handle )
 				dlclose(stForwarders.forwarder[i].library_handle);
@@ -815,7 +815,7 @@ int main(int argc, char* argv[])
 							worker_config->client_socket = accept(stListeners.listener[j].socket, (struct sockaddr *)&worker_config->client_addr, &sockaddr_in_size);
 							if( worker_config->client_socket < 0 ) {
 								free(worker_config);
-								logging("glonassd[%d]: listener %s accept() error %d: %s\n", (int)getpid(), stListeners.listener[j].name, errno, strerror(errno));
+								logging("glonassd[%d]: listener[%s] accept() error %d: %s\n", (int)getpid(), stListeners.listener[j].name, errno, strerror(errno));
 							} else {
 								// set settings for worker
 								worker_config->listener = &stListeners.listener[j];
@@ -828,11 +828,11 @@ int main(int argc, char* argv[])
 
 								if( thread_error ) {   // error :(
 									free(worker_config);
-									logging("glonassd[%d]: listener %s pthread_create() error %d: %s\n", (int)getpid(), stListeners.listener[j].name, errno, strerror(errno));
+									logging("glonassd[%d]: listener[%s] pthread_create() error %d: %s\n", (int)getpid(), stListeners.listener[j].name, errno, strerror(errno));
 								}	// if( pthread_create(
 								else {
 									if( pthread_detach(worker_config->thread) )
-										logging("glonassd[%d]: listener %s pthread_detach(%lld) error %d: %s\n", (int)getpid(), stListeners.listener[j].name, worker_config->thread, errno, strerror(errno));
+										logging("glonassd[%d]: listener[%s] pthread_detach(%lld) error %d: %s\n", (int)getpid(), stListeners.listener[j].name, worker_config->thread, errno, strerror(errno));
 								}
 							}	// else if( worker_config->client_socket < 0 )
 

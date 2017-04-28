@@ -236,6 +236,7 @@ void *worker_thread(void *st_worker)
 	static __thread ST_ANSWER answer;	// de.h
 	static __thread fd_set rfds;
 	static __thread struct timeval tv;
+	static __thread char l2fname[FILENAME_MAX];		// terminal log file name
 	//static __thread char *client_ip = inet_ntoa(config->client_addr.sin_addr);
 
 	// error handler:
@@ -371,13 +372,19 @@ void *worker_thread(void *st_worker)
 		// logging all
 		if( config->listener->log_all ) {
 			if( config->imei[0] )
-				snprintf(answer.answer, SOCKET_BUF_SIZE, "%s/logs/%s_%s", stParams.start_path, config->listener->name, config->imei);
-			else {
-				snprintf(answer.answer, SOCKET_BUF_SIZE, "%s/logs/%s", stParams.start_path, config->listener->name);
-			}
-			log2file(answer.answer, socket_buf, bytes_read);
-			memset(answer.answer, 0, SOCKET_BUF_SIZE);
+				snprintf(l2fname, FILENAME_MAX, "%s/logs/%s_%s", stParams.start_path, config->listener->name, config->imei);
+			else
+				snprintf(l2fname, FILENAME_MAX, "%s/logs/%s", stParams.start_path, config->listener->name);
+
+			log2file(l2fname, socket_buf, bytes_read);
 		}	// if( config->listener->log_all )
+		else if( stConfigServer.log_imei[0] && stConfigServer.log_imei[0] == config->imei[0] ){
+			// log terminal message
+			if( strcmp(stConfigServer.log_imei, config->imei) ){
+				snprintf(l2fname, FILENAME_MAX, "%s/logs/%s_prcl", stParams.start_path, config->imei);
+				log2file(l2fname, socket_buf, bytes_read);
+			}
+		}
 
 		// decode terminal message
 		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);	// do not disturb :)
@@ -395,6 +402,14 @@ void *worker_thread(void *st_worker)
 				logging("%s[%ld]: send to terminal error %d: %s\n", config->listener->name, syscall(SYS_gettid), errno, strerror(errno));
 
 			errors = 0;
+
+			// log answer to terminal
+			if( stConfigServer.log_imei[0] && stConfigServer.log_imei[0] == config->imei[0] ){
+				if( strcmp(stConfigServer.log_imei, config->imei) ){
+					snprintf(l2fname, FILENAME_MAX, "%s/logs/%s_answ", stParams.start_path, config->imei);
+					log2file(l2fname, socket_buf, bytes_read);
+				}
+			}
 		}	// if( answer.size )
 
 		// save terminal data to DB

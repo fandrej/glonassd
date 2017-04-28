@@ -40,14 +40,13 @@
     treads shared globals
 */
 #define CONNECT_SOCKET_TIMEOUT (5)	// socket timeout in seconds for connect()
-#define SELECT_SOCKET_TIMEOUT (3)	// socket timeout in seconds for select()
-#define OUT_SOCKET_WAIT_TIME (30)	// wait time for outer socket reconnect, seconds
 
 /*
     thread locals
 */
 static __thread unsigned long long int disconnect_time = 0;	// time in seconds when out socket disconnected
-static __thread int out_connected = 0;					// out connection established flag
+static __thread int out_connected = 0;						// out connection established flag
+static __thread int log_server_answer = 0;					// flag for log remote server to file
 
 /*
     utility functions
@@ -137,9 +136,9 @@ static void data_save(char *config_name, char *imei, char *content, ssize_t cont
 			if( stConfigServer.log_enable > 1 )
 				logging("forwarder[%s][%ld]: data_save: written %ld bytes to file\n", config_name, syscall(SYS_gettid), content_size);
 		}
-		else {
+		else if( stConfigServer.log_enable )
 			logging("forwarder[%s][%ld]: data_save: open(%s) error %d: %s\n", config_name, syscall(SYS_gettid), fName, errno, strerror(errno));
-		}
+
 	}	// if( content && content_size )
 	else if( stConfigServer.log_enable > 1 )
 		logging("forwarder[%s][%ld]: data_save: content is NULL or content_size=%ld\n", config_name, syscall(SYS_gettid), content_size);
@@ -249,6 +248,7 @@ static void process_terminal(ST_FORWARDER *config, char *bufer, ssize_t size)
 {
 	ST_FORWARD_MSG *msg;
 	ssize_t data_len = 0, sended = 0;
+	char l2fname[FILENAME_MAX];		// terminal log file name
 
 	if( !bufer ){
 		if( stConfigServer.log_enable > 1 )
@@ -277,9 +277,6 @@ static void process_terminal(ST_FORWARDER *config, char *bufer, ssize_t size)
 		if( !terimal_logged(msg->imei, config->name) )
 			msg->len *= -1;
 
-		//if( strcmp(msg->imei, "868204004255146")==0 )
-		//	logging("forwarder[%s][%ld]: process_terminal: %s msg->len=%d\n", config->name, syscall(SYS_gettid), msg->imei, msg->len);
-
 		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);	// do not disturb :)
 		data_len = config->terminal_encode((ST_RECORD*)&bufer[sizeof(ST_FORWARD_MSG)], msg->len, config->buffers[OUT_WRBUF], SOCKET_BUF_SIZE);
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);  // can disturb :)
@@ -297,15 +294,25 @@ static void process_terminal(ST_FORWARDER *config, char *bufer, ssize_t size)
 				logging("forwarder[%s][%ld]: process_terminal: send() error %d: %s\n", config->name, syscall(SYS_gettid), errno, strerror(errno));
 				set_out_socket(config, 0);	// disconnect outer socket
 			}	// if( sended <= 0 )
-			else if( stConfigServer.log_enable > 1 )
-				logging("forwarder[%s][%ld]: process_terminal %s: sended %ld bytes to remote server\n", config->name, syscall(SYS_gettid), msg->imei, sended);
+			else {
+
+				// log terminal message to remote server
+				if( stConfigServer.log_imei[0] && stConfigServer.log_imei[0] == msg->imei[0] ){
+					if( strcmp(stConfigServer.log_imei, msg->imei) ){
+						snprintf(l2fname, FILENAME_MAX, "%s/logs/%s_%s_prcl", stParams.start_path, msg->imei, config->name);
+						log2file(l2fname, config->buffers[OUT_WRBUF], data_len);
+						log_server_answer = 1;	// flag for log remote server to file
+					}
+				}
+
+				if( stConfigServer.log_enable > 1 )
+					logging("forwarder[%s][%ld]: process_terminal %s: sended %ld bytes to remote server\n", config->name, syscall(SYS_gettid), msg->imei, sended);
+			}	// else if( sended <= 0 )
 		}	// if( out_connected )
 
 		if( sended <= 0 )	// save buffer to file for send later
 			data_save(config->name, msg->imei, config->buffers[OUT_WRBUF], data_len);
 
-		//if( strcmp(msg->imei, "868204004255146")==0 )
-			//log2file("/opt/glonassd/logs/868204004255146", config->buffers[OUT_WRBUF], data_len);
 	}	// if( data_len )
 	else if( stConfigServer.log_enable > 1 )
 		logging("forwarder[%s][%ld]: process_terminal %s: data_len=%ld\n", config->name, syscall(SYS_gettid), msg->imei, data_len);
@@ -353,7 +360,7 @@ static int wait_sockets(ST_FORWARDER *config)
 	struct timeval tv;
 
 	// test out socket and reconnect if disconnected
-	if( config->sockets[OUT_SOCKET] == BAD_OBJ && (seconds() - disconnect_time >= OUT_SOCKET_WAIT_TIME)) {
+	if( config->sockets[OUT_SOCKET] == BAD_OBJ && (seconds() - disconnect_time >= stConfigServer.forward_wait)) {
 		set_out_socket(config, 1);
 	}
 
@@ -368,7 +375,7 @@ static int wait_sockets(ST_FORWARDER *config)
 			FD_SET(config->sockets[OUT_SOCKET], &config->fdset[1]);	// write
 	}
 
-	tv.tv_sec = SELECT_SOCKET_TIMEOUT;
+	tv.tv_sec = stConfigServer.forward_timeout;
 	tv.tv_usec = 0;
 
 	cnt = config->sockets[OUT_SOCKET] > config->sockets[IN_SOCKET] ? config->sockets[OUT_SOCKET] : config->sockets[IN_SOCKET];
@@ -418,7 +425,7 @@ void *forwarder_thread(void *st_forwarder)
 
 		terimal_reset_logged(config->name);
 
-		logging("forwarder %s[%ld] destroyed\n", config->name, syscall(SYS_gettid));
+		logging("forwarder[%s][%ld] destroyed\n", config->name, syscall(SYS_gettid));
 	}	// exit_forwarder_thread
 
 	// install error handler:
@@ -447,7 +454,7 @@ void *forwarder_thread(void *st_forwarder)
 
 	memset(&answer, 0, sizeof(ST_ANSWER));
 
-	logging("forwarder %s[%ld] started\n", config->name, syscall(SYS_gettid));
+	logging("forwarder[%s][%ld] started\n", config->name, syscall(SYS_gettid));
 
 	/*
 	    main cycle
@@ -559,6 +566,14 @@ void *forwarder_thread(void *st_forwarder)
 						if( answer.size ) {
 							// send answer to terminal
 						}	// if( answer.size )
+
+						// log remote server answer to file
+						if( log_server_answer ){
+							log_server_answer = 0;	// and reset log flag
+
+							snprintf(fName, FILENAME_MAX, "%s/logs/%s_answ", stParams.start_path, config->name);
+							log2file(fName, config->buffers[OUT_RDBUF], bytes_read);
+						}	// if( log_server_answer )
 
 					}	// if( bytes_read > 0 )
 					else {

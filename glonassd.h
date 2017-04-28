@@ -47,6 +47,7 @@ typedef struct {
 	int log_enable;                 // flag: 0-disable, >0-enable logging & loglevel
 	size_t log_maxsize;             // max size of log file in bytes
 	char log_file[FILENAME_MAX];    // name log file
+	char log_imei[SIZE_TRACKER_FIELD];    // logged imei
 	char db_type[STRLEN];           // database type (pg/mysql/oracle etc)
 	char db_host[STRLEN];           // database host
 	int db_port;                    // database port
@@ -56,6 +57,8 @@ typedef struct {
 	char db_pass[STRLEN];           // database user's password
 	int socket_queue;               // listener's socket queue size
 	int socket_timeout;             // listener's socket timeout in seconds (max 600)
+	int forward_timeout;            // forwarder's socket timeout in seconds (1-5)
+	int forward_wait;	            // time between reconnect to server after connection lost
 	char forward_files[FILENAME_MAX];    // forwarders files directory
 	ST_TIMER timers[TIMERS_MAX];    // timers structure
 } ST_CONFIG_SERVER;
