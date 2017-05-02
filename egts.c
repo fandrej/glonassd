@@ -62,9 +62,6 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 	switch( pak_head->PT ) {
 	case EGTS_PT_RESPONSE:	// ответ на что-то
 		//log2file("/var/www/locman.org/tmp/gcc/r_EGTS_PT_RESPONSE", parcel, parcel_size);
-
-		answer->size = 0;
-
 		/*
 			response_hdr = (EGTS_PT_RESPONSE_HEADER *)&parcel[pak_head->HL];
 			response_rec = (EGTS_SR_RECORD_RESPONSE_RECORD *)&parcel[pak_head->HL + sizeof(EGTS_PT_RESPONSE_HEADER)];
@@ -77,6 +74,9 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 																									response_rec->RST,
 																									result_rec->RCD);
 		*/
+
+
+		answer->size = 0;
 
 		return; // отвечать на ответ моветон
 	case EGTS_PT_SIGNED_APPDATA:	// данные с цифровой подписью

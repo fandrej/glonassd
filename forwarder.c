@@ -301,9 +301,15 @@ static void process_terminal(ST_FORWARDER *config, char *bufer, ssize_t size)
 					if( !strcmp(stConfigServer.log_imei, msg->imei) ){
 						snprintf(l2fname, FILENAME_MAX, "%s/logs/%s_%s_prcl", stParams.start_path, msg->imei, config->name);
 						log2file(l2fname, config->buffers[OUT_WRBUF], data_len);
-						log_server_answer = 1;	// flag for log remote server to file
-					}
-				}
+						// flag for log remote server answer to file,
+						// if forwarder protocol EGTS, then flag = EGTS_RECORD_HEADER.RN (record number)
+						// else 1 simply
+						if( strstr(config->name, "egts") )
+							log_server_answer = *(uint16_t*)&config->buffers[OUT_WRBUF][13];	// EGTS_RECORD_HEADER.RN
+						else
+							log_server_answer = 1;
+					}	// if( !strcmp(stConfigServer.log_imei, msg->imei) )
+				}	// if( stConfigServer.log_imei[0]
 
 				if( stConfigServer.log_enable > 1 )
 					logging("forwarder[%s][%ld]: process_terminal %s: sended %ld bytes to remote server\n", config->name, syscall(SYS_gettid), msg->imei, sended);
@@ -569,10 +575,23 @@ void *forwarder_thread(void *st_forwarder)
 
 						// log remote server answer to file
 						if( log_server_answer ){
-							log_server_answer = 0;	// and reset log flag
+							// if forwarder protocol EGTS, then flag = EGTS_RECORD_HEADER.RN (record number)
+							// else 1 simply
+							if( strstr(config->name, "egts") ){
+								// and log_server_answer == EGTS_RECORD_HEADER.RN
+								if( *(uint16_t*)&config->buffers[OUT_RDBUF][14] == log_server_answer ){	// EGTS_SR_RECORD_RESPONSE.CRN
+									log_server_answer = 0;	// and reset log flag
 
-							snprintf(fName, FILENAME_MAX, "%s/logs/%s_answ", stParams.start_path, config->name);
-							log2file(fName, config->buffers[OUT_RDBUF], bytes_read);
+									snprintf(fName, FILENAME_MAX, "%s/logs/%s_answ", stParams.start_path, config->name);
+									log2file(fName, config->buffers[OUT_RDBUF], bytes_read);
+								}
+							}
+							else {
+								log_server_answer = 0;	// and reset log flag
+
+								snprintf(fName, FILENAME_MAX, "%s/logs/%s_answ", stParams.start_path, config->name);
+								log2file(fName, config->buffers[OUT_RDBUF], bytes_read);
+							}
 						}	// if( log_server_answer )
 
 					}	// if( bytes_read > 0 )
