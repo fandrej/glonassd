@@ -298,7 +298,7 @@ static void process_terminal(ST_FORWARDER *config, char *bufer, ssize_t size)
 
 				// log terminal message to remote server
 				if( stConfigServer.log_imei[0] && stConfigServer.log_imei[0] == msg->imei[0] ){
-					if( strcmp(stConfigServer.log_imei, msg->imei) ){
+					if( !strcmp(stConfigServer.log_imei, msg->imei) ){
 						snprintf(l2fname, FILENAME_MAX, "%s/logs/%s_%s_prcl", stParams.start_path, msg->imei, config->name);
 						log2file(l2fname, config->buffers[OUT_WRBUF], data_len);
 						log_server_answer = 1;	// flag for log remote server to file

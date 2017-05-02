@@ -380,7 +380,7 @@ void *worker_thread(void *st_worker)
 		}	// if( config->listener->log_all )
 		else if( stConfigServer.log_imei[0] && stConfigServer.log_imei[0] == config->imei[0] ){
 			// log terminal message
-			if( strcmp(stConfigServer.log_imei, config->imei) ){
+			if( !strcmp(stConfigServer.log_imei, config->imei) ){
 				snprintf(l2fname, FILENAME_MAX, "%s/logs/%s_prcl", stParams.start_path, config->imei);
 				log2file(l2fname, socket_buf, bytes_read);
 			}
@@ -405,7 +405,7 @@ void *worker_thread(void *st_worker)
 
 			// log answer to terminal
 			if( stConfigServer.log_imei[0] && stConfigServer.log_imei[0] == config->imei[0] ){
-				if( strcmp(stConfigServer.log_imei, config->imei) ){
+				if( !strcmp(stConfigServer.log_imei, config->imei) ){
 					snprintf(l2fname, FILENAME_MAX, "%s/logs/%s_answ", stParams.start_path, config->imei);
 					log2file(l2fname, socket_buf, bytes_read);
 				}
