@@ -121,6 +121,11 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 				record->height = (int)dAltitude;
 				record->satellites = iSatellits;
 
+				if( record->satellites > 2 && record->lat > 0.0 && record->lon > 0.0 )
+					record->valid = 1;
+				else
+					record->valid = 0;
+
 				memcpy(&answer->lastpoint, record, sizeof(ST_RECORD));
 			}	// if( iTemp == 10 )
 
@@ -192,6 +197,11 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 				record->speed = iSpeed;
 				record->height = (int)dAltitude;
 				record->satellites = iSatellits;
+
+				if( record->satellites > 2 && record->lat > 0.0 && record->lon > 0.0 )
+					record->valid = 1;
+				else
+					record->valid = 0;
 
 			}	// if( iTemp >= 10 )
 
@@ -283,6 +293,11 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 					record->speed = iSpeed;
 					record->height = (int)dAltitude;
 					record->satellites = iSatellits;
+
+					if( record->satellites > 2 && record->lat > 0.0 && record->lon > 0.0 )
+						record->valid = 1;
+					else
+						record->valid = 0;
 
 				}	// if( iTemp >= 10 )
 
