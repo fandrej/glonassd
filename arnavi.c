@@ -1,8 +1,9 @@
 /*
    arnavi.c
-   shared library for decode/encode gps/glonass terminal ARNAVI 4 messages
+   shared library for decode/encode gps/glonass terminal ARNAVI 4/5 messages
 
    help:
+	 Arnavi-5:
    https://docs.google.com/spreadsheets/d/15s-2ZbqOQ1bZvAtFFm9sIEuKy3jbJzxdeynp72sjoYU/edit?usp=sharing
 
    compile:
@@ -57,13 +58,26 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 			snprintf(answer->lastpoint.hard, SIZE_TRACKER_FIELD, "%d", 4);
 			snprintf(answer->lastpoint.soft, SIZE_TRACKER_FIELD, "%d", arnavi_header->PV);
 
-			// confirmation HEADER (7B 00 00 7D)
 			iTemp = answer->size;
-			answer->answer[iTemp] = 0x7B;
-			answer->answer[iTemp + 1] = 0;
-			answer->answer[iTemp + 2] = 0;
-			answer->answer[iTemp + 3] = 0x7D;
-			answer->size += 4;
+			if( arnavi_header->PV == 0x22 ){	// HEADER
+				// confirmation HEADER (7B 00 00 7D) 4 bytes
+				answer->answer[iTemp] = 0x7B;
+				answer->answer[iTemp + 1] = 0;
+				answer->answer[iTemp + 2] = 0;
+				answer->answer[iTemp + 3] = 0x7D;
+				answer->size += 4;
+			}
+			else {	// arnavi_header->PV == 0x23 == HEADER2
+				// confirmation HEADER2 (7B 04 00 CRC UNIXTIME 7D) 9 bytes (UNIXTIME - 4 bytes)
+				answer->answer[iTemp] = 0x7B;
+				answer->answer[iTemp + 1] = 0x04;
+				answer->answer[iTemp + 2] = 0;
+				answer->answer[iTemp + 3] = 0xA0;	// CRC
+				sprintf(&answer->answer[iTemp + 4], "%d", (int)time(NULL));	// UNIXTIME
+				answer->answer[iTemp + 8] = 0x7D;
+				answer->size += 9;
+			}
+			//log2file("/home/work/gcc/glonassd/logs/arnavi_out_header", answer->answer, answer->size);
 
 			iBuffPosition += sizeof(ARNAVI_HEADER);
 			break;
@@ -157,15 +171,23 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 					break;
 				case 6:	// DINx - number of digital input, its mode value
 
-					iTemp = (uint8_t)parcel[iBuffPosition + 4];	// first byte - number of inputs
-					// second byte - input mode
+					uiTemp = (uint8_t)parcel[iBuffPosition + 1];	// first byte - input mode:
+					// 1 - discrete mode
 					// 6 - impulse mode
 					// 7 - frequency mode
 					// 8 - analog voltage mode
-					if( iTemp < 8 ) {
-						record->ainputs[iTemp] = *(uint16_t *)&parcel[iBuffPosition + 1];
-						record->inputs = record->inputs & (1 << iTemp);
-						record->zaj = record->ainputs[1];
+					iTemp = (uint8_t)parcel[iBuffPosition + 2];	// second byte - number of input
+					if( uiTemp > 1 ) {
+						if( iTemp < 8 ){
+							record->ainputs[iTemp] = *(uint16_t *)&parcel[iBuffPosition + 3];
+							record->zaj = record->ainputs[1];
+							record->alarm = record->ainputs[0];
+						}
+					}
+					else if( uiTemp == 1 ){
+						record->inputs = iTemp;
+						record->zaj = (int)(iTemp & 1);
+						record->alarm = (int)(iTemp & 2);
 					}
 
 					break;
@@ -266,6 +288,9 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 					}
 
 					break;
+				case 99:	// Device Status 2 for ARNAVI5
+					//record->status = *(uint32_t *)&parcel[iBuffPosition + 1];
+					break;
 				case 150:	// full mileage of vehicle (km) over satellite, multiplied by 100
 
 					// my cpecific: probeg in meters from prev. mark
@@ -283,6 +308,10 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 					break;
 				case 250:	// informational messages
 					;
+					break;
+				case 251:	// Hard & Soft versions
+					snprintf(record->hard, SIZE_TRACKER_FIELD, "%d", *(uint16_t *)&parcel[iBuffPosition + 1]);
+					snprintf(record->soft, SIZE_TRACKER_FIELD, "%d", *(uint16_t *)&parcel[iBuffPosition + 3]);
 				} // switch( (uint8_t)parcel[iBuffPosition] )
 
 				iBuffPosition += 5;
