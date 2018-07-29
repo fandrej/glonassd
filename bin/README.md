@@ -1,5 +1,5 @@
 ### English
-Acrchive contains working binary version of the daemon, compiled with gcc version 6.3.0 20170516 (Debian 6.3.0-18+deb9u1) for Debian x86_64 GNU/Linux.<br>
+Archive contains working binary version of the daemon, compiled with gcc version 6.3.0 20170516 (Debian 6.3.0-18+deb9u1) for Debian x86_64 GNU/Linux.<br>
 See [README](/README.md) for installation and configuration.
 
 ### Russian
