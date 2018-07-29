@@ -2,6 +2,8 @@
 glonassd
 bin/*
 /bin/*
+logs/*
+forward/*
 
 # my notes
 *.txt
@@ -10,6 +12,7 @@ bin/*
 *.conf
 
 # daemon local scripts
+glonassd.sh
 *.sh
 
 # Code::Work environment
