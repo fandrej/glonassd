@@ -5,7 +5,7 @@ GPS/GLONASS tracker server for Debian
 
 ### About
 **glonassd** is a linux daemon that receives data from a GPS / GLONASS trackers, processing and preserving them in a database.<br>
-Written in C, сompiled with gcc 4.9.2 for x86_64-linux-gnu.
+Written in C, сompiled with gcc version 6.3.0 20170516 (Debian 6.3.0-18+deb9u1) 64 bits.
 
 ### Tracker protocols
 **Receiving:** Arnavi, Galileo (all versions), GPS101-GPS103, SAT-LITE / SAT-LITE2, Wialon IPS, Wialon NIS (SOAP / Olympstroy), EGTS (ERA-GLONASS).<br>
@@ -33,7 +33,7 @@ Databases can be added using plug libraries.
 
 ### Installation
 Create folder for daemon an copy in it files **glonassd, *.so, *.sql**, or use folder where project compiled.<br>
-In you PostgreSQL database create table "tgpsdata" (see script tgpsdata.sql).<br>
+In you PostgreSQL database create table "[scheme.]tgpsdata" (see script tgpsdata.sql).<br>
 If you use firewall, enable ports for incoming terminal connections.
 
 ### Configuration
@@ -41,6 +41,7 @@ In **glonassd.conf** file in **server** section edit values for:<br>
 **listen** - IP addres listen trackers interface<br>
 **transmit** - IP addres retranslation to remote server interface<br>
 **log_file** - full path to log file<br>
+**log_enable** - 0-no logging, 1-major events, 2/3 - details<br>
 **db_host, db_port, db_name, db_schema, db_user, db_pass** - parameters for you PostgreSQL database<br>
 Comment or uncomment terminals sections for used terminals and edit listeners ports.
 
