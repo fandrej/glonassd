@@ -1,8 +1,9 @@
 /*
    arnavi.c
-   shared library for decode/encode gps/glonass terminal ARNAVI 4 messages
+   shared library for decode/encode gps/glonass terminal ARNAVI 4/5 messages
 
    help:
+	 Arnavi-5:
    https://docs.google.com/spreadsheets/d/15s-2ZbqOQ1bZvAtFFm9sIEuKy3jbJzxdeynp72sjoYU/edit?usp=sharing
 
    compile:
@@ -54,7 +55,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 
 			snprintf(answer->lastpoint.imei, SIZE_TRACKER_FIELD, "%lu", arnavi_header->ID);
 			snprintf(answer->lastpoint.tracker, SIZE_TRACKER_FIELD, "arnavi");
-			snprintf(answer->lastpoint.hard, SIZE_TRACKER_FIELD, "%d", 4);
+			snprintf(answer->lastpoint.hard, SIZE_TRACKER_FIELD, "%d", 5);
 			snprintf(answer->lastpoint.soft, SIZE_TRACKER_FIELD, "%d", arnavi_header->PV);
 
 			/*
@@ -66,13 +67,24 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 				not recognize responce for HEADER
 			*/
 
-			// confirmation HEADER (7B 00 00 7D)
-			iTemp = answer->size;
-			answer->answer[iTemp] = 0x7B;
-			answer->answer[iTemp + 1] = 0;
-			answer->answer[iTemp + 2] = 0;
-			answer->answer[iTemp + 3] = 0x7D;
-			answer->size += 4;
+			if( arnavi_header->PV == 0x23 ){	// HEADER2
+				// confirmation HEADER2 (7B 04 00 CRC UNIXTIME 7D) 9 bytes (UNIXTIME - 4 bytes)
+				answer->answer[answer->size++] = 0x7B;
+				answer->answer[answer->size++] = 0x04;
+				answer->answer[answer->size++] = 0;
+				answer->answer[answer->size++] = 0xA0;	// CRC
+				sprintf(&answer->answer[answer->size], "%d", (int)time(NULL));	// UNIXTIME
+				answer->size += 4;
+				answer->answer[answer->size++] = 0x7D;
+			}
+			else {	// HEADER
+				// confirmation HEADER (7B 00 00 7D) 4 bytes
+				answer->answer[answer->size++] = 0x7B;
+				answer->answer[answer->size++] = 0;
+				answer->answer[answer->size++] = 0;
+				answer->answer[answer->size++] = 0x7D;
+			}
+			//log2file("/home/work/gcc/glonassd/logs/arnavi_out_header", answer->answer, answer->size);
 
 			iBuffPosition += sizeof(ARNAVI_HEADER);
 			break;
@@ -166,16 +178,26 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 					break;
 				case 6:	// DINx - number of digital input, its mode value
 
-					iTemp = (uint8_t)parcel[iBuffPosition + 1];	// first byte - number of input
-					// second byte - input mode
+					uiTemp = (uint8_t)parcel[iBuffPosition + 1];	// first byte - input mode:
+					// 1 - discrete mode
 					// 6 - impulse mode
 					// 7 - frequency mode
 					// 8 - analog voltage mode
-					if( iTemp < 8 ) {
-						record->ainputs[iTemp] = *(uint16_t *)&parcel[iBuffPosition + 3];
-						record->inputs = record->inputs & (1 << iTemp);
-						record->alarm = record->ainputs[0];
-						record->zaj = record->ainputs[1];
+					iTemp = (uint8_t)parcel[iBuffPosition + 2];	// second byte - number of input
+					if( uiTemp > 1 ) {
+						if( iTemp < 8 ){
+							record->ainputs[iTemp] = *(uint16_t *)&parcel[iBuffPosition + 3];
+							record->inputs = record->inputs & (1 << iTemp);
+							record->zaj = (int)(record->ainputs[1] > 0);
+							record->alarm = (int)(record->ainputs[0] > 0);
+						}
+					}
+					else if( uiTemp == 1 ){
+						record->inputs = iTemp;
+						if( iTemp < 8 )
+							record->ainputs[iTemp] = 1;
+						record->zaj = (int)(iTemp & 1);
+						record->alarm = (int)(iTemp & 2);
 					}
 
 					break;
@@ -276,6 +298,12 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 					}
 
 					break;
+				case 99:	// Device status 2 for ARNAVI5
+					/*
+					uiTemp = *(uint32_t *)&parcel[iBuffPosition + 1];
+					record->status = uiTemp;
+					*/
+					break;
 				case 150:	// full mileage of vehicle (km) over satellite, multiplied by 100
 
 					// my cpecific: probeg in meters from prev. mark
@@ -293,6 +321,10 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 					break;
 				case 250:	// informational messages
 					;
+					break;
+				case 251:	// Hard & Soft versions
+					snprintf(record->hard, SIZE_TRACKER_FIELD, "%d", *(uint16_t *)&parcel[iBuffPosition + 1]);
+					snprintf(record->soft, SIZE_TRACKER_FIELD, "%d", *(uint16_t *)&parcel[iBuffPosition + 3]);
 				} // switch( (uint8_t)parcel[iBuffPosition] )
 
 				iBuffPosition += 5;
@@ -342,7 +374,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 		default:	// parcel error
 
 			//syslog(LOG_NOTICE, "PACKAGE ERROR, iBuffPosition=%d, parcel[%d]=0x%X\n", iBuffPosition, iBuffPosition, (uint8_t)parcel[iBuffPosition]);
-			//logging("terminal_decode[arnavi]: error in parcel[%d]=0x%X\n", iBuffPosition, (uint8_t)parcel[iBuffPosition]);
+			logging("terminal_decode[arnavi]: error in parcel[%d]=0x%X\n", iBuffPosition, (uint8_t)parcel[iBuffPosition]);
 
 			return;
 		}	// swith( (uint8_t)parcel[iBuffPosition] )

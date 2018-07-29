@@ -35,7 +35,6 @@ typedef struct {
     struct sockaddr_un addr_un;			// unix socket struct
     char buffers[CNT_SOCBUF][SOCKET_BUF_SIZE];	// read & write buffers for sockets
 	DIR *data_dir;              // saved files directory
-	struct dirent *dir_item;    // one item in this directory
 } ST_FORWARDER;
 
 // forwarding terminals list
