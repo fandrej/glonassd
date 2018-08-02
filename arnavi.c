@@ -67,12 +67,11 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 			*/
 
 			// confirmation HEADER (7B 00 00 7D)
-			iTemp = answer->size;
-			answer->answer[iTemp] = 0x7B;
-			answer->answer[iTemp + 1] = 0;
-			answer->answer[iTemp + 2] = 0;
-			answer->answer[iTemp + 3] = 0x7D;
-			answer->size += 4;
+			answer->answer[answer->size++] = 0x7B;	// start of the answer / command
+			answer->answer[answer->size++] = 0;	// Number of bytes (N) to answer (the size of the field "command data")
+			answer->answer[answer->size++] = 0;	// parcel number (0x00 - HEADER, 0x01-0xFB - PACKAGE)
+			answer->answer[answer->size++] = 0x7D;	// end response / command
+			//log2file("/home/work/gcc/glonassd/logs/arnavi_out_header", answer->answer, answer->size);
 
 			iBuffPosition += sizeof(ARNAVI_HEADER);
 			break;
@@ -82,12 +81,10 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 
 			// confirmation PACKAGE id it not answer to server command
 			if( iPackageNumber && iPackageNumber != 0xFD ) {
-				iTemp = answer->size;
-				answer->answer[iTemp] = 0x7B;
-				answer->answer[iTemp + 1] = 0;
-				answer->answer[iTemp + 2] = iPackageNumber;
-				answer->answer[iTemp + 3] = 0x7D;
-				answer->size += 4;
+				answer->answer[answer->size++] = 0x7B;	// start of the answer / command
+				answer->answer[answer->size++] = 0;	// Number of bytes (N) to answer (the size of the field "command data")
+				answer->answer[answer->size++] = iPackageNumber;	// parcel number (0x00 - HEADER, 0x01-0xFB - PACKAGE)
+				answer->answer[answer->size++] = 0x7D;	// end response / command
 			}	// if( iPackageNumber )
 
 			iBuffPosition += 2;	// to record header
