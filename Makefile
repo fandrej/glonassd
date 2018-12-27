@@ -15,15 +15,17 @@ SOURCE = glonassd.c loadconfig.c todaemon.c logger.c worker.c lib.c forwarder.c
 
 HEADERS = $(wildcard *.h)
 
+# ATTENTION: $(LIBS) MUST BE AFTER $(SOURCE) !!!
+
 $(PROJECT): $(SOURCE) $(HEADERS)
-	$(CC) $(CFLAGS) $(OPTIMIZE) $(INCLUDE) $(LIBS) $(SOURCE) -o $(PROJECT)
+	$(CC) $(CFLAGS) $(OPTIMIZE) $(INCLUDE) $(SOURCE) $(LIBS) -o $(PROJECT)
 
 run: $(PROJECT)
 	./$(PROJECT) start
 
 # shared library for database PostgreSQL
 pg: pg.c glonassd.h de.h logger.h
-	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) $(INCLUDE) $(LIBS) pg.c -o pg.o
+	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) $(INCLUDE) pg.c $(LIBS) -o pg.o
 	$(CC) -shared -o pg.so pg.o
 	rm pg.o
 
