@@ -1,6 +1,10 @@
 /*
-   loadconfig.c
-   read config file, fill structures with initial parameters
+	loadconfig.c
+	read config file, fill structures with initial parameters
+	ATTENTION: becouse log_thread starting after loading configuration, all log messages written to SYSLOG
+	Use
+	cat /var/log/syslog | grep glonassd
+	for see logs
 */
 #include <stdlib.h>
 #include <string.h>
@@ -9,8 +13,6 @@
 #include "glonassd.h"
 #include "forwarder.h"
 #include "lib.h"
-
-extern void logging(char *template, ...);
 
 // load list of the forwarding terminals
 int load_terminals(char *fname, ST_FORWARD_TERMINAL **list)
@@ -55,7 +57,7 @@ int load_terminals(char *fname, ST_FORWARD_TERMINAL **list)
 		fclose(fp);
 	}	// if( (fp = fopen(
 	else {
-		logging("loadConfig: fopen(%s) error %d: %s\n", buffer, errno, strerror(errno));
+		syslog(LOG_NOTICE, "loadConfig: fopen(%s) error %d: %s\n", buffer, errno, strerror(errno));
 	}
 
 	free(buffer);
@@ -86,7 +88,7 @@ void fill_timer(ST_TIMER *st_timer, char *params)
 				// start time, period
 				args = sscanf(params, "%5d,%s", &p, buffer);
 				if( args != 2 ) {
-					logging("loadConfig: Error in config file: timer params %s\n", params);
+					syslog(LOG_NOTICE, "loadConfig: Error in config file: timer params %s\n", params);
 				}
 			}
 		}
@@ -113,13 +115,13 @@ void fill_timer(ST_TIMER *st_timer, char *params)
 			st_timer->period = p;
 		} else {
 			memset(st_timer->script_path, 0, FILENAME_MAX);
-			logging("loadConfig: timer script '%s' not found\n", st_timer->script_path);
+			syslog(LOG_NOTICE, "loadConfig: timer script '%s' not found\n", st_timer->script_path);
 		}
 
 		free(buffer);
 	}	// if( strlen(params) < FILENAME_MAX )
 	else {
-		logging("loadConfig: Error in config file: timer params too long: '%s'", params);
+		syslog(LOG_NOTICE, "loadConfig: Error in config file: timer params too long: '%s'", params);
 	}
 }
 //------------------------------------------------------------------------------
@@ -266,6 +268,8 @@ int set_config(char *section, char *param, char *value)
 		// packets listeners configuration
 
 		i = -1;
+		//syslog(LOG_NOTICE, "set_config: stListeners.count=%d", stListeners.count);
+
 		if( !stListeners.count ) {
 			stListeners.listener = (ST_LISTENER *)malloc(sizeof(ST_LISTENER));
 			if(stListeners.listener) {
@@ -327,7 +331,7 @@ int set_config(char *section, char *param, char *value)
 			}
 		}	// if( i != -1)
 		else {
-			logging("set_config: Can't find or create config for service %s", section);
+			syslog(LOG_NOTICE, "set_config: Can't find or create config for service %s", section);
 		}
 
 	}	// else if( strcmp(section, "server") == 0 )
@@ -343,7 +347,7 @@ int loadConfig(char *cPathToFile)
 	char *cBuf, *cSection, *cName, *cValue;
 	FILE *fHandle = fopen(cPathToFile, "r");
 	if(!fHandle) {
-		logging("loadConfig: Can't open file %s", cPathToFile);
+		syslog(LOG_NOTICE, "loadConfig: Can't open file %s", cPathToFile);
 		return 0;
 	}
 
@@ -381,7 +385,7 @@ int loadConfig(char *cPathToFile)
 		case '[':
 			memset(cSection, 0, FILENAME_MAX);
 			if( 1 != sscanf(cBuf, "[%[A-Za-z0-9]]", cSection) || !strlen(cSection) ) {
-				logging("loadConfig: Error in config file, line %d", i);
+				syslog(LOG_NOTICE, "loadConfig: Error in config file, line %d", i);
 				iRetval = 0;
 			}
 			break;
@@ -398,7 +402,7 @@ int loadConfig(char *cPathToFile)
 				set_config(cSection, cName, cValue);
 			}	// if( sscanf
 			else {
-				logging("loadConfig: Error in config file, line %d, param %s", i, cName);
+				syslog(LOG_NOTICE, "loadConfig: Error in config file, line %d, param %s", i, cName);
 				iRetval = 0;
 			}
 		}	// switch(cBuf[0])
