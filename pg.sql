@@ -1,4 +1,4 @@
-INSERT INTO gps.tgpsdata (
+INSERT INTO tgpsdata (
 	ddata ,          --$1
 	ntime ,
 	cimei ,          --$3
