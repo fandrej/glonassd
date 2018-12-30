@@ -61,8 +61,9 @@ typedef struct {
 	double vbort;   // car on-board voltage
 	double vbatt;   // terminal battery voltage
 	double probeg;  // terminal-calculated distance from prev. point
+	unsigned int port;	// TCP/UDP port of receiving terminal data
 } ST_RECORD;
-// sizeof(ST_RECORD)=224
+// sizeof(ST_RECORD)=228
 
 /*
    structure for terminal_decode function

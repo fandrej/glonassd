@@ -1,11 +1,11 @@
 /*
-    worker.c
-    serve gps/glonass terminnals in separate thread
-    caution:
+	worker.c
+	serve gps/glonass terminnals in separate thread
+	caution:
 	when terminal is retranslated from another server,
 	then worker gets many imeis in one connection (volatile imei),
 	else worker gets one imei permanetly (constant imei).
-    note:
+  note:
 	1. We do not retranslate retranslated terminals.
 	2. We retranslate one terminal to MAX_FORWARDS servers only.
 
@@ -200,6 +200,8 @@ static void send_data_to_db(ST_WORKER *config, ST_RECORD *records, unsigned int 
 	for(r = 0; r < count; r++) {	// for all decoded records
 
 		if( records[r].imei[0] ) {	// if IMEI decoded
+			// write port number to record
+			records[r].port = config->listener->port;
 
 			// send message into database queue
 			if( mq_send(config->db_queue, (const char *)&records[r], sizeof(ST_RECORD), 0) < 0 ) {

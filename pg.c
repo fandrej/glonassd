@@ -29,6 +29,7 @@
    http://citforum.ru/programming/unix/threads/
    http://citforum.ru/programming/unix/threads_2/
    http://man7.org/linux/man-pages/man7/sem_overview.7.html
+	 http://zetcode.com/db/postgresqlc/
    http://www.postgresql.org/docs/9.4/static/libpq-build.html
 	(http://www.linux.org.ru/forum/general/11736854)
    http://www.postgresql.org/docs/9.4/static/libpq-connect.html
@@ -67,11 +68,12 @@
 
 // Definitions
 #define MAX_SQL_SIZE 4096
-#define INSERT_PARAMS_COUNT 33
+#define INSERT_PARAMS_COUNT 34
 
 // Locals
 // params for inserting sql
 static __thread char *paramValues[INSERT_PARAMS_COUNT]= {
+	(char*)1,
 	(char*)1,
 	(char*)1,
 	(char*)1,
@@ -269,6 +271,7 @@ static int write_data_to_db(PGconn *connection, char *msg, char *sql_insert_poin
 	snprintf(paramValues[30], SIZE_TRACKER_FIELD, "%04.03lf", record->probeg);     // $31
 	snprintf(paramValues[31], SIZE_TRACKER_FIELD, "%d", record->zaj);
 	snprintf(paramValues[32], SIZE_TRACKER_FIELD, "%d", record->alarm);            // $33
+	snprintf(paramValues[33], SIZE_TRACKER_FIELD, "%d", record->port);            // $34
 
 	res = PQexecParams(connection,          // PGconn *conn,
 							 sql_insert_point,      // const char *command,

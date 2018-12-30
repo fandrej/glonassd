@@ -440,7 +440,7 @@ static int listeners_start()
 		// start service if enabled
 		if( stListeners.listener[i].enabled ) {
 
-			logging("listener[%s] attempt to start\n", stListeners.listener[i].name);
+			logging("listener[%s] port=%d protocol=%s attempt to start\n", stListeners.listener[i].name, stListeners.listener[i].port, (stListeners.listener[i].protocol == SOCK_STREAM ? "TCP" : "UDP"));
 
 			// load library for listener's worker
 			if( library_load(stListeners.listener[i].name, &stListeners.listener[i].library_handle, (void*)&stListeners.listener[i].terminal_decode, (void*)&stListeners.listener[i].terminal_encode) ) {
@@ -516,7 +516,7 @@ static int listeners_stop()
 		if( stListeners.listener[i].socket != BAD_OBJ ) {
 			shutdown(stListeners.listener[i].socket, SHUT_RDWR);
 			close(stListeners.listener[i].socket);
-			logging("listener[%s] stopped\n", stListeners.listener[i].name);
+			logging("listener[%s] on port %d stopped\n", stListeners.listener[i].name, stListeners.listener[i].port);
 		}
 
 		if( stListeners.listener[i].library_handle )
