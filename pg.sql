@@ -32,7 +32,7 @@ INSERT INTO gps.tgpsdata (
 	nprobeg ,        --$31
 	nzaj ,
 	nalarm,           --$33
-	port
+	nport
 ) VALUES (
 	to_timestamp($1::bigint),
 	$2::integer,
