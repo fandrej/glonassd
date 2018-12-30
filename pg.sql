@@ -31,7 +31,8 @@ INSERT INTO gps.tgpsdata (
 	nfuel2 ,
 	nprobeg ,        --$31
 	nzaj ,
-	nalarm           --$33
+	nalarm,           --$33
+	port
 ) VALUES (
 	to_timestamp($1::bigint),
 	$2::integer,
@@ -65,5 +66,6 @@ INSERT INTO gps.tgpsdata (
 	$30::real,
 	$31::real,
 	$32::integer,
-	$33::integer
+	$33::integer,
+	$34::integer
 );
