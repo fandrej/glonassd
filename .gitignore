@@ -4,6 +4,13 @@ bin/*
 /bin/*
 logs/*
 forward/*
+backup/*
+
+# sql files
+*.sql
+
+# log files
+*.log
 
 # my notes
 *.txt
