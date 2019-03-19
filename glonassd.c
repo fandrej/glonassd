@@ -144,13 +144,19 @@ static int parceParams(int argc, char* argv[])
 		p = strrchr(stParams.start_path, '/');
 		if(p)
 			*p = 0;
-	} else
-		getcwd(stParams.start_path, FILENAME_MAX);
+	}
+    else if( !getcwd(stParams.start_path, FILENAME_MAX) ){
+    	strncpy(stParams.start_path, argv[0],  FILENAME_MAX);
+        p = strrchr(stParams.start_path, '/');
+        if(p)
+            *p = 0;
+    }
 
-	for(i=0; i<argc; i++) {
+	for(i=1; i<argc; i++) {
 		if( strcmp("-c", argv[i]) == 0 ) {
 			sprintf(stParams.config_path, "%s", argv[++i]);
-		} else if( strcmp("start", argv[i]) == 0 ||
+		}
+        else if( strcmp("start", argv[i]) == 0 ||
 				   strcmp("stop", argv[i]) == 0 ||
 				   strcmp("restart", argv[i]) == 0 ) {
 			stParams.cmd = argv[i];
@@ -768,9 +774,8 @@ int main(int argc, char* argv[])
 			syslog(LOG_NOTICE, "pthread_attr_setstacksize(%d) error %d: %s\n", 1024 * THREAD_STACK_SIZE_KB, errno, strerror(errno));
 		}	// if( pthread_attr_setstacksize
 	}	// if( attr_init )
-	/*
-	    Daemon-specific initialization done
-	*/
+
+    // Daemon-specific initialization done
 
 	/*
 	    The Main Loop
@@ -790,6 +795,12 @@ int main(int argc, char* argv[])
 			}
 		}	// if( reconfigure )
 
+        // возможно, листенеров нет
+        if( !pollcnt ){
+    		logging("glonassd[%d]: pollset empty, listeners not configured?\n", (int)getpid());
+            sleep(5);
+            continue;
+        }
 
 		// wait listeners
 		nfds = poll(pollset, pollcnt, -1);  // wait infinity

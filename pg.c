@@ -82,6 +82,7 @@ static __thread char *paramValues[INSERT_PARAMS_COUNT]= {
 	(char*)1,
 	(char*)1,
 	(char*)1,
+	(char*)1,   // 10
 	(char*)1,
 	(char*)1,
 	(char*)1,
@@ -91,6 +92,7 @@ static __thread char *paramValues[INSERT_PARAMS_COUNT]= {
 	(char*)1,
 	(char*)1,
 	(char*)1,
+	(char*)1,   // 20
 	(char*)1,
 	(char*)1,
 	(char*)1,
@@ -100,9 +102,7 @@ static __thread char *paramValues[INSERT_PARAMS_COUNT]= {
 	(char*)1,
 	(char*)1,
 	(char*)1,
-	(char*)1,
-	(char*)1,
-	(char*)1,
+	(char*)1,   // 30
 	(char*)1,
 	(char*)1,
 	(char*)1,
@@ -187,13 +187,15 @@ static int db_connect(int connect, PGconn **connection)
 
 			*connection = PQconnectdb(conninfo);
 			// PQconnectdb use "malloc" internally, leak memory when called from thread
-		} else {
+		}
+        else {
 			PQreset(*connection);
 		}
 
 		if( PQstatus(*connection) == CONNECTION_OK ) {
 
 			if(stConfigServer.db_schema && strlen(stConfigServer.db_schema) ) {
+
 				snprintf(conninfo, FILENAME_MAX, "set search_path to %s;", stConfigServer.db_schema);
 
 				db_result = PQexec(*connection, conninfo);

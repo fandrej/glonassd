@@ -24,6 +24,7 @@
 #include "glonassd.h"
 #include "logger.h"
 #include "de.h"
+#include "lib.h"
 
 
 static void writelog(int fHandle, char *msg_buf, int buf_size);
@@ -46,11 +47,12 @@ void logging(char *template, ...)
 	log_queue = mq_open(QUEUE_LOGGER, O_WRONLY | O_NONBLOCK);
 	if( log_queue < 0 ) {
 		syslog(LOG_NOTICE, "logging: mq_open(%s) error %d: %s\n", QUEUE_LOGGER, errno, strerror(errno));
-		syslog(LOG_NOTICE, message);
-	} else {
+		syslog(LOG_NOTICE, "%s", message);
+	}
+    else {
 		if( mq_send(log_queue, (const char *)message, len, 0) < 0 ) {
 			syslog(LOG_NOTICE, "logging: mq_send(log_queue) error %d: %s\n", errno, strerror(errno));
-			syslog(LOG_NOTICE, message);
+			syslog(LOG_NOTICE, "%s", message);
 		}
 		mq_close(log_queue);
 	}
@@ -102,16 +104,13 @@ void *log_thread_func(void *arg)
 	memset(&queue_attr, 0, sizeof(struct mq_attr));
 	// Max. message size (bytes)
 	queue_attr.mq_msgsize = SOCKET_BUF_SIZE;
-	// Max. # of messages on queue
-	queue_attr.mq_maxmsg = 50;
 
 	// get limit to queue size in bytes
-	if( !getrlimit(RLIMIT_MSGQUEUE, &rlim) ) {
-		if( rlim.rlim_cur <= queue_attr.mq_msgsize * queue_attr.mq_maxmsg ) {
-			queue_attr.mq_maxmsg = rlim.rlim_cur / queue_attr.mq_msgsize;
-			queue_attr.mq_maxmsg -= (queue_attr.mq_maxmsg / 100 * 10);
-		}
-	}
+	// calc Max. # of messages on queue
+	if( !getrlimit(RLIMIT_MSGQUEUE, &rlim) )
+	    queue_attr.mq_maxmsg = (long) min(rlim.rlim_cur, rlim.rlim_max) / queue_attr.mq_msgsize / 10;
+    else
+	    queue_attr.mq_maxmsg = (long) 819200 / queue_attr.mq_msgsize / 10;
 
 	// create messages queue
 	//mq_unlink(QUEUE_LOGGER);

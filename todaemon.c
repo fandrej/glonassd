@@ -73,7 +73,10 @@ void toDaemon(const char *PidFilePath)
 
 	/* Change the working directory to the root directory */
 	/* or another appropriated directory */
-	chdir("/");    // stParams.start_path
+	if( chdir("/") ){    // error
+        printf("chdir('/'), error %d: %s\n", errno, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
 
 	/* Close all open file descriptors */
 	int x;
@@ -86,8 +89,16 @@ void toDaemon(const char *PidFilePath)
 	    but it should not use real standard descriptors
 	*/
 	int tmp = open("/dev/null", O_RDWR); /* fd 0 = stdin */
-	dup(tmp); /* fd 1 = stdout */
-	dup(tmp); /* fd 2 = stderr */
+    /* fd 1 = stdout */
+	if( dup(tmp) == -1 ){
+        printf("dup(1), error %d: %s\n", errno, strerror(errno));
+        exit(EXIT_FAILURE);
+	}
+    /* fd 2 = stderr */
+	if( dup(tmp) == -1 ){
+        printf("dup(2), error %d: %s\n", errno, strerror(errno));
+        exit(EXIT_FAILURE);
+	}
 
 	/*
 	    put server into its own process group. If this process now spawns

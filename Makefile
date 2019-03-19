@@ -1,13 +1,14 @@
 PROJECT = glonassd
 
 CC = gcc
-LIBS = -lpq -lpthread -L/usr/lib/nptl -rdynamic -ldl -lrt -lm
-INCLUDE = -I/usr/include/nptl -I/usr/include/postgresql
+LIBS = -lpthread -L/usr/lib/nptl -rdynamic -ldl -lrt -lm
+INCLUDE = -I/usr/include/nptl
 # https://gcc.gnu.org/onlinedocs/gcc/Option-Summary.html#Option-Summary
 CFLAGS = -std=gnu99 -D_REENTERANT -m64
 SOCFLAGS = -std=gnu99 -D_REENTERANT -m64 -fpic -Wall -Werror
 # https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html
-OPTIMIZE = -O2 -flto -g0
+#OPTIMIZE = -O2 -flto -g0
+OPTIMIZE = -O0 -flto -g
 # https://gcc.gnu.org/onlinedocs/gcc/Debugging-Options.html#Debugging-Options
 DEBUG = -g
 
@@ -25,8 +26,8 @@ run: $(PROJECT)
 
 # shared library for database PostgreSQL
 pg: pg.c glonassd.h de.h logger.h
-	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) $(INCLUDE) pg.c $(LIBS) -o pg.o
-	$(CC) -shared -o pg.so pg.o
+	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) $(INCLUDE) -I/usr/include/postgresql pg.c $(LIBS) -o pg.o -lpq
+	$(CC) -shared -o pg.so pg.o -lpq
 	rm pg.o
 
 # shared library for decode/encode GALILEO
