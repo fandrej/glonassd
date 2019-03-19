@@ -35,13 +35,13 @@ void logging(char *template, ...)
 {
 	static __thread va_list ptr;
 	static __thread int len = 0;
-	static __thread char message[SOCKET_BUF_SIZE]= {0};
+	static __thread char message[LOG_MSG_SIZE]= {0};
 	static __thread int no_queue = 0;
 	static __thread mqd_t log_queue = 0;
 
 	va_start(ptr, template);
-	memset(message, 0, SOCKET_BUF_SIZE);
-	len = vsnprintf(message, SOCKET_BUF_SIZE, template, ptr);
+	memset(message, 0, LOG_MSG_SIZE);
+	len = vsnprintf(message, LOG_MSG_SIZE, template, ptr);
 	va_end(ptr);
 
 	log_queue = mq_open(QUEUE_LOGGER, O_WRONLY | O_NONBLOCK);
@@ -64,7 +64,7 @@ void *log_thread_func(void *arg)
 {
 	int fHandle = BAD_OBJ;
 	mqd_t queue_log = BAD_OBJ;	// Posix IPC queue of messages from workers
-	char msg_buf[SOCKET_BUF_SIZE];
+	char msg_buf[LOG_MSG_SIZE];
 	struct mq_attr queue_attr;
 	ssize_t msg_size;
 	struct rlimit rlim;
@@ -76,11 +76,11 @@ void *log_thread_func(void *arg)
 
 			// save messages from queue
 			if( mq_getattr(queue_log, &queue_attr) == 0 && queue_attr.mq_curmsgs > 0 ) {
-				memset(msg_buf, 0, SOCKET_BUF_SIZE);
+				memset(msg_buf, 0, LOG_MSG_SIZE);
 
-				while( (msg_size = mq_receive(queue_log, msg_buf, SOCKET_BUF_SIZE, NULL)) > 0 ) {
+				while( (msg_size = mq_receive(queue_log, msg_buf, LOG_MSG_SIZE, NULL)) > 0 ) {
 					writelog(fHandle, msg_buf, msg_size);
-					memset(msg_buf, 0, SOCKET_BUF_SIZE);
+					memset(msg_buf, 0, LOG_MSG_SIZE);
 				}   // while
 			}   // if
 
@@ -89,7 +89,7 @@ void *log_thread_func(void *arg)
 			mq_unlink(QUEUE_LOGGER);
 		}   // if( queue_log != BAD_OBJ )
 
-		msg_size = snprintf(msg_buf, SOCKET_BUF_SIZE, "logger[%ld] destroyed\n", syscall(SYS_gettid));
+		msg_size = snprintf(msg_buf, LOG_MSG_SIZE, "logger[%ld] destroyed\n", syscall(SYS_gettid));
 		writelog(fHandle, msg_buf, msg_size);
 
 		if( fHandle != BAD_OBJ )
@@ -103,7 +103,7 @@ void *log_thread_func(void *arg)
 	// calculate messages queue size
 	memset(&queue_attr, 0, sizeof(struct mq_attr));
 	// Max. message size (bytes)
-	queue_attr.mq_msgsize = SOCKET_BUF_SIZE;
+	queue_attr.mq_msgsize = LOG_MSG_SIZE;
 
 	// get limit to queue size in bytes
 	// calc Max. # of messages on queue
@@ -145,8 +145,8 @@ void *log_thread_func(void *arg)
 	while( 1 ) {
 		pthread_testcancel();
 
-		memset(msg_buf, 0, SOCKET_BUF_SIZE);
-		msg_size = mq_receive(queue_log, msg_buf, SOCKET_BUF_SIZE, NULL);
+		memset(msg_buf, 0, LOG_MSG_SIZE);
+		msg_size = mq_receive(queue_log, msg_buf, LOG_MSG_SIZE, NULL);
 		if( msg_size > 0 )
 			writelog(fHandle, msg_buf, msg_size);
 
@@ -162,7 +162,7 @@ void *log_thread_func(void *arg)
 
 static void writelog(int fHandle, char *logmsg, int len)
 {
-	char buf[SOCKET_BUF_SIZE];
+	char buf[LOG_MSG_SIZE];
 	int loglen = 0;
 	time_t t;
 	struct tm local;
@@ -171,15 +171,15 @@ static void writelog(int fHandle, char *logmsg, int len)
 		t = time(NULL);
 		localtime_r(&t, &local);
 
-		memset(buf, 0, SOCKET_BUF_SIZE);
+		memset(buf, 0, LOG_MSG_SIZE);
 
 		if( logmsg[len-1] == 10 ) {
-			loglen = snprintf(buf, SOCKET_BUF_SIZE, "%02d.%02d.%02d %02d:%02d:%02d %s",
+			loglen = snprintf(buf, LOG_MSG_SIZE, "%02d.%02d.%02d %02d:%02d:%02d %s",
 									local.tm_mday, local.tm_mon+1, local.tm_year-100,
 									local.tm_hour, local.tm_min, local.tm_sec,
 									logmsg);
 		} else {
-			loglen = snprintf(buf, SOCKET_BUF_SIZE, "%02d.%02d.%02d %02d:%02d:%02d %s\n",
+			loglen = snprintf(buf, LOG_MSG_SIZE, "%02d.%02d.%02d %02d:%02d:%02d %s\n",
 									local.tm_mday, local.tm_mon+1, local.tm_year-100,
 									local.tm_hour, local.tm_min, local.tm_sec,
 									logmsg);
