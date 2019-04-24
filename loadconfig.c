@@ -25,9 +25,9 @@ int load_terminals(char *fname, ST_FORWARD_TERMINAL **list)
 
 	if( fname[0] != '/' ) {	// file name without path
 		// add start daemon path to file name
-		snprintf(buffer, FILENAME_MAX, "%s/%s", stParams.start_path, fname);
+		snprintf(buffer, FILENAME_MAX, "%.4040s/%.50s", stParams.start_path, fname);
 	} else {
-		snprintf(buffer, FILENAME_MAX, "%s", fname);
+		snprintf(buffer, FILENAME_MAX, "%.4095s", fname);
 	}
 
 	// open and scan file
@@ -96,9 +96,9 @@ void fill_timer(ST_TIMER *st_timer, char *params)
 		// check the path to the script
 		if( buffer[0] != '/' ) {	// is not a full path to the script
 			// add the directory to launch the daemon file name
-			snprintf(st_timer->script_path, FILENAME_MAX, "%s/%s", stParams.start_path, buffer);
+			snprintf(st_timer->script_path, FILENAME_MAX, "%.4000s/%.90s", stParams.start_path, buffer);
 		} else {
-			snprintf(st_timer->script_path, FILENAME_MAX, "%s", buffer);
+			snprintf(st_timer->script_path, FILENAME_MAX, "%.4095s", buffer);
 		}
 
 		// check the availability of a script file

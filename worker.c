@@ -374,16 +374,16 @@ void *worker_thread(void *st_worker)
 		// logging all
 		if( config->listener->log_all ) {
 			if( config->imei[0] )
-				snprintf(l2fname, FILENAME_MAX, "%s/logs/%s_%s", stParams.start_path, config->listener->name, config->imei);
+				snprintf(l2fname, FILENAME_MAX, "%.4040s/logs/%.20s_%.15s", stParams.start_path, config->listener->name, config->imei);
 			else
-				snprintf(l2fname, FILENAME_MAX, "%s/logs/%s", stParams.start_path, config->listener->name);
+				snprintf(l2fname, FILENAME_MAX, "%.4040s/logs/%.20s", stParams.start_path, config->listener->name);
 
 			log2file(l2fname, socket_buf, bytes_read);
 		}	// if( config->listener->log_all )
 		else if( stConfigServer.log_imei[0] && stConfigServer.log_imei[0] == config->imei[0] ){
 			// log terminal message
 			if( !strcmp(stConfigServer.log_imei, config->imei) ){
-				snprintf(l2fname, FILENAME_MAX, "%s/logs/%s_prcl", stParams.start_path, config->imei);
+				snprintf(l2fname, FILENAME_MAX, "%.4040s/logs/%.15s_prcl", stParams.start_path, config->imei);
 				log2file(l2fname, socket_buf, bytes_read);
 			}
 		}
@@ -393,7 +393,13 @@ void *worker_thread(void *st_worker)
 		config->listener->terminal_decode(socket_buf, bytes_read, &answer);
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);  // can disturb :)
 
-		// answer to terminal
+        /* debug
+        if( strcmp(config->listener->name, "egts") == 0 ){
+			logging("%s[%ld]: answer count=%u size=%u\n", config->listener->name, syscall(SYS_gettid), answer.count, answer.size);
+        }
+        */
+
+        // answer to terminal
 		if( answer.size ) {
 			if(config->listener->protocol == SOCK_STREAM)
 				bytes_write = send(config->client_socket, answer.answer, answer.size, 0);
@@ -408,7 +414,7 @@ void *worker_thread(void *st_worker)
 			// log answer to terminal
 			if( stConfigServer.log_imei[0] && stConfigServer.log_imei[0] == config->imei[0] ){
 				if( !strcmp(stConfigServer.log_imei, config->imei) ){
-					snprintf(l2fname, FILENAME_MAX, "%s/logs/%s_answ", stParams.start_path, config->imei);
+					snprintf(l2fname, FILENAME_MAX, "%.4040s/logs/%.15s_answ", stParams.start_path, config->imei);
 					log2file(l2fname, socket_buf, bytes_read);
 				}
 			}
@@ -440,7 +446,7 @@ void *worker_thread(void *st_worker)
 
 					// log terminal data to file
 					if( config->listener->log_err ) {
-						snprintf(answer.answer, SOCKET_BUF_SIZE, "%s/logs/%s", stParams.start_path, config->listener->name);
+						snprintf(answer.answer, SOCKET_BUF_SIZE, "%.4040s/logs/%.20s", stParams.start_path, config->listener->name);
 						log2file(answer.answer, socket_buf, bytes_read);
 						memset(answer.answer, 0, SOCKET_BUF_SIZE);
 					}	// if( config->listener->log_err )

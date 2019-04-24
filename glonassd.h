@@ -21,6 +21,7 @@ typedef struct {
 	char start_path[FILENAME_MAX];
 	char config_path[FILENAME_MAX];
 	char *cmd;
+    char daemon;
 } ST_PARAMS;
 extern ST_PARAMS stParams;	// glonassd.c
 

@@ -51,19 +51,9 @@ void toDaemon(const char *PidFilePath)
 	if (pid < 0)
 		exit(EXIT_FAILURE);
 
-	/* Success: Let the parent terminate */
-	if (pid > 0) {
-		// create pid file
-		FILE *handle = fopen(PidFilePath, "w");
-		if(handle) {
-			fprintf(handle, "%d\n", pid);
-			fclose(handle);
-			exit(EXIT_SUCCESS);
-		} else {
-			printf("Create PID file %s, error %d: %s\n", PidFilePath, errno, strerror(errno));
-			exit(EXIT_FAILURE);
-		}
-	}	// if (pid > 0)
+    /* close parent */
+    if (pid > 0)
+		exit(EXIT_SUCCESS);
 
 	/* Catch, ignore and handle signals */
 	ConfigureSignalHandlers();

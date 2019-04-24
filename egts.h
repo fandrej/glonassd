@@ -31,6 +31,7 @@ long double							80		3.37  10^-4932 < |X| < 1.18  10^4932	Financial (18-dig
 */
 
 /* EGTS:
+http://docs.cntd.ru/document/1200095098
 D:\Work\Borland\Satellite\egts
 D:\Work\Borland\Satellite\egts\EGTS_PT_APPDATA.xls
 Упаковка: (Пример передачи данных о местоположении и состоянии транспортного средства.doc)
@@ -73,6 +74,9 @@ EGTS_PACKET {
 /* пакет Протокола Транспортного Уровня
 D:\Work\Borland\Satellite\egts\EGTS\EGTS 1.6\RUS\protocol_EGTS_transport_v.1.6_RUS.pdf
 8.1.2 ФОРМАТ ПАКЕТА
+or
+http://docs.cntd.ru/document/1200095098
+// Таблица 4 - Описание параметров (полей), входящих в состав пакета протокола транспортного уровня
 */
 #pragma pack( push, 1 )
 typedef struct {

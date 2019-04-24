@@ -31,7 +31,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 	if( !parcel || parcel_size <= 4 )
 		return;
 
-	answer->size = snprintf(answer->answer, 4, "OK\r\n");
+	answer->size = snprintf(answer->answer, 5, "OK\r\n");
 
 	if( answer->count < MAX_RECORDS - 1 )
 		answer->count++;

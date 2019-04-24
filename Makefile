@@ -5,10 +5,10 @@ LIBS = -lpthread -L/usr/lib/nptl -rdynamic -ldl -lrt -lm
 INCLUDE = -I/usr/include/nptl
 # https://gcc.gnu.org/onlinedocs/gcc/Option-Summary.html#Option-Summary
 CFLAGS = -std=gnu99 -D_REENTERANT -m64
-SOCFLAGS = -std=gnu99 -D_REENTERANT -m64 -fpic -Wall -Werror
+SOCFLAGS = -std=gnu99 -D_REENTERANT -m64 -fpic -Wall
 # https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html
 #OPTIMIZE = -O2 -flto -g0
-OPTIMIZE = -O0 -flto -g
+OPTIMIZE = -O0 -flto -g -fno-stack-protector
 # https://gcc.gnu.org/onlinedocs/gcc/Debugging-Options.html#Debugging-Options
 DEBUG = -g
 

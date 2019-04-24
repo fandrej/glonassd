@@ -358,8 +358,8 @@ void *db_thread(void *arg)
 	pthread_cleanup_push(exit_db, arg);
 
 	// load insert sql from file, temporary using msg_buf
-	memset(msg_buf, 0, MAX_SQL_SIZE);
-	snprintf(msg_buf, SOCKET_BUF_SIZE, "%s/%s.sql", stParams.start_path, stConfigServer.db_type);
+	memset(msg_buf, 0, SOCKET_BUF_SIZE);
+	snprintf(msg_buf, SOCKET_BUF_SIZE, "%.4075s/%.15s.sql", stParams.start_path, stConfigServer.db_type);
 	if( !load_file(msg_buf, sql_insert_point, MAX_SQL_SIZE) || !strlen(sql_insert_point) ) {
 		exit_db(arg);
 		return NULL;
@@ -380,10 +380,6 @@ void *db_thread(void *arg)
 
 	/* Max. message size (bytes) */
 	queue_attr.mq_msgsize = sizeof(ST_RECORD);
-
-	// increase RLIMIT_MSGQUEUE
-	rlim.rlim_cur = rlim.rlim_max = 10 * 65536 * queue_attr.mq_msgsize;
-	setrlimit(RLIMIT_MSGQUEUE, &rlim);
 
 	// get RLIMIT_MSGQUEUE and calculate actual size of queue
 	if( getrlimit(RLIMIT_MSGQUEUE, &rlim) == 0 ) {

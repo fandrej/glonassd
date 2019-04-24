@@ -37,6 +37,19 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 		return;
 
 	answer->size = 0;	// :)
+    /*
+    When data retranslated from another server, they can contains records for several different
+    terminals with different IMEI's.
+    In this case the answer->lastpoint.imei irrelevant for some records.
+    And if first records in data dont have filed L (login, with teminal imei) then this records
+    will be attributed to the old answer->lastpoint.imei.
+    To avoid such a situation is necessary:
+    1 clear answer->lastpoint.imei
+    2 and ignore records without L (login) field.
+    So:
+    */
+    // 1 clear answer->lastpoint.imei
+    memset(answer->lastpoint.imei, 0, SIZE_TRACKER_FIELD);
 
 	cRec = strtok(parcel, "\r\n");
 	while( cRec ) {
@@ -63,6 +76,11 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 			break;                                      //    1    2    3   4     5   6     7     8      9     10
 		case 'S':	// SD, Сокращённый пакет с данными: #SD#date;time;lat1;lat2;lon1;lon2;speed;course;height;sats\r\n
 			// answer: #ASD#1\r\n
+
+            if( !strlen(answer->lastpoint.imei) ){
+                // 2 ignore records without L (login) field
+                break;
+            }
 
 			if( !answer->count ) {	// только 1 ответ на все принятые записи
 				iAnswerSize = 9;
@@ -136,6 +154,11 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 			// #D#011116;033902;5526.6558;N;06520.9955;E;19;229;      72; 8;     0.9;0;        0;                                            ;NA;tmp:1:30,pwrext:2:13.38,freq1:1:0,freq2:1:0
 			// #D#011116;033802;5526.6604;N;06521.0047;E; 0;  0;      72; 9;     0.9;0;        0;                                            ;NA;lat1:3:N 55 26.6604,lon1:3:E 65 21.0047,course:1:0,sys:3:GPS,gsm:3:home,hw:3:2.0,fw:3:1.7,cnt:1:30559,tmp:1:30,currtmp:1:30,pwrext:2:13.42,freq1:1:0,freq2:1:0,rst:3:unknown,systime:3:0d00h13m36s
 			// answer: #AD#1\r\n
+
+            if( !strlen(answer->lastpoint.imei) ){
+                // 2 ignore records without L (login) field
+                break;
+            }
 
 			if( !answer->count ) {	// только 1 ответ на все принятые записи
 				iAnswerSize = 8;
@@ -237,6 +260,11 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 				#B#date;time;lat1;lat2;lon1;lon2;speed;course;height;sats|date;time;lat1;lat2;lon1;lon2;speed;course;height;sats|date;time;lat1;lat2;lon1;lon2;speed;course;height;sats\r\n
 			*/
 			// answer: #AB#x\r\n, где x - количество зафиксированных сообщений
+
+            if( !strlen(answer->lastpoint.imei) ){
+                // 2 ignore records without L (login) field
+                break;
+            }
 
 			cRec1 = strtok(&cRec[3], "|");
 

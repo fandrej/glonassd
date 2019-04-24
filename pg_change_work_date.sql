@@ -1,2 +1,2 @@
-/* смена рабочей даты:     новая дата, кол-во месяцев хранения данных */
-select gps.pchangeworkdata(current_date, 6);
+/* смена рабочей даты:  новая дата */
+select pchangeworkdata(current_date);

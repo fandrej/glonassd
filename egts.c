@@ -199,8 +199,9 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 
 	}	// while( parcel_pointer < pak_head->HL + pak_head->FDL )
 
-	/* debug
-	   if(record){
+    /* debug
+    if(record){
+       logging("terminal_decode[egts]: record->data=%lu\n", record->data);
 	   logging("terminal_decode[egts]: record->imei=%s\n", record->imei);
 	   logging("terminal_decode[egts]: record->lat=%lf\n", record->lat);
 	   logging("terminal_decode[egts]: record->lon=%lf\n", record->lon);
@@ -211,8 +212,8 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 	   logging("terminal_decode[egts]: record->curs=%d\n", record->curs);
 	   logging("terminal_decode[egts]: record->speed=%lf\n", record->speed);
 	   logging("terminal_decode[egts]: record->probeg=%lf\n", record->probeg);
-	   }
-	*/
+	}
+    */
 
 	if(answer->size) {
 		//log2file("/var/www/locman.org/tmp/gcc/w_answer", answer->answer, answer->size);
@@ -343,72 +344,78 @@ unsigned short CRC16EGTS(unsigned char * pcBlock, unsigned short len)
 
 int Parse_EGTS_PACKET_HEADER(ST_ANSWER *answer, char *pc, int parcel_size)
 {
+    int retval = 1;
 	EGTS_PACKET_HEADER *ph = (EGTS_PACKET_HEADER *)pc;
 
-	if( ph->PRV != 1 || (ph->PRF & 192) ) {
+	if( ph->PRV != 1 /*|| (ph->PRF & 192)*/ ) {
 		logging("terminal_decode[egts]: EGTS_PC_UNS_PROTOCOL error\n");
 		answer->size += responce_add_responce(answer->answer, answer->size, ph->PID, EGTS_PC_UNS_PROTOCOL);
-		return 0;
+		retval = 0;
+        //log2file("/home/locman/glonassd/logs/UNS_PROTOCOL", ph, sizeof(EGTS_PACKET_HEADER));
 	}
 
-	if( ph->HL != 11 && ph->HL != 16 ) {
+	if( retval && ph->HL != 11 && ph->HL != 16 ) {
 		logging("terminal_decode[egts]: EGTS_PC_INC_HEADERFORM error\n");
 		answer->size += responce_add_responce(answer->answer, answer->size, ph->PID, EGTS_PC_INC_HEADERFORM);
-		return 0;
+		retval = 0;
+        //log2file("/home/locman/glonassd/logs/INC_HEADERFORM", ph, sizeof(EGTS_PACKET_HEADER));
 	}
 
-	if( CRC8EGTS((unsigned char *)ph, ph->HL-1) != ph->HCS ) {
-		logging("terminal_decode[egts]: EGTS_PC_HEADERCRC_ERROR error %u/%u\n", CRC8EGTS((unsigned char *)ph, ph->HL-1), ph->HCS);
+    if( retval && CRC8EGTS((unsigned char *)ph, ph->HL-1) != ph->HCS ) {
+		logging("terminal_decode[egts]: EGTS_PC_HEADERCRC_ERROR error: need %u got %u\n", CRC8EGTS((unsigned char *)ph, ph->HL-1), ph->HCS);
 		answer->size += responce_add_responce(answer->answer, answer->size, ph->PID, EGTS_PC_HEADERCRC_ERROR);
-		return 0;
+		retval = 0;
 	}
 
-	if( B5 & ph->PRF ) {
+	if( retval && (B5 & ph->PRF) ) {
 		logging("terminal_decode[egts]: EGTS_PC_TTLEXPIRED error\n");
 		answer->size += responce_add_responce(answer->answer, answer->size, ph->PID, EGTS_PC_TTLEXPIRED);
-		return 0;
+		retval = 0;
 	}
 
-	if( !ph->FDL ) {
+	if( retval && !ph->FDL ) {
 		logging("terminal_decode[egts]: EGTS_PC_OK\n");
 		answer->size += responce_add_responce(answer->answer, answer->size, ph->PID, EGTS_PC_OK);
-		return 0;
+		retval = 0;
 	}
 
 	// проверяем CRC16
 	unsigned short *SFRCS = (unsigned short *)&pc[ph->HL + ph->FDL];
-	if( *SFRCS != CRC16EGTS( (unsigned char *)&pc[ph->HL], ph->FDL) ) {
-		logging("terminal_decode[egts]: EGTS_PC_DATACRC_ERROR error\n");
+	if( retval && *SFRCS != CRC16EGTS( (unsigned char *)&pc[ph->HL], ph->FDL) ) {
+		logging("terminal_decode[egts]: EGTS_PC_DATACRC_ERROR error: need %u got %u\n", CRC16EGTS( (unsigned char *)&pc[ph->HL], ph->FDL), *SFRCS);
 		answer->size += responce_add_responce(answer->answer, answer->size, ph->PID, EGTS_PC_DATACRC_ERROR);
-		return 0;
+		retval = 0;
 	}
 
 	// проверяем шифрование данных
-	if( ph->PRF & 24 ) {
+	if( retval && (ph->PRF & 24) ) {
 		logging("terminal_decode[egts]: EGTS_PC_DECRYPT_ERROR error\n");
 		answer->size += responce_add_responce(answer->answer, answer->size, ph->PID, EGTS_PC_DECRYPT_ERROR);
-		return 0;
+		retval = 0;
 	}
 
 	// проверяем сжатие данных
-	if( ph->PRF & B2 ) {
+	if( retval && (ph->PRF & B2) ) {
 		logging("terminal_decode[egts]: EGTS_PC_INC_DATAFORM error\n");
 		answer->size += responce_add_responce(answer->answer, answer->size, ph->PID, EGTS_PC_INC_DATAFORM);
+		retval = 0;
 	}
 
-	/*
-	   logging("terminal_decode[egts]: pak_head->PRV=%d\n", ph->PRV);
-	   logging("terminal_decode[egts]: pak_head->SKID=%d\n", ph->SKID);
-	   logging("terminal_decode[egts]: pak_head->PRF=%d\n", ph->PRF);
-	   logging("terminal_decode[egts]: pak_head->HL=%d\n", ph->HL);
-	   logging("terminal_decode[egts]: pak_head->HE=%d\n", ph->HE);
-	   logging("terminal_decode[egts]: pak_head->FDL=%d\n", ph->FDL);
-	   logging("terminal_decode[egts]: pak_head->PID=%d\n", ph->PID);
-	   logging("terminal_decode[egts]: pak_head->PT=%d\n", ph->PT);
-	   logging("terminal_decode[egts]: pak_head->HCS=%d\n", ph->HCS);
-	*/
+    /* debug
+    if( !retval ){
+        logging("terminal_decode[egts]: pak_head->PRV=%d\n", ph->PRV);
+        logging("terminal_decode[egts]: pak_head->SKID=%d\n", ph->SKID);
+        logging("terminal_decode[egts]: pak_head->PRF=%d\n", ph->PRF);
+        logging("terminal_decode[egts]: pak_head->HL=%d\n", ph->HL);
+        logging("terminal_decode[egts]: pak_head->HE=%d\n", ph->HE);
+        logging("terminal_decode[egts]: pak_head->FDL=%d\n", ph->FDL);
+        logging("terminal_decode[egts]: pak_head->PID=%d\n", ph->PID);
+        logging("terminal_decode[egts]: pak_head->PT=%d\n", ph->PT);
+        logging("terminal_decode[egts]: pak_head->HCS=%d\n", ph->HCS);
+    }
+    */
 
-	return 1;
+	return retval;
 }
 //------------------------------------------------------------------------------
 

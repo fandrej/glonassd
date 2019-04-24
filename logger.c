@@ -46,16 +46,19 @@ void logging(char *template, ...)
 
 	log_queue = mq_open(QUEUE_LOGGER, O_WRONLY | O_NONBLOCK);
 	if( log_queue < 0 ) {
-		syslog(LOG_NOTICE, "logging: mq_open(%s) error %d: %s\n", QUEUE_LOGGER, errno, strerror(errno));
+		//syslog(LOG_NOTICE, "logging: mq_open(%s) error %d: %s\n", QUEUE_LOGGER, errno, strerror(errno));
 		syslog(LOG_NOTICE, "%s", message);
 	}
     else {
 		if( mq_send(log_queue, (const char *)message, len, 0) < 0 ) {
-			syslog(LOG_NOTICE, "logging: mq_send(log_queue) error %d: %s\n", errno, strerror(errno));
+			//syslog(LOG_NOTICE, "logging: mq_send(log_queue) error %d: %s\n", errno, strerror(errno));
 			syslog(LOG_NOTICE, "%s", message);
 		}
 		mq_close(log_queue);
 	}
+
+    if( !stParams.daemon )
+        fprintf(stderr, "%s\n", message);
 }
 //------------------------------------------------------------------------------
 
