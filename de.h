@@ -25,7 +25,7 @@
 #define BAD_OBJ (-1)
 #endif
 #ifndef SOCKET_BUF_SIZE
-#define SOCKET_BUF_SIZE (4096)
+#define SOCKET_BUF_SIZE (8192)
 #endif
 #ifndef MAX_RECORDS
 #define MAX_RECORDS (30)

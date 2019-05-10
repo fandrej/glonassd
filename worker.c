@@ -361,10 +361,16 @@ void *worker_thread(void *st_worker)
 
 		// read terminal message
 		memset(socket_buf, 0, SOCKET_BUF_SIZE);
-		if(config->listener->protocol == SOCK_STREAM)
-			bytes_read = recv(config->client_socket, socket_buf, SOCKET_BUF_SIZE, 0);
-		else
+		if(config->listener->protocol == SOCK_STREAM){
+		    bytes_read = 0;
+		    while( bytes_read < SOCKET_BUF_SIZE && (i = recv(config->client_socket, &socket_buf[bytes_read], SOCKET_BUF_SIZE - bytes_read, MSG_WAITALL)) > 0 ){
+    			bytes_read += i;
+                usleep(150000);
+		    }
+        }
+		else {
 			bytes_read = recvfrom(config->client_socket, socket_buf, SOCKET_BUF_SIZE, 0, NULL, NULL);
+        }
 
 		if( !FD_ISSET(config->client_socket, &rfds) || bytes_read <= 0 ) {	// socket read error or terminal disconnect
 			exit_worker(config);

@@ -351,32 +351,35 @@ int Parse_EGTS_PACKET_HEADER(ST_ANSWER *answer, char *pc, int parcel_size)
 		logging("terminal_decode[egts]: EGTS_PC_UNS_PROTOCOL error\n");
 		answer->size += responce_add_responce(answer->answer, answer->size, ph->PID, EGTS_PC_UNS_PROTOCOL);
 		retval = 0;
-        //log2file("/home/locman/glonassd/logs/UNS_PROTOCOL", ph, sizeof(EGTS_PACKET_HEADER));
+        log2file("/home/locman/glonassd/logs/UNS_PROTOCOL", pc, parcel_size);
 	}
 
 	if( retval && ph->HL != 11 && ph->HL != 16 ) {
 		logging("terminal_decode[egts]: EGTS_PC_INC_HEADERFORM error\n");
 		answer->size += responce_add_responce(answer->answer, answer->size, ph->PID, EGTS_PC_INC_HEADERFORM);
 		retval = 0;
-        //log2file("/home/locman/glonassd/logs/INC_HEADERFORM", ph, sizeof(EGTS_PACKET_HEADER));
+        log2file("/home/locman/glonassd/logs/INC_HEADERFORM", pc, parcel_size);
 	}
 
     if( retval && CRC8EGTS((unsigned char *)ph, ph->HL-1) != ph->HCS ) {
 		logging("terminal_decode[egts]: EGTS_PC_HEADERCRC_ERROR error: need %u got %u\n", CRC8EGTS((unsigned char *)ph, ph->HL-1), ph->HCS);
 		answer->size += responce_add_responce(answer->answer, answer->size, ph->PID, EGTS_PC_HEADERCRC_ERROR);
 		retval = 0;
+        log2file("/home/locman/glonassd/logs/HEADERCRC_ERROR", pc, parcel_size);
 	}
 
 	if( retval && (B5 & ph->PRF) ) {
 		logging("terminal_decode[egts]: EGTS_PC_TTLEXPIRED error\n");
 		answer->size += responce_add_responce(answer->answer, answer->size, ph->PID, EGTS_PC_TTLEXPIRED);
 		retval = 0;
+        log2file("/home/locman/glonassd/logs/TTLEXPIRED", pc, parcel_size);
 	}
 
 	if( retval && !ph->FDL ) {
 		logging("terminal_decode[egts]: EGTS_PC_OK\n");
 		answer->size += responce_add_responce(answer->answer, answer->size, ph->PID, EGTS_PC_OK);
 		retval = 0;
+        log2file("/home/locman/glonassd/logs/EGTS_PC_OK", pc, parcel_size);
 	}
 
 	// проверяем CRC16
@@ -385,6 +388,7 @@ int Parse_EGTS_PACKET_HEADER(ST_ANSWER *answer, char *pc, int parcel_size)
 		logging("terminal_decode[egts]: EGTS_PC_DATACRC_ERROR error: need %u got %u\n", CRC16EGTS( (unsigned char *)&pc[ph->HL], ph->FDL), *SFRCS);
 		answer->size += responce_add_responce(answer->answer, answer->size, ph->PID, EGTS_PC_DATACRC_ERROR);
 		retval = 0;
+        log2file("/home/locman/glonassd/logs/DATACRC_ERROR", pc, parcel_size);
 	}
 
 	// проверяем шифрование данных
@@ -392,6 +396,7 @@ int Parse_EGTS_PACKET_HEADER(ST_ANSWER *answer, char *pc, int parcel_size)
 		logging("terminal_decode[egts]: EGTS_PC_DECRYPT_ERROR error\n");
 		answer->size += responce_add_responce(answer->answer, answer->size, ph->PID, EGTS_PC_DECRYPT_ERROR);
 		retval = 0;
+        log2file("/home/locman/glonassd/logs/DECRYPT_ERROR", pc, parcel_size);
 	}
 
 	// проверяем сжатие данных
@@ -399,9 +404,10 @@ int Parse_EGTS_PACKET_HEADER(ST_ANSWER *answer, char *pc, int parcel_size)
 		logging("terminal_decode[egts]: EGTS_PC_INC_DATAFORM error\n");
 		answer->size += responce_add_responce(answer->answer, answer->size, ph->PID, EGTS_PC_INC_DATAFORM);
 		retval = 0;
+        log2file("/home/locman/glonassd/logs/INC_DATAFORM", pc, parcel_size);
 	}
 
-    /* debug
+    /* debug */
     if( !retval ){
         logging("terminal_decode[egts]: pak_head->PRV=%d\n", ph->PRV);
         logging("terminal_decode[egts]: pak_head->SKID=%d\n", ph->SKID);
@@ -413,7 +419,7 @@ int Parse_EGTS_PACKET_HEADER(ST_ANSWER *answer, char *pc, int parcel_size)
         logging("terminal_decode[egts]: pak_head->PT=%d\n", ph->PT);
         logging("terminal_decode[egts]: pak_head->HCS=%d\n", ph->HCS);
     }
-    */
+
 
 	return retval;
 }

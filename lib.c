@@ -321,7 +321,7 @@ void log2file(char *fname, void *content, size_t content_size)
 					local.tm_mday, local.tm_mon+1, local.tm_year-100,
 					local.tm_hour, local.tm_min, local.tm_sec);
 
-		if( (fHandle = open(fName, O_APPEND | O_CREAT | O_WRONLY, S_IWRITE)) != -1 ) {
+		if( (fHandle = open(fName, O_APPEND | O_CREAT | O_WRONLY, 0644)) != -1 ) {
 			write(fHandle, content, content_size);
 			close(fHandle);
 		}
