@@ -229,7 +229,6 @@ void *worker_thread(void *st_worker)
 {
 	static __thread ST_WORKER *config;	// configuration of the worker
 	static __thread unsigned int i;
-	static __thread unsigned int errors = 0;	// worker error counter
 	static __thread unsigned int forward_tested = 0;	// flag: 0 - test for forwarding not fired, 1 - fired
 	static __thread unsigned int forward_count = 0;	// flag & count of forwarders's sockets
 	static __thread ST_FORWARD_ATTR forward_attr[MAX_FORWARDS];
@@ -308,12 +307,21 @@ void *worker_thread(void *st_worker)
 		return NULL;
 	}
 
-	// set non-blocking mode
+	// set socket to non-blocking mode
 	if( fcntl(config->client_socket, F_SETFL, O_NONBLOCK) < 0 ) {
 		logging("%s[%ld]: fcntl(client_socket) error %d: %s\n", config->listener->name, syscall(SYS_gettid), errno, strerror(errno));
 		exit_worker(config);
 		return NULL;
 	}
+
+    // set socket read timeout
+    /*
+    tv.tv_sec = 0;
+    tv.tv_usec = 150000;
+    if (setsockopt(config->client_socket, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(struct timeval)) < 0){
+		logging("%s[%ld]: setsockopt(SO_RCVTIMEO) error %d: %s\n", config->listener->name, syscall(SYS_gettid), errno, strerror(errno));
+    }
+    */
 
 	// prepare queue of messages (connect to existing queue)
 	config->db_queue = mq_open(QUEUE_WORKER, O_WRONLY | O_NONBLOCK);
@@ -346,13 +354,13 @@ void *worker_thread(void *st_worker)
 
 		switch( select(config->client_socket + 1, &rfds, NULL, NULL, &tv) ) {
 		case BAD_OBJ:	// error
-			if( stConfigServer.log_enable )
+			if( config->listener->log_err || stConfigServer.log_enable )
 				logging("%s[%ld]: select(client_socket) error %d: %s\n", config->listener->name, syscall(SYS_gettid), errno, strerror(errno));
 
 			exit_worker(config);
 			return NULL;
 		case 0:	// timeout
-			if( stConfigServer.log_enable > 1 )
+			if( config->listener->log_err || stConfigServer.log_enable > 1 )
 				logging("%s[%ld]: %s timeout\n", config->listener->name, syscall(SYS_gettid), config->imei);
 
 			exit_worker(config);
@@ -362,48 +370,67 @@ void *worker_thread(void *st_worker)
 		// read terminal message
 		memset(socket_buf, 0, SOCKET_BUF_SIZE);
 		if(config->listener->protocol == SOCK_STREAM){
-		    bytes_read = 0;
-		    while( bytes_read < SOCKET_BUF_SIZE && (i = recv(config->client_socket, &socket_buf[bytes_read], SOCKET_BUF_SIZE - bytes_read, MSG_WAITALL)) > 0 ){
-    			bytes_read += i;
-                usleep(150000);
-		    }
+		    //bytes_read = recv(config->client_socket, socket_buf, SOCKET_BUF_SIZE, 0);
+
+			bytes_read = 0;
+            while( bytes_read < SOCKET_BUF_SIZE && (bytes_write = recv(config->client_socket, &socket_buf[bytes_read], SOCKET_BUF_SIZE-bytes_read, 0)) > 0 ){
+                bytes_read += bytes_write;
+                usleep(10000);
+            }
         }
 		else {
 			bytes_read = recvfrom(config->client_socket, socket_buf, SOCKET_BUF_SIZE, 0, NULL, NULL);
         }
 
-		if( !FD_ISSET(config->client_socket, &rfds) || bytes_read <= 0 ) {	// socket read error or terminal disconnect
+		if( bytes_read <= 0 ) {	// socket read error or terminal disconnect
+            if( stConfigServer.log_enable > 1 )
+                logging("%s[%ld]: bytes_read (%zu) <= 0\n", config->listener->name, syscall(SYS_gettid), config->imei, bytes_read);
 			exit_worker(config);
 			return NULL;
 		}
 
-		// logging all
-		if( config->listener->log_all ) {
-			if( config->imei[0] )
-				snprintf(l2fname, FILENAME_MAX, "%.4040s/logs/%.20s_%.15s", stParams.start_path, config->listener->name, config->imei);
-			else
-				snprintf(l2fname, FILENAME_MAX, "%.4040s/logs/%.20s", stParams.start_path, config->listener->name);
-
-			log2file(l2fname, socket_buf, bytes_read);
-		}	// if( config->listener->log_all )
-		else if( stConfigServer.log_imei[0] && stConfigServer.log_imei[0] == config->imei[0] ){
-			// log terminal message
-			if( !strcmp(stConfigServer.log_imei, config->imei) ){
-				snprintf(l2fname, FILENAME_MAX, "%.4040s/logs/%.15s_prcl", stParams.start_path, config->imei);
-				log2file(l2fname, socket_buf, bytes_read);
-			}
-		}
+        if( stConfigServer.log_enable > 1 )
+			logging("%s[%ld]: socket read %zd bytes\n", config->listener->name, syscall(SYS_gettid), bytes_read);
 
 		// decode terminal message
 		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);	// do not disturb :)
 		config->listener->terminal_decode(socket_buf, bytes_read, &answer);
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);  // can disturb :)
 
-        /* debug
-        if( strcmp(config->listener->name, "egts") == 0 ){
-			logging("%s[%ld]: answer count=%u size=%u\n", config->listener->name, syscall(SYS_gettid), answer.count, answer.size);
+        if( stConfigServer.log_enable > 1 )
+			logging("%s[%ld]: decoded %u records, answer.size %u bytes\n", config->listener->name, syscall(SYS_gettid), answer.count, answer.size);
+
+        /* debug */
+        if( config->listener->log_err && bytes_read > 16 && answer.count == 0 ){
+			snprintf(l2fname, FILENAME_MAX, "%.4040s/logs/%.20s_len_%zu_rec_%u", stParams.start_path, config->listener->name, bytes_read, answer.count);
+			log2file(l2fname, socket_buf, bytes_read);
         }
-        */
+
+        // logging all
+		if( config->listener->log_all ) {
+			if( answer.lastpoint.imei[0] )
+				snprintf(l2fname, FILENAME_MAX, "%.4040s/logs/%.20s_%.15s", stParams.start_path, config->listener->name, answer.lastpoint.imei);
+			else
+				snprintf(l2fname, FILENAME_MAX, "%.4040s/logs/%.20s", stParams.start_path, config->listener->name);
+
+			log2file(l2fname, socket_buf, bytes_read);
+		}	// if( config->listener->log_all )
+		else if( stConfigServer.log_imei[0] && stConfigServer.log_imei[0] == answer.lastpoint.imei[0] ){
+			// log terminal message
+			if( !strcmp(stConfigServer.log_imei, answer.lastpoint.imei) ){
+				snprintf(l2fname, FILENAME_MAX, "%.4040s/logs/%.15s_prcl", stParams.start_path, answer.lastpoint.imei);
+				log2file(l2fname, socket_buf, bytes_read);
+			}
+		}
+
+		// save terminal data to DB
+		if( answer.count ) {
+			strcpy(config->imei, answer.lastpoint.imei);
+			send_data_to_db(config, answer.records, answer.count);
+
+            if( stConfigServer.log_enable > 1 )
+            	logging("%s[%ld]: %s saved %d records\n", config->listener->name, syscall(SYS_gettid), answer.lastpoint.imei, answer.count);
+		}	// if( answer.count )
 
         // answer to terminal
 		if( answer.size ) {
@@ -412,102 +439,23 @@ void *worker_thread(void *st_worker)
 			else
 				bytes_write = sendto(config->client_socket, answer.answer, answer.size, 0, (struct sockaddr *)&config->client_addr, sizeof(struct sockaddr_in));
 
-			if( bytes_write <= 0 && stConfigServer.log_enable > 1 )	// socket write error
-				logging("%s[%ld]: send to terminal error %d: %s\n", config->listener->name, syscall(SYS_gettid), errno, strerror(errno));
-
-			errors = 0;
+			if( bytes_write <= 0 ){	// socket write error
+                if( config->listener->log_err || stConfigServer.log_enable > 1 )
+    				logging("%s[%ld]: send to terminal error %d: %s\n", config->listener->name, syscall(SYS_gettid), errno, strerror(errno));
+    			exit_worker(config);
+    			return NULL;
+            }
+            else if( stConfigServer.log_enable > 1 )
+    			logging("%s[%ld]: send to terminal %zu bytes\n", config->listener->name, syscall(SYS_gettid), bytes_write);
 
 			// log answer to terminal
-			if( stConfigServer.log_imei[0] && stConfigServer.log_imei[0] == config->imei[0] ){
-				if( !strcmp(stConfigServer.log_imei, config->imei) ){
-					snprintf(l2fname, FILENAME_MAX, "%.4040s/logs/%.15s_answ", stParams.start_path, config->imei);
+			if( stConfigServer.log_imei[0] && stConfigServer.log_imei[0] == answer.lastpoint.imei[0] ){
+				if( !strcmp(stConfigServer.log_imei, answer.lastpoint.imei) ){
+					snprintf(l2fname, FILENAME_MAX, "%.4040s/logs/%.15s_answ", stParams.start_path, answer.lastpoint.imei);
 					log2file(l2fname, socket_buf, bytes_read);
 				}
 			}
 		}	// if( answer.size )
-
-		// save terminal data to DB
-		if( answer.count ) {
-			errors = 0;	// reset errors counter
-
-			if( !config->imei[0] && answer.records[0].imei[0] ) {	// first set config->imei
-				strcpy(config->imei, answer.records[0].imei);
-
-				if( stConfigServer.log_enable > 1 )
-					logging("%s[%ld]: %s connected\n", config->listener->name, syscall(SYS_gettid), config->imei);
-			}
-
-			send_data_to_db(config, answer.records, answer.count);
-
-		}	// if( answer.count )
-		else {	// no decoded records
-
-			// no answer, no records - what is the motherfucker?
-			if( !answer.size ) {
-
-				if( ++errors > MAX_ERRORS ) {	// too many errors
-
-					if( stConfigServer.log_enable > 1 )
-						logging("%s[%ld]: %s no answer, no records, drop", config->listener->name, syscall(SYS_gettid), config->imei);
-
-					// log terminal data to file
-					if( config->listener->log_err ) {
-						snprintf(answer.answer, SOCKET_BUF_SIZE, "%.4040s/logs/%.20s", stParams.start_path, config->listener->name);
-						log2file(answer.answer, socket_buf, bytes_read);
-						memset(answer.answer, 0, SOCKET_BUF_SIZE);
-					}	// if( config->listener->log_err )
-
-					exit_worker(config);	// fuck you
-					return NULL;
-
-				}	// if( ++errors > MAX_ERRORS )
-
-			}	// if( !answer.size )
-			else {
-				// identification without records - imei must be set in answer->lastpoint
-
-				if( !config->imei[0] && answer.lastpoint.imei[0] ) {	// imei exists
-					strcpy(config->imei, answer.lastpoint.imei);
-
-					if( stConfigServer.log_enable > 1 )
-						logging("%s[%ld]: %s connected\n", config->listener->name, syscall(SYS_gettid), config->imei);
-				}	// if( answer.lastpoint.imei[0] )
-
-			}	// else if( !answer.size )
-
-		}	// else if( answer.count )
-
-		// socket write error - terminal disconnected or network error
-		if( answer.size && bytes_write <= 0 ) {
-			exit_worker(config);
-			return NULL;
-		}
-
-		// test for retranslation
-		if( !forward_tested && config->imei[0] ) {	// before not tested & imey exists
-			++forward_tested;	// set flag to test fired
-
-			// is forwarding need ?
-			forward_count = test_forward(config, config->imei, forward_attr);
-		}	// if( !forward_tested && config->imei[0] )
-
-		// forwarding
-		if( forward_count ) {
-			for( i = 0; i < forward_count; i++) {
-
-				if( forward_attr[i].forward_socket != BAD_OBJ ) {
-
-					if( forward_attr[i].forward_encode ) {	// terminal & forward protocols not equal
-						send_data_to_forward(config, answer.records, answer.count, &forward_attr[i]);	// forward decoded records
-					}
-					else { // terminal & forward protocols is equal
-						send_data_to_forward(config, socket_buf, bytes_read, &forward_attr[i]);	// forward raw data
-					}
-				}	// if( forward_attr[i].forward_socket != BAD_OBJ )
-
-			}	// for( i = 0; i < forward_count; i++)
-		}	// forward_count
-
 	}	// while( 1 )
 
 	/*

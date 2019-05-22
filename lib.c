@@ -13,6 +13,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <syslog.h>
+#include <errno.h>
 #include "lib.h"
 
 #ifndef MILE
@@ -322,7 +323,9 @@ void log2file(char *fname, void *content, size_t content_size)
 					local.tm_hour, local.tm_min, local.tm_sec);
 
 		if( (fHandle = open(fName, O_APPEND | O_CREAT | O_WRONLY, 0644)) != -1 ) {
-			write(fHandle, content, content_size);
+			if( write(fHandle, content, content_size) < 0 ) {
+                syslog(LOG_NOTICE, "%s write error %d: %s\n", fName, errno, strerror(errno));
+			}
 			close(fHandle);
 		}
 

@@ -127,9 +127,9 @@ static void data_save(char *config_name, char *imei, char *content, ssize_t cont
 			}
 			msg.len = content_size;
 			// write header
-			write(fHandle, &msg, sizeof(ST_FORWARD_MSG));
+			if( !write(fHandle, &msg, sizeof(ST_FORWARD_MSG)) ) {}
 			// write data
-			write(fHandle, content, content_size);
+			if( !write(fHandle, content, content_size) ){}
 
 			close(fHandle);
 

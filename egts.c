@@ -33,7 +33,7 @@
 */
 void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 {
-	int parcel_pointer, sdr_readed;
+	int parcel_pointer = 0, sdr_readed = 0, sdr_count = 0, srd_count = 0;
 	EGTS_PACKET_HEADER *pak_head;
 	EGTS_RECORD_HEADER *rec_head, st_rec_header;
 	EGTS_SUBRECORD_HEADER *srd_head;
@@ -50,35 +50,28 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 	// создаем ответ на пакет
 	answer->size = packet_create(answer->answer, EGTS_PT_RESPONSE);
 
-	// разбираем заголовок пакета
-	pak_head = (EGTS_PACKET_HEADER *)parcel;
-	if( !Parse_EGTS_PACKET_HEADER(answer, parcel, parcel_size) ) {
+    again:
+    // разбираем заголовок пакета
+	pak_head = (EGTS_PACKET_HEADER *)&parcel[parcel_pointer];
+	if( !Parse_EGTS_PACKET_HEADER(answer, &parcel[parcel_pointer], parcel_size) ) {
 		answer->size += packet_finalize(answer->answer, answer->size);
 		return;
 	}
-	parcel_pointer = pak_head->HL;
+	parcel_pointer += pak_head->HL;
 
 	// проверяем тип пакета
 	switch( pak_head->PT ) {
 	case EGTS_PT_RESPONSE:	// ответ на что-то
-		//log2file("/var/www/locman.org/tmp/gcc/r_EGTS_PT_RESPONSE", parcel, parcel_size);
-		/*
-			response_hdr = (EGTS_PT_RESPONSE_HEADER *)&parcel[pak_head->HL];
-			response_rec = (EGTS_SR_RECORD_RESPONSE_RECORD *)&parcel[pak_head->HL + sizeof(EGTS_PT_RESPONSE_HEADER)];
-			result_rec = (EGTS_SR_RESULT_CODE_RECORD *)&parcel[pak_head->HL + sizeof(EGTS_PT_RESPONSE_HEADER) + sizeof(EGTS_SR_RECORD_RESPONSE_RECORD)];
-
-		   logging("terminal_decode[egts]: EGTS_PT_RESPONSE packet[%u]=%u, rec[%u]=%u, res=%u\n",
-																									response_hdr->RPID,
-																									response_hdr->PR,
-																									response_rec->CRN,
-																									response_rec->RST,
-																									result_rec->RCD);
-		*/
-
-
-		answer->size = 0;
-
-		return; // отвечать на ответ моветон
+        if( parcel_size > 16 && parcel[parcel_pointer + pak_head->FDL + 2] == 1 ){
+            /* отвтет, за которым идут данные какого-то хуя */
+            parcel_pointer += (pak_head->FDL + 2);
+            goto again;
+        }
+        else {
+    		answer->size = 0;
+    		return; // отвечать на ответ моветон
+        }
+		break;
 	case EGTS_PT_SIGNED_APPDATA:	// данные с цифровой подписью
 		//log2file("/var/www/locman.org/tmp/gcc/r_EGTS_PT_SIGNED_APPDATA", parcel, parcel_size);
 
@@ -91,8 +84,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 	}	// switch( pak_head->PT )
 
 	// вставляем в ответ на пакет OK для транспортного уровня пакета, получили, типа
-	answer->size += responce_add_responce(answer->answer, answer->size, pak_head->PID, EGTS_PC_OK);
-
+	answer->size += responce_add_header(answer->answer, answer->size, pak_head->PID, EGTS_PC_OK);
 
 	// Чтение данных SFRD
 	while( parcel_pointer < pak_head->HL + pak_head->FDL ) {
@@ -102,10 +94,13 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 		// проверяем длинну присланных данных
 		if( !rec_head->RL ) {	// EGTS_PC_INVDATALEN
 			logging("terminal_decode[egts]: SDR:EGTS_PC_INVDATALEN error\n");
-			answer->size += responce_add_record(answer->answer, answer->size, rec_head->RN, EGTS_PC_INVDATALEN);
+			answer->size += responce_add_teledata_result(answer->answer, answer->size, rec_head->RN, EGTS_PC_INVDATALEN);
 			answer->size += packet_finalize(answer->answer, answer->size);
 			return;
 		}
+
+        sdr_count++;    // record counter
+        //logging("terminal_decode[egts]: SDR %d RN=%d size=%d\n", sdr_count, rec_head->RN, rec_head->RL);
 
 		// разбираем SDR
 		parcel_pointer += Parse_EGTS_RECORD_HEADER(rec_head, &st_rec_header, answer);
@@ -118,12 +113,14 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 			// проверяем длинну присланных данных
 			if( !srd_head->SRL ) {
 				logging("terminal_decode[egts]: SRD:EGTS_PC_INVDATALEN error\n");
-				answer->size += responce_add_record(answer->answer, answer->size, rec_head->RN, EGTS_PC_INVDATALEN);
+				answer->size += responce_add_teledata_result(answer->answer, answer->size, rec_head->RN, EGTS_PC_INVDATALEN);
 				answer->size += packet_finalize(answer->answer, answer->size);
 				return;
 			}
 
-			sdr_readed += sizeof(EGTS_SUBRECORD_HEADER);
+            srd_count++;    // subrecord counter
+
+            sdr_readed += sizeof(EGTS_SUBRECORD_HEADER);
 			parcel_pointer += sizeof(EGTS_SUBRECORD_HEADER);
 
 			// разбираем SRD (Subrecord Data) в зависимости от типа записи
@@ -140,19 +137,15 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 					answer->size += responce_add_result(answer->answer, answer->size, EGTS_PC_OK);
 				}
 
-				break;
+                break;
 			case EGTS_SR_POS_DATA:	// навигационные данные
 
-				// создаем запись для сохранения данных
-				if( answer->count < MAX_RECORDS - 1 )
-					answer->count++;
-				record = &answer->records[answer->count - 1];
-
+                // разбираем данные
+                record = &answer->records[answer->count];
 				if( Parse_EGTS_SR_POS_DATA( (EGTS_SR_POS_DATA_RECORD *)&parcel[parcel_pointer], record, answer ) ) {
-					answer->size += responce_add_record(answer->answer, answer->size, rec_head->RN, EGTS_PC_OK);
 					memcpy(&answer->lastpoint, record, sizeof(ST_RECORD));
-				} else {
-					answer->size += responce_add_record(answer->answer, answer->size, rec_head->RN, EGTS_PC_OK);
+    				if( answer->count < MAX_RECORDS - 1 )
+    					answer->count++;
 				}
 
 				break;
@@ -186,10 +179,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 
 				break;
 			default:	// мы такое не обрабатываем
-
-				//log2file("/var/www/locman.org/tmp/gcc/r_default", parcel, parcel_size);
-				answer->size += responce_add_record(answer->answer, answer->size, rec_head->RN, EGTS_PC_OK);
-
+                ;//logging("terminal_decode[egts]: default: srd_head->SRT=%d\n", srd_head->SRT);
 			}	// switch( srd_head->SRT )
 
 			// переходим к следующей подзаписи
@@ -197,7 +187,14 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 			parcel_pointer += srd_head->SRL;
 		}	// while(sdr_readed < rec_head->RL)
 
+		answer->size += responce_add_teledata_result(answer->answer, answer->size, rec_head->RN, EGTS_PC_OK);
 	}	// while( parcel_pointer < pak_head->HL + pak_head->FDL )
+
+
+	if(answer->size) {
+		//log2file("/var/www/locman.org/tmp/gcc/w_answer", answer->answer, answer->size);
+		answer->size += packet_finalize(answer->answer, answer->size);
+	}
 
     /* debug
     if(record){
@@ -213,13 +210,8 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 	   logging("terminal_decode[egts]: record->speed=%lf\n", record->speed);
 	   logging("terminal_decode[egts]: record->probeg=%lf\n", record->probeg);
 	}
+    logging("terminal_decode[egts]: subrecords=%d answer->count=%d answer->size=%d parcel_size=%d\n", subrecords, answer->count, answer->size, parcel_size);
     */
-
-	if(answer->size) {
-		//log2file("/var/www/locman.org/tmp/gcc/w_answer", answer->answer, answer->size);
-		answer->size += packet_finalize(answer->answer, answer->size);
-	}
-
 }
 //------------------------------------------------------------------------------
 
@@ -233,7 +225,7 @@ int packet_create(char *buffer, uint8_t pt)
 	EGTS_PACKET_HEADER *pak_head = (EGTS_PACKET_HEADER *)buffer;
 	pak_head->PRV = 1;
 	pak_head->SKID = 0;
-	pak_head->PRF = 0;
+	pak_head->PRF = 3;  // приоритет маршрутизации низкий
 	pak_head->HL = sizeof(EGTS_PACKET_HEADER);	// 11
 	pak_head->HE = 0;
 	pak_head->FDL = 0;
@@ -245,8 +237,8 @@ int packet_create(char *buffer, uint8_t pt)
 }
 //------------------------------------------------------------------------------
 
-// добавление в ответ результата обработки транспортного уровня
-int responce_add_responce(char *buffer, int pointer, uint16_t pid, uint8_t pr)
+// добавление в ответ результата обработки транспортного уровня EGTS_PT_RESPONSE_HEADER
+int responce_add_header(char *buffer, int pointer, uint16_t pid, uint8_t pr)
 {
 	EGTS_PT_RESPONSE_HEADER *res_head = (EGTS_PT_RESPONSE_HEADER *)&buffer[pointer];
 	res_head->RPID = pid;
@@ -259,7 +251,57 @@ int responce_add_responce(char *buffer, int pointer, uint16_t pid, uint8_t pr)
 }
 //------------------------------------------------------------------------------
 
-// добавление в ответ результата обработки записей
+/* добавление в ответ результата обработки записей EGTS_SR_RECORD_RESPONSE_RECORD
+crn - № SDR записи, не порядковый, а присланный, на которую формируется ответ
+rst - результат обработки записи
+*/
+int responce_add_teledata_result(char *buffer, int pointer, uint16_t crn, uint8_t rst)
+{
+    static int RECNUM = 0;
+    int size = 0;
+
+    if( sizeof(EGTS_TELEDATA_RESULT_HEADER) +
+        sizeof(EGTS_SR_RECORD_RESPONSE_RECORD) +
+        sizeof(EGTS_SR_RECORD_RESPONSE_RECORD) < SOCKET_BUF_SIZE - pointer)
+    {
+        // заголовок записи
+        EGTS_TELEDATA_RESULT_HEADER *rh = (EGTS_TELEDATA_RESULT_HEADER *)&buffer[pointer];
+        rh->RL = sizeof(EGTS_SUBRECORD_HEADER) + sizeof(EGTS_SR_RECORD_RESPONSE_RECORD);
+        rh->RN = RECNUM;   // номер записи от 0 до 65535, цикл
+        rh->RFL = 0;
+        rh->SST = EGTS_TELEDATA_SERVICE;
+        rh->RST = EGTS_TELEDATA_SERVICE;
+        size += sizeof(EGTS_TELEDATA_RESULT_HEADER);
+        // заголовок субзаписи
+        EGTS_SUBRECORD_HEADER *srh = (EGTS_SUBRECORD_HEADER *)&buffer[pointer + size];
+        srh->SRT = EGTS_SR_RECORD_RESPONSE;
+        srh->SRL = sizeof(EGTS_SR_RECORD_RESPONSE_RECORD);
+        size += sizeof(EGTS_SUBRECORD_HEADER);
+        // субзапись EGTS_SR_RECORD_RESPONSE
+        EGTS_SR_RECORD_RESPONSE_RECORD *sr = (EGTS_SR_RECORD_RESPONSE_RECORD *)&buffer[pointer + size];
+    	sr->CRN = crn;
+    	sr->RST = rst;
+        size += sizeof(EGTS_SR_RECORD_RESPONSE_RECORD);
+
+        // установим правильную длинну пакета в заголовке
+    	EGTS_PACKET_HEADER *pak_head = (EGTS_PACKET_HEADER *)buffer;
+    	pak_head->FDL += size;
+
+        if( ++RECNUM > 65535 )
+            RECNUM = 0;
+
+        //logging("terminal_decode[egts]: RESPONSE_RECORD %d CRN=%d RST=%d\n", RECNUM, crn, rst);
+    }
+    else {
+        logging("terminal_decode[egts]: add RESPONSE_RECORD fail - buffer full\n");
+    }
+
+    return size;
+}
+//------------------------------------------------------------------------------
+
+
+// добавление в ответ результата обработки записей EGTS_SR_RECORD_RESPONSE_RECORD
 int responce_add_record(char *buffer, int pointer, uint16_t crn, uint8_t rst)
 {
 	EGTS_SR_RECORD_RESPONSE_RECORD *record = (EGTS_SR_RECORD_RESPONSE_RECORD *)&buffer[pointer];
@@ -349,65 +391,65 @@ int Parse_EGTS_PACKET_HEADER(ST_ANSWER *answer, char *pc, int parcel_size)
 
 	if( ph->PRV != 1 /*|| (ph->PRF & 192)*/ ) {
 		logging("terminal_decode[egts]: EGTS_PC_UNS_PROTOCOL error\n");
-		answer->size += responce_add_responce(answer->answer, answer->size, ph->PID, EGTS_PC_UNS_PROTOCOL);
+		answer->size += responce_add_teledata_result(answer->answer, answer->size, ph->PID, EGTS_PC_UNS_PROTOCOL);
 		retval = 0;
-        log2file("/home/locman/glonassd/logs/UNS_PROTOCOL", pc, parcel_size);
+        //log2file("/home/locman/glonassd/logs/UNS_PROTOCOL", pc, parcel_size);
 	}
 
 	if( retval && ph->HL != 11 && ph->HL != 16 ) {
 		logging("terminal_decode[egts]: EGTS_PC_INC_HEADERFORM error\n");
-		answer->size += responce_add_responce(answer->answer, answer->size, ph->PID, EGTS_PC_INC_HEADERFORM);
+		answer->size += responce_add_teledata_result(answer->answer, answer->size, ph->PID, EGTS_PC_INC_HEADERFORM);
 		retval = 0;
-        log2file("/home/locman/glonassd/logs/INC_HEADERFORM", pc, parcel_size);
+        //log2file("/home/locman/glonassd/logs/INC_HEADERFORM", pc, parcel_size);
 	}
 
     if( retval && CRC8EGTS((unsigned char *)ph, ph->HL-1) != ph->HCS ) {
 		logging("terminal_decode[egts]: EGTS_PC_HEADERCRC_ERROR error: need %u got %u\n", CRC8EGTS((unsigned char *)ph, ph->HL-1), ph->HCS);
-		answer->size += responce_add_responce(answer->answer, answer->size, ph->PID, EGTS_PC_HEADERCRC_ERROR);
+		answer->size += responce_add_teledata_result(answer->answer, answer->size, ph->PID, EGTS_PC_HEADERCRC_ERROR);
 		retval = 0;
-        log2file("/home/locman/glonassd/logs/HEADERCRC_ERROR", pc, parcel_size);
+        //log2file("/home/locman/glonassd/logs/HEADERCRC_ERROR", pc, parcel_size);
 	}
 
 	if( retval && (B5 & ph->PRF) ) {
 		logging("terminal_decode[egts]: EGTS_PC_TTLEXPIRED error\n");
-		answer->size += responce_add_responce(answer->answer, answer->size, ph->PID, EGTS_PC_TTLEXPIRED);
+		answer->size += responce_add_teledata_result(answer->answer, answer->size, ph->PID, EGTS_PC_TTLEXPIRED);
 		retval = 0;
-        log2file("/home/locman/glonassd/logs/TTLEXPIRED", pc, parcel_size);
+        //log2file("/home/locman/glonassd/logs/TTLEXPIRED", pc, parcel_size);
 	}
 
 	if( retval && !ph->FDL ) {
 		logging("terminal_decode[egts]: EGTS_PC_OK\n");
-		answer->size += responce_add_responce(answer->answer, answer->size, ph->PID, EGTS_PC_OK);
+		answer->size += responce_add_teledata_result(answer->answer, answer->size, ph->PID, EGTS_PC_OK);
 		retval = 0;
-        log2file("/home/locman/glonassd/logs/EGTS_PC_OK", pc, parcel_size);
+        //log2file("/home/locman/glonassd/logs/EGTS_PC_OK", pc, parcel_size);
 	}
 
 	// проверяем CRC16
 	unsigned short *SFRCS = (unsigned short *)&pc[ph->HL + ph->FDL];
 	if( retval && *SFRCS != CRC16EGTS( (unsigned char *)&pc[ph->HL], ph->FDL) ) {
 		logging("terminal_decode[egts]: EGTS_PC_DATACRC_ERROR error: need %u got %u\n", CRC16EGTS( (unsigned char *)&pc[ph->HL], ph->FDL), *SFRCS);
-		answer->size += responce_add_responce(answer->answer, answer->size, ph->PID, EGTS_PC_DATACRC_ERROR);
+		answer->size += responce_add_teledata_result(answer->answer, answer->size, ph->PID, EGTS_PC_DATACRC_ERROR);
 		retval = 0;
-        log2file("/home/locman/glonassd/logs/DATACRC_ERROR", pc, parcel_size);
+        //log2file("/home/locman/glonassd/logs/DATACRC_ERROR", pc, parcel_size);
 	}
 
 	// проверяем шифрование данных
 	if( retval && (ph->PRF & 24) ) {
 		logging("terminal_decode[egts]: EGTS_PC_DECRYPT_ERROR error\n");
-		answer->size += responce_add_responce(answer->answer, answer->size, ph->PID, EGTS_PC_DECRYPT_ERROR);
+		answer->size += responce_add_teledata_result(answer->answer, answer->size, ph->PID, EGTS_PC_DECRYPT_ERROR);
 		retval = 0;
-        log2file("/home/locman/glonassd/logs/DECRYPT_ERROR", pc, parcel_size);
+        //log2file("/home/locman/glonassd/logs/DECRYPT_ERROR", pc, parcel_size);
 	}
 
 	// проверяем сжатие данных
 	if( retval && (ph->PRF & B2) ) {
 		logging("terminal_decode[egts]: EGTS_PC_INC_DATAFORM error\n");
-		answer->size += responce_add_responce(answer->answer, answer->size, ph->PID, EGTS_PC_INC_DATAFORM);
+		answer->size += responce_add_teledata_result(answer->answer, answer->size, ph->PID, EGTS_PC_INC_DATAFORM);
 		retval = 0;
-        log2file("/home/locman/glonassd/logs/INC_DATAFORM", pc, parcel_size);
+        //log2file("/home/locman/glonassd/logs/INC_DATAFORM", pc, parcel_size);
 	}
 
-    /* debug */
+    /* debug
     if( !retval ){
         logging("terminal_decode[egts]: pak_head->PRV=%d\n", ph->PRV);
         logging("terminal_decode[egts]: pak_head->SKID=%d\n", ph->SKID);
@@ -419,7 +461,7 @@ int Parse_EGTS_PACKET_HEADER(ST_ANSWER *answer, char *pc, int parcel_size)
         logging("terminal_decode[egts]: pak_head->PT=%d\n", ph->PT);
         logging("terminal_decode[egts]: pak_head->HCS=%d\n", ph->HCS);
     }
-
+    */
 
 	return retval;
 }
@@ -440,7 +482,7 @@ int Parse_EGTS_RECORD_HEADER(EGTS_RECORD_HEADER *rec_head, EGTS_RECORD_HEADER *s
 	// OBFE	0		наличие в данном пакете поля OID 1 = присутствует 0 = отсутствует
 	if( st_header->RFL & B0 ) {
 		st_header->OID = *(uint32_t *)&pc[rec_head_size];
-		if( st_header->OID && !strlen(answer->lastpoint.imei) ) {	// D:\Work\Borland\Satellite\egts\Рекомендации по реализации протокола передачи данных в РНИЦ.doc 5.1.1	Идентификация АС посредством поля OID
+		if( st_header->OID /*&& !strlen(answer->lastpoint.imei)*/ ) {	// D:\Work\Borland\Satellite\egts\Рекомендации по реализации протокола передачи данных в РНИЦ.doc 5.1.1	Идентификация АС посредством поля OID
 			memset(answer->lastpoint.imei, 0, SIZE_TRACKER_FIELD);
 			snprintf(answer->lastpoint.imei, SIZE_TRACKER_FIELD, "%d", st_header->OID);
 		}
@@ -540,6 +582,8 @@ int Parse_EGTS_SR_POS_DATA(EGTS_SR_POS_DATA_RECORD *posdata, ST_RECORD *record, 
 
 	if( !record )
 		return 0;
+
+	memset(record, 0, sizeof(ST_RECORD));
 
 	ulliTmp = posdata->NTM + GMT_diff;	// UTC ->local
 	gmtime_r(&ulliTmp, &tm_data);           // local simple->local struct

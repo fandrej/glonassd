@@ -99,7 +99,7 @@ PRF		7-6	префикс заголовка Транспортного Уровн
 RTE		5   определяет необходимость дальнейшей маршрутизации = 1, то необходима и поля PRA, RCA, TTL присутствуют в пакете
 ENA		4-3	шифрование данных из поля SFRD, значение 0 0 , то данные в поле SFRD не шифруются
 CMP		2	сжатие данных из поля SFRD, = 1, то данные в поле SFRD считаются сжатыми
-PR		1-0	приоритет маршрутизации, 1 0 – средний
+PR		1-0	приоритет маршрутизации, 00-высший 10–средний 11-низкий
 */
 /* PT
 0 – EGTS_PT_RESPONSE (подтверждение на пакет Транспортного Уровня);
@@ -236,19 +236,37 @@ OBFE	0		наличие в данном пакете поля OID 1 = прису�
 subrecords:
 */
 #define EGTS_SR_RECORD_RESPONSE			0
-#define EGTS_SR_POS_DATA						16
-#define EGTS_SR_EXT_POS_DATA				17
+#define EGTS_SR_POS_DATA				16
+#define EGTS_SR_EXT_POS_DATA			17  // http://www.consultant.ru/document/cons_doc_LAW_135553/79bb682c2834f0ce64e168a500b0dc7d3a67b122/
 #define EGTS_SR_AD_SENSORS_DATA			18
-#define EGTS_SR_COUNTERS_DATA				19
-#define EGTS_SR_ACCEL_DATA					20
-#define EGTS_SR_STATE_DATA					21	// http://forum.gurtam.com/viewtopic.php?pid=48848#p48848
-#define EGTS_SR_LOOPIN_DATA 				22
+#define EGTS_SR_COUNTERS_DATA			19
+#define EGTS_SR_ACCEL_DATA				20
+#define EGTS_SR_STATE_DATA				21	// http://forum.gurtam.com/viewtopic.php?pid=48848#p48848
+#define EGTS_SR_LOOPIN_DATA 			22
 #define EGTS_SR_ABS_DIG_SENS_DATA		23
 #define EGTS_SR_ABS_AN_SENS_DATA		24
-#define EGTS_SR_ABS_CNTR_DATA				25
+#define EGTS_SR_ABS_CNTR_DATA			25
 #define EGTS_SR_ABS_LOOPIN_DATA			26
-#define EGTS_SR_LIQUID_LEVEL_SENSOR	27
-#define EGTS_SR_PASSENGERS_COUNTERS	28
+#define EGTS_SR_LIQUID_LEVEL_SENSOR	    27
+#define EGTS_SR_PASSENGERS_COUNTERS	    28
+/*
+На каждую информационную запись уровня поддержки услуг должно быть отправлено подтверждение,
+которое содержит подзапись с информацией об идентификаторе подтверждаемой записи и
+результате ее обработки.
+*/
+
+/*
+Это тот же самый EGTS_RECORD_HEADER но без необязательных полей
+*/
+#pragma pack( push, 1 )
+typedef struct {
+    uint16_t	RL;		// размер данных из поля RD
+    uint16_t	RN;		// номер записи от 0 до 65535
+    uint8_t		RFL;	// битовые флаги
+    uint8_t		SST;	// идентификатор тип Сервиса-отправителя, сгенерировавшего данную запись (=EGTS_TELEDATA_SERVICE)
+    uint8_t		RST;	// идентификатор тип Сервиса-получателя данной записи (=EGTS_TELEDATA_SERVICE)
+} EGTS_TELEDATA_RESULT_HEADER;
+#pragma pack( pop )
 
 /* SRD (Subrecord Data)
 EGTS_SR_POS_DATA_RECORD
@@ -639,8 +657,9 @@ int packet_create(char *buffer, uint8_t pt);
 int packet_finalize(char *buffer, int pointer);
 
 // функции для decode
-int responce_add_responce(char *buffer, int pointer, uint16_t pid, uint8_t pr);
+int responce_add_header(char *buffer, int pointer, uint16_t pid, uint8_t pr);
 int responce_add_record(char *buffer, int pointer, uint16_t crn, uint8_t rst);
+int responce_add_teledata_result(char *buffer, int pointer, uint16_t crn, uint8_t rst);
 int responce_add_result(char *buffer, int pointer, uint8_t rcd);
 int responce_add_subrecord_EGTS_SR_COMMAND_DATA(char *buffer, int pointer, EGTS_SR_COMMAND_DATA_RECORD *cmdrec);
 unsigned char CRC8EGTS(unsigned char *lpBlock, unsigned char len);
