@@ -2,9 +2,12 @@
 glonassd
 bin/*
 /bin/*
+forward/*
+logs/*
 
 # my notes
 *.txt
+*.tmp
 
 # daemon settings
 *.conf
@@ -49,3 +52,8 @@ bin/*
 # Debug files
 *.dSYM/
 *.su
+
+# IDE files
+*.cbp
+*.depend
+

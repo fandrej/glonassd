@@ -52,6 +52,12 @@ arnavi: arnavi.c arnavi.h de.h logger.h
 	$(CC) -shared -o arnavi.so arnavi.o
 	rm arnavi.o
 
+# shared library for decode/encode ARNAVI 5
+arnavi5: arnavi5.c arnavi.h de.h logger.h
+	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) arnavi5.c -o arnavi5.o
+	$(CC) -shared -o arnavi5.so arnavi5.o
+	rm arnavi5.o
+
 # shared library for decode/encode FAVW
 favw: favw.c de.h logger.h
 	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) favw.c -o favw.o

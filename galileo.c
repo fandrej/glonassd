@@ -397,15 +397,23 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 
 			// получаем локальное время (localtime_r is thread-safe)
 			tpp = &data[i+1];
-			ulliTmp = *(unsigned int *)tpp;
-			ulliTmp += GMT_diff;	// UTC ->local
-			gmtime_r(&ulliTmp, &tm_data);           // local simple->local struct
+			ulliTmp = *(unsigned int *)tpp; // UTC time simple
+			ulliTmp += GMT_diff;	// UTC -> local time simple
+			gmtime_r(&ulliTmp, &tm_data);           // local time simple->local time as struct tm
 			// получаем время как число секунд от начала суток
 			record->time = 3600 * tm_data.tm_hour + 60 * tm_data.tm_min + tm_data.tm_sec;
+            /*
+            В ночь на 07.04.19 обнулились счетчики дат в системе GPS. Старое оборудование свихнулось.
+            Скорректировать надо только дату, время правильное.
+            */
+            if( tm_data.tm_year == 199 ){
+                ulliTmp = time(NULL) + GMT_diff;
+                gmtime_r(&ulliTmp, &tm_data);
+            }
 			// в tm_data обнуляем время
 			tm_data.tm_hour = tm_data.tm_min = tm_data.tm_sec = 0;
 			// получаем дату
-			record->data = timegm(&tm_data) - GMT_diff;	// local struct->local simple & mktime epoch
+			record->data = timegm(&tm_data) - GMT_diff;	// local time as struct->local simple & mktime epoch
 
 			++rec_ok;
 

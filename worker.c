@@ -24,7 +24,7 @@
 #include <sys/syscall.h>	/* syscall */
 #include <stdlib.h> /* malloc */
 #include <string.h> /* memset */
-#include <unistd.h> /* close, fork */
+#include <unistd.h> /* close, fork, usleep */
 #include <errno.h>  /* errno */
 #include <pthread.h>
 //#include <syslog.h>
@@ -359,8 +359,14 @@ void *worker_thread(void *st_worker)
 
 		// read terminal message
 		memset(socket_buf, 0, SOCKET_BUF_SIZE);
-		if(config->listener->protocol == SOCK_STREAM)
-			bytes_read = recv(config->client_socket, socket_buf, SOCKET_BUF_SIZE, 0);
+		if(config->listener->protocol == SOCK_STREAM) {
+			bytes_read = 0;//recv(config->client_socket, socket_buf, SOCKET_BUF_SIZE, 0);
+
+            while( bytes_read < SOCKET_BUF_SIZE && (bytes_write = recv(config->client_socket, &socket_buf[bytes_read], SOCKET_BUF_SIZE-bytes_read, 0)) > 0 ){
+                bytes_read += bytes_write;
+                usleep(10000);
+            }
+        }
 		else
 			bytes_read = recvfrom(config->client_socket, socket_buf, SOCKET_BUF_SIZE, 0, NULL, NULL);
 
@@ -393,6 +399,8 @@ void *worker_thread(void *st_worker)
 
 		// answer to terminal
 		if( answer.size ) {
+			errors = 0;
+
 			if(config->listener->protocol == SOCK_STREAM)
 				bytes_write = send(config->client_socket, answer.answer, answer.size, 0);
 			else
@@ -400,17 +408,18 @@ void *worker_thread(void *st_worker)
 
 			if( bytes_write <= 0 && stConfigServer.log_enable > 1 )	// socket write error
 				logging("%s[%ld]: send to terminal error %d: %s\n", config->listener->name, syscall(SYS_gettid), errno, strerror(errno));
-
-			errors = 0;
-
-			// log answer to terminal
-			if( stConfigServer.log_imei[0] && stConfigServer.log_imei[0] == config->imei[0] ){
-				if( !strcmp(stConfigServer.log_imei, config->imei) ){
-					snprintf(l2fname, FILENAME_MAX, "%s/logs/%s_answ", stParams.start_path, config->imei);
-					log2file(l2fname, socket_buf, bytes_read);
-				}
-			}
+            else {
+    			// log answer to terminal
+    			if( stConfigServer.log_imei[0] && stConfigServer.log_imei[0] == config->imei[0] ){
+    				if( !strcmp(stConfigServer.log_imei, config->imei) ){
+    					snprintf(l2fname, FILENAME_MAX, "%s/logs/%s_answ", stParams.start_path, config->imei);
+    					log2file(l2fname, answer.answer, answer.size);
+    				}
+    			}   // if( stConfigServer.log_imei[0]
+            }   // else if( bytes_write <= 0
 		}	// if( answer.size )
+        else
+            bytes_write = 0;
 
 		// save terminal data to DB
 		if( answer.count ) {

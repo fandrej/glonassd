@@ -125,28 +125,28 @@ static void satlite_decode_txt(char *parcel, int parcel_size, ST_ANSWER *answer)
 			if( cRec[6] == ',' ) {
 				// отличается от V3: после 14 поля вставлены ещё 2 (15,16)
 				if( strstr(cRec, ",,,") ) {
-					//    1    2     3    4   5   6 7 8  9 10  12  14 15      18      19         20       21   22   23   24    26
+					//    1    2     3    4   5   6 7 8  9 10  12  14 15      18      19         20      21  22   23   24    26
 					//$AV,V4,71169,8430,1210,416,-1,1,1,192,0,0,0,0,0,0,,,000026,5959.4886N,03014.9790E,0.0,0.0,060180,10,0,32767,*7C
 					//$AV,V4,84542,25532,1237,424,-1,1,1,192,0,0,0,0,0,0,,,233958,4333.4757N,03946.4132E,0.0,0.0,230816,10,0,32767,*79
 					//                            1     2    3  4  5  6  7  8  9 10 11 12 13 14 15     18    19    20   21  22   23  24 25 26
 					iFields = sscanf(&cRec[4], "%[^,],%[^,],%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,,,%[^,],%[^,],%[^,],%lf,%lf,%[^,],%d,%d,%d,%[^*]",
-										  //        1      2       3         4      5        6         7          8            9
+										  //1      2       3         4      5        6         7          8            9
 										  cVers, cImei, &iSerial, &iVIN, &iVBAT, &iFSDATA, &iISSTOP, &iISEGNITION, &iD_STATE,
-										  //         10       11       12         13         14         15          16         17
+										  // 10       11       12         13         14         15          16         17
 										  &iFREQ1, &iCOUNT1, &iFREQ2, &iCOUNT2, &iFIXTYPE, &iSATCOUNNT,
-										  //				18      19       20       21       22       23     24        25          26        27
+										  //18      19       20       21       22       23     24        25          26        27
 										  cTime, cXCOORD, cYCOORD, &dSPEED, &dCOURSE, cDate, &iADC1, &iCOUNTER3, &iTS_TEMP, cArchive);
 				} else {
-					//    1    2     3    4   5   6 7 8  9 10  12  14 15      18      19         20       21   22   23   24    26
+					//    1    2     3    4   5   6 7 8  9 10  12  14 15      18      19         20      21  22   23   24    26
 					//$AV,V4,71169,8430,1210,416,-1,1,1,192,0,0,0,0,0,0,,,000026,5959.4886N,03014.9790E,0.0,0.0,060180,10,0,32767,*7C
 					//$AV,V4,84542,25532,1237,424,-1,1,1,192,0,0,0,0,0,0,,,233958,4333.4757N,03946.4132E,0.0,0.0,230816,10,0,32767,*79
 					//                            1     2    3  4  5  6  7  8  9 10 11 12 13 14 15   16    17    18    19    20   21  22   23  24 25 26
 					iFields = sscanf(&cRec[4], "%[^,],%[^,],%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%[^,],%[^,],%[^,],%[^,],%[^,],%lf,%lf,%[^,],%d,%d,%d,%[^*]",
-										  //        1      2       3         4      5        6         7          8            9
+										  // 1      2       3         4      5        6         7          8            9
 										  cVers, cImei, &iSerial, &iVIN, &iVBAT, &iFSDATA, &iISSTOP, &iISEGNITION, &iD_STATE,
-										  //         10       11       12         13         14         15          16         17
+										  //  10       11       12         13         14         15          16         17
 										  &iFREQ1, &iCOUNT1, &iFREQ2, &iCOUNT2, &iFIXTYPE, &iSATCOUNNT, cAltitude, cGeoidheight,
-										  //				18      19       20       21       22       23     24        25          26        27
+										  // 18      19       20       21       22       23     24        25          26        27
 										  cTime, cXCOORD, cYCOORD, &dSPEED, &dCOURSE, cDate, &iADC1, &iCOUNTER3, &iTS_TEMP, cArchive);
 				}
 
@@ -232,21 +232,32 @@ static void satlite_decode_txt(char *parcel, int parcel_size, ST_ANSWER *answer)
 			snprintf(record->hard, SIZE_TRACKER_FIELD, "%d", iHard);
 			snprintf(record->soft, SIZE_TRACKER_FIELD, "%s", cVers);
 
-			// переводим время GMT и текстовом формате в местное
-			memset(&tm_data, 0, sizeof(struct tm));
-			sscanf(cDate, "%2d%2d%2d", &tm_data.tm_mday, &tm_data.tm_mon, &tm_data.tm_year);
-			tm_data.tm_year += 100;	// 2 digit year's in tm_data.tm_year since 1900 year
-			tm_data.tm_mon--;	// http://www.cplusplus.com/reference/ctime/tm/
-			sscanf(cTime, "%2d%2d%2d", &tm_data.tm_hour, &tm_data.tm_min, &tm_data.tm_sec);
+            // переводим время GMT и текстовом формате в местное
+            memset(&tm_data, 0, sizeof(struct tm));
+            sscanf(cDate, "%2d%2d%2d", &tm_data.tm_mday, &tm_data.tm_mon, &tm_data.tm_year);
+            tm_data.tm_year += 100;	// 2 digit year's in tm_data.tm_year since 1900 year
+            tm_data.tm_mon--;	// http://www.cplusplus.com/reference/ctime/tm/
 
-			ulliTmp = timegm(&tm_data) + GMT_diff;	// UTC struct->local simple
-			gmtime_r(&ulliTmp, &tm_data);           // local simple->local struct
-			// получаем время как число секунд от начала суток
-			record->time = 3600 * tm_data.tm_hour + 60 * tm_data.tm_min + tm_data.tm_sec;
-			// в tm_data обнуляем время
-			tm_data.tm_hour = tm_data.tm_min = tm_data.tm_sec = 0;
-			// получаем дату
-			record->data = timegm(&tm_data) - GMT_diff;	// local struct->local simple & mktime epoch
+            sscanf(cTime, "%2d%2d%2d", &tm_data.tm_hour, &tm_data.tm_min, &tm_data.tm_sec);
+
+            ulliTmp = timegm(&tm_data) + GMT_diff;	// UTC struct->local simple
+            gmtime_r(&ulliTmp, &tm_data);           // local simple->local struct
+            // получаем время как число секунд от начала суток
+            record->time = 3600 * tm_data.tm_hour + 60 * tm_data.tm_min + tm_data.tm_sec;
+            // получаем дату
+            /*
+            В ночь на 07.04.19 обнулились счетчики дат в системе GPS. Старое оборудование свихнулось.
+            Некоторое оборудование GPS стало присылать в поле даты значение 220899, что соответствует 22.08.2099.
+            Некоторое оборудование GPS стало присылать в поле даты значение 020100, что соответствует 02.01.2000.
+            При этом время присылается правильное.
+            */
+            if( tm_data.tm_year == 199 || tm_data.tm_year == 100 ){
+                ulliTmp = time(NULL) + GMT_diff;
+                gmtime_r(&ulliTmp, &tm_data);
+            }
+            // в tm_data обнуляем время
+            tm_data.tm_hour = tm_data.tm_min = tm_data.tm_sec = 0;
+            record->data = timegm(&tm_data) - GMT_diff;	// local struct->local simple & mktime epoch
 
 			if( cXCOORD[0] ) {
 				sscanf(cXCOORD, "%lf%c", &dTemp, &record->clat);

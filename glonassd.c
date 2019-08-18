@@ -17,8 +17,10 @@
     http://digitalchip.ru/osobennosti-ispolzovaniya-extern-i-static-v-c-c
 
     compile:
-    cd /opt/glonassd
+    cd /home/work/gcc/glonassd
     make -B all
+
+		Note: if error "/usr/bin/ld: cannot find -lpq" occured, run: apt-get install libpq-dev
 
     start (one of variants):
     ./glonassd start
@@ -29,6 +31,14 @@
     ./glonassd stop
     /etc/init.d/glonassd.sh stop
     service glonassd stop
+
+		Autostart configure
+		Edit DAEMON variable in glonassd.sh file for correct path to daemon folder.
+		Copy glonassd.sh file in /etc/init.d folder.
+		Use chmod 0755 /etc/init.d/glonassd.sh for make it executable.
+		Use systemctl daemon-reload and update-rc.d glonassd.sh defaults for enable autostart daemon.
+		Use update-rc.d -f glonassd.sh remove for diasble autostart without delete glonassd.sh file.
+		Delete /etc/init.d/glonassd.sh file and use systemctl daemon-reload for fully cleanup daemon info.
 
     see logs:
     cat /var/log/glonassd.log
@@ -430,6 +440,8 @@ static int listeners_start()
 		// start service if enabled
 		if( stListeners.listener[i].enabled ) {
 
+			logging("listener[%s] attempt to start\n", stListeners.listener[i].name);
+
 			// load library for listener's worker
 			if( library_load(stListeners.listener[i].name, &stListeners.listener[i].library_handle, (void*)&stListeners.listener[i].terminal_decode, (void*)&stListeners.listener[i].terminal_encode) ) {
 
@@ -532,6 +544,13 @@ static int forwarders_start()
 	// iterate forwarders
 	for(i = 0; i < stForwarders.count; i++) {
 
+		if( !stForwarders.forwarder[i].app || !strlen(stForwarders.forwarder[i].app) ){
+			logging("forwarder[%s] has error in parametes, skipped\n", stForwarders.forwarder[i].name);
+			continue;
+		}
+
+		logging("forwarder[%s] attempt to start\n", stForwarders.forwarder[i].name);
+
 		// load library for encode/decode functions
 		if( library_load(stForwarders.forwarder[i].app, &stForwarders.forwarder[i].library_handle, (void*)&stForwarders.forwarder[i].terminal_decode, (void*)&stForwarders.forwarder[i].terminal_encode) ) {
 
@@ -541,7 +560,6 @@ static int forwarders_start()
 			if (name_max == -1)         /* Limit not defined, or error */
 				name_max = FILENAME_MAX;         /* Take a guess */
 			len = offsetof(struct dirent, d_name) + name_max + 1;
-			stForwarders.forwarder[i].dir_item = malloc(len);
 
 			// start forwarder in separate thread, passing point to his config (last parameter)
 			if( attr_init )
@@ -550,7 +568,7 @@ static int forwarders_start()
 				thread_ok = pthread_create(&stForwarders.forwarder[i].thread, NULL, forwarder_thread, &stForwarders.forwarder[i]);
 
 			if( thread_ok )	// error
-				logging("glonassd[%d]: start forwarder[%s]: error %d: %s\n", (int)getpid(), stForwarders.forwarder[i].name, errno, strerror(errno));
+				logging("forwarder[%s]: error %d: %s\n", stForwarders.forwarder[i].name, errno, strerror(errno));
 			else
 				++cnt;
 

@@ -426,9 +426,6 @@ void *forwarder_thread(void *st_forwarder)
 		if( config->data_dir )
 			closedir(config->data_dir);
 
-		if( config->dir_item )
-			free(config->dir_item);
-
 		terimal_reset_logged(config->name);
 
 		logging("forwarder[%s][%ld] destroyed\n", config->name, syscall(SYS_gettid));
@@ -487,14 +484,14 @@ void *forwarder_thread(void *st_forwarder)
 				i = 0;	// number of files to read
 
 				// iterate files in directory
-				while( !readdir_r(config->data_dir, config->dir_item, &result) && result != NULL ) {
+				while( (result = readdir(config->data_dir)) != NULL ) {
 					// is file name OK & contain this forwarder name & contain ".bin"?
-					if( strlen(config->dir_item->d_name)
-							&& strstr(config->dir_item->d_name, config->name)
-							&& strstr(config->dir_item->d_name, ".bin") ) {
+					if( strlen(result->d_name)
+							&& strstr(result->d_name, config->name)
+							&& strstr(result->d_name, ".bin") ) {
 
 						// generate full file name
-						snprintf(fName, FILENAME_MAX, "%s/%s", stConfigServer.forward_files, config->dir_item->d_name);
+						snprintf(fName, FILENAME_MAX, "%s/%s", stConfigServer.forward_files, result->d_name);
 
 						// open file for read
 						if( (fHandle = open(fName, O_RDONLY | O_NOATIME)) != -1 ) {
@@ -506,18 +503,18 @@ void *forwarder_thread(void *st_forwarder)
 							close(fHandle);
 
 							if( stConfigServer.log_enable > 1 )
-								logging("forwarder[%s][%ld]: send saved file %s\n", config->name, syscall(SYS_gettid), config->dir_item->d_name);
+								logging("forwarder[%s][%ld]: send saved file %s\n", config->name, syscall(SYS_gettid), result->d_name);
 						}	// if( (fHandle = open(fName
 						else if( stConfigServer.log_enable > 1 )
-							logging("forwarder[%s][%ld]: read saved file %s error: %d: %s\n", config->name, syscall(SYS_gettid), config->dir_item->d_name, errno, strerror(errno));
+							logging("forwarder[%s][%ld]: read saved file %s error: %d: %s\n", config->name, syscall(SYS_gettid), result->d_name, errno, strerror(errno));
 
 						// delete file
 						unlink(fName);
 
 						if( ++i >= CNT_FILES_SEND )
 							break;	// max files reached, cancel
-					}	// if( strlen(dir_item->d_name) &&
-				}	// while( (dir_item = readdir(data_dir)) != NULL )
+					}	// if( strlen(result->d_name) &&
+				}	// while( (result = readdir(config->data_dir)) != NULL )
 
 			}	// if( out_connected && config->data_dir )
 			else if( !config->data_dir ){
