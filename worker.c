@@ -400,9 +400,9 @@ void *worker_thread(void *st_worker)
         if( stConfigServer.log_enable > 1 )
 			logging("%s[%ld]: decoded %u records, answer.size %u bytes\n", config->listener->name, syscall(SYS_gettid), answer.count, answer.size);
 
-        /* debug */
+        /* log error: parcel without decoded records */
         if( config->listener->log_err && bytes_read > 16 && answer.count == 0 ){
-			snprintf(l2fname, FILENAME_MAX, "%.4040s/logs/%.20s_len_%zu_rec_%u", stParams.start_path, config->listener->name, bytes_read, answer.count);
+			snprintf(l2fname, FILENAME_MAX, "%.4040s/logs/%.20s_len_%zu_norecords", stParams.start_path, config->listener->name, bytes_read);
 			log2file(l2fname, socket_buf, bytes_read);
         }
 
@@ -452,7 +452,7 @@ void *worker_thread(void *st_worker)
 			if( stConfigServer.log_imei[0] && stConfigServer.log_imei[0] == answer.lastpoint.imei[0] ){
 				if( !strcmp(stConfigServer.log_imei, answer.lastpoint.imei) ){
 					snprintf(l2fname, FILENAME_MAX, "%.4040s/logs/%.15s_answ", stParams.start_path, answer.lastpoint.imei);
-					log2file(l2fname, socket_buf, bytes_read);
+					log2file(l2fname, answer.answer, answer.size);
 				}
 			}
 		}	// if( answer.size )
