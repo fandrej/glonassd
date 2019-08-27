@@ -406,7 +406,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
             В ночь на 07.04.19 обнулились счетчики дат в системе GPS. Старое оборудование свихнулось.
             Скорректировать надо только дату, время правильное.
             */
-            if( tm_data.tm_year == 199 ){
+            if( tm_data.tm_year == 100 || tm_data.tm_year == 147 || tm_data.tm_year == 199 ){
                 ulliTmp = time(NULL) + GMT_diff;
                 gmtime_r(&ulliTmp, &tm_data);
             }
