@@ -421,7 +421,7 @@ void *db_thread(void *arg)
 	if( !db_connect(2, &db_connection) ) {
 		logging("database thread[%ld]: Can't connect to database %s on host %s:%d.", syscall(SYS_gettid), stConfigServer.db_name, stConfigServer.db_host, stConfigServer.db_port);
 	} else {
-		logging("database thread[%ld]: Connect to database %s on host %s:%d.", syscall(SYS_gettid), stConfigServer.db_name, stConfigServer.db_host, stConfigServer.db_port);
+		logging("database thread[%ld]: Connected to database %s on host %s:%d.", syscall(SYS_gettid), stConfigServer.db_name, stConfigServer.db_host, stConfigServer.db_port);
 	}
 
 	// wait messages

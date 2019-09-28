@@ -24,24 +24,11 @@ $(PROJECT): $(SOURCE) $(HEADERS)
 run: $(PROJECT)
 	./$(PROJECT) start
 
-# shared library for database PostgreSQL
-pg: pg.c glonassd.h de.h logger.h
-	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) $(INCLUDE) -I/usr/include/postgresql pg.c $(LIBS) -o pg.o -lpq
-	$(CC) -shared -o pg.so pg.o -lpq
-	rm pg.o
-
 # shared library for decode/encode GALILEO
 galileo: galileo.c de.h logger.h
 	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) galileo.c -o galileo.o
 	$(CC) -shared -o galileo.so galileo.o
 	rm galileo.o
-
-# shared library for decode/encode NTS
-# -lm : link libm for "fmod" and other mathematic functions
-nts: nts.c de.h logger.h
-	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) nts.c -o nts.o
-	$(CC) -lm -shared -o nts.so nts.o
-	rm nts.o
 
 # shared library for decode/encode SAT-LITE/SAT-LITE2
 satlite: satlite.c de.h logger.h
@@ -60,18 +47,6 @@ arnavi5: arnavi5.c arnavi.h de.h logger.h
 	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) arnavi5.c -o arnavi5.o
 	$(CC) -shared -o arnavi5.so arnavi5.o
 	rm arnavi5.o
-
-# shared library for decode/encode FAVW
-favw: favw.c de.h logger.h
-	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) favw.c -o favw.o
-	$(CC) -shared -o favw.so favw.o
-	rm favw.o
-
-# shared library for decode/encode FAVA
-fava: fava.c de.h logger.h
-	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) fava.c -o fava.o
-	$(CC) -shared -o fava.so fava.o
-	rm fava.o
 
 # shared library for decode/encode Wialon IPS
 wialonips: wialonips.c de.h logger.h
@@ -103,8 +78,22 @@ prototest: prototest.c de.h glonassd.h logger.h
 	$(CC) -shared -o prototest.so prototest.o
 	rm prototest.o
 
+
+# shared library for database PostgreSQL
+pg: pg.c glonassd.h de.h logger.h
+	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) $(INCLUDE) -I/usr/include/postgresql pg.c $(LIBS) -o pg.o -lpq
+	$(CC) -shared -o pg.so pg.o -lpq
+	rm pg.o
+
+# shared library for database REDIS
+rds: rds.c glonassd.h de.h logger.h
+	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) $(INCLUDE) -I/usr/local/include/hiredis rds.c -I/usr/local/include/json-c/ $(LIBS) -o rds.o -lhiredis -ljson-c
+	$(CC) -shared -o rds.so rds.o -lhiredis -ljson-c
+	rm rds.o
+
+
 # all
-all: $(PROJECT) pg galileo nts satlite favw fava wialonips gps103 soap egts arnavi prototest
+all: $(PROJECT) galileo satlite wialonips gps103 soap egts arnavi arnavi5 prototest pg rds
 
 clean:
 	rm -f *.o
