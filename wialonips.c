@@ -37,19 +37,6 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 		return;
 
 	answer->size = 0;	// :)
-    /*
-    When data retranslated from another server, they can contains records for several different
-    terminals with different IMEI's.
-    In this case the answer->lastpoint.imei irrelevant for some records.
-    And if first records in data dont have filed L (login, with teminal imei) then this records
-    will be attributed to the old answer->lastpoint.imei.
-    To avoid such a situation is necessary:
-    1 clear answer->lastpoint.imei
-    2 and ignore records without L (login) field.
-    So:
-    */
-    // 1 clear answer->lastpoint.imei
-    memset(answer->lastpoint.imei, 0, SIZE_TRACKER_FIELD);
 
 	cRec = strtok(parcel, "\r\n");
 	while( cRec ) {
@@ -73,8 +60,11 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 			iAnswerSize = 7;
 			answer->size += snprintf(&answer->answer[answer->size], iAnswerSize, "#AP#\r\n");
 
-			break;                                      //    1    2    3   4     5   6     7     8      9     10
-		case 'S':	// SD, Сокращённый пакет с данными: #SD#date;time;lat1;lat2;lon1;lon2;speed;course;height;sats\r\n
+			break;
+		case 'S':	// SD, Сокращённый пакет с данными:
+            //       1    2    3   4     5   6     7     8      9     10
+            // #SD#date;time;lat1;lat2;lon1;lon2;speed;course;height;sats\r\n
+            // #SD#300919;082210;5642.7514;N;03646.6824;E;38;217;0;16;NA;0;NA;0;NA;ign:1:,freq_data_2:1:,c_data_1:1:,innervoltage:1:,battery:1:,c_data_3:1:,fs_data:1:,ts_data:1:,c_data_2:1:,freq_data_1:1:
 			// answer: #ASD#1\r\n
 
             if( !strlen(answer->lastpoint.imei) ){
@@ -87,7 +77,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 				answer->size += snprintf(&answer->answer[answer->size], iAnswerSize, "#ASD#1\r\n");
 			}	// if( !answer->count )
 
-			iTemp = sscanf(cRec, "#SD#%[^;];%[^;];%lf;%c;%lf;%c;%d;%d;%lf;%d",
+			iTemp = sscanf(cRec, "#SD#%[^;];%[^;];%lf;%c;%lf;%c;%d;%d;%lf;%d%*s",
 								cDate, // 1
 								cTime, // 2
 								&dLat, // 3
@@ -99,6 +89,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 								&dAltitude, // 9
 								&iSatellits	// 10
 							  );
+
 			if( iTemp == 10 ) {	// успешно считаны все поля
 
 				if( answer->count < MAX_RECORDS - 1 )
@@ -181,7 +172,8 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 								&iInputs, // 12
 								&iOutputs // 13
 							  );
-			if( iTemp >= 10 ) {
+
+            if( iTemp >= 10 ) {
 
 				if( answer->count < MAX_RECORDS - 1 )
 					answer->count++;

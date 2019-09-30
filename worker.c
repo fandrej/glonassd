@@ -397,6 +397,14 @@ void *worker_thread(void *st_worker)
 		config->listener->terminal_decode(socket_buf, bytes_read, &answer);
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);  // can disturb :)
 
+        // set config imei
+        if( strcmp(config->imei, answer.lastpoint.imei) ){
+            strcpy(config->imei, answer.lastpoint.imei);
+
+            if( stConfigServer.log_enable > 1 )
+    			logging("%s[%ld]: assigned imei %s\n", config->listener->name, syscall(SYS_gettid), answer.lastpoint.imei);
+        }
+
         if( stConfigServer.log_enable > 1 )
 			logging("%s[%ld]: decoded %u records, answer.size %u bytes\n", config->listener->name, syscall(SYS_gettid), answer.count, answer.size);
 
@@ -425,7 +433,6 @@ void *worker_thread(void *st_worker)
 
 		// save terminal data to DB
 		if( answer.count ) {
-			strcpy(config->imei, answer.lastpoint.imei);
 			send_data_to_db(config, answer.records, answer.count);
 
             if( stConfigServer.log_enable > 1 )
