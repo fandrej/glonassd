@@ -32,13 +32,15 @@
     /etc/init.d/glonassd.sh stop
     service glonassd stop
 
-		Autostart configure
-		Edit DAEMON variable in glonassd.sh file for correct path to daemon folder.
-		Copy glonassd.sh file in /etc/init.d folder.
-		Use chmod 0755 /etc/init.d/glonassd.sh for make it executable.
-		Use systemctl daemon-reload and update-rc.d glonassd.sh defaults for enable autostart daemon.
-		Use update-rc.d -f glonassd.sh remove for diasble autostart without delete glonassd.sh file.
-		Delete /etc/init.d/glonassd.sh file and use systemctl daemon-reload for fully cleanup daemon info.
+    Autostart configure:
+    Enable autostart:
+        Edit DAEMON variable in glonassd.sh file for correct path to daemon folder.
+        Copy glonassd.sh file in /etc/init.d folder.
+        Use: chmod 0755 /etc/init.d/glonassd.sh :for make it executable.
+        Use: systemctl daemon-reload and update-rc.d glonassd.sh defaults :for enable autostart daemon.
+    Disable autostart:
+        Use: update-rc.d -f glonassd.sh remove :for diasble autostart without delete glonassd.sh file.
+        Delete /etc/init.d/glonassd.sh file and use: systemctl daemon-reload :for fully cleanup daemon info.
 
     see logs:
     cat /var/log/glonassd.log
