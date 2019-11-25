@@ -4,8 +4,9 @@ CC = gcc
 LIBS = -lpq -lpthread -L/usr/lib/nptl -rdynamic -ldl -lrt -lm
 INCLUDE = -I/usr/include/nptl -I/usr/include/postgresql
 # https://gcc.gnu.org/onlinedocs/gcc/Option-Summary.html#Option-Summary
-CFLAGS = -std=gnu99 -D_REENTERANT -m64
-SOCFLAGS = -std=gnu99 -D_REENTERANT -m64 -fpic -Wall -Werror
+CFLAGS = -std=gnu99 -D_REENTERANT -m64 \
+		 -Wall -Wextra -Werror -Wno-unused-parameter -Wno-sign-compare
+SOCFLAGS = $(CFLAGS) -fpic
 # https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html
 OPTIMIZE = -O2 -flto -g0
 # https://gcc.gnu.org/onlinedocs/gcc/Debugging-Options.html#Debugging-Options
@@ -16,7 +17,7 @@ SOURCE = glonassd.c loadconfig.c todaemon.c logger.c worker.c lib.c forwarder.c
 HEADERS = $(wildcard *.h)
 
 $(PROJECT): $(SOURCE) $(HEADERS)
-	$(CC) $(CFLAGS) $(OPTIMIZE) $(INCLUDE) $(LIBS) $(SOURCE) -o $(PROJECT)
+	$(CC) $(CFLAGS) $(OPTIMIZE) $(INCLUDE) $(SOURCE) -o $(PROJECT) $(LIBS)
 
 run: $(PROJECT)
 	./$(PROJECT) start

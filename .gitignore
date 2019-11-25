@@ -57,3 +57,4 @@ logs/*
 *.cbp
 *.depend
 
+*~
