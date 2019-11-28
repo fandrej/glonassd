@@ -46,7 +46,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 					local.tm_hour, local.tm_min, local.tm_sec,
 					rand());
 
-		if( (fHandle = open(fName, O_APPEND | O_CREAT | O_WRONLY)) == -1 ) {
+		if( (fHandle = open(fName, O_APPEND | O_CREAT | O_WRONLY, 0666)) == -1 ) {
 			logging("terminal_decode[prototest]: open() error %d: %s\n", errno, strerror(errno));
 		} else {
 			if( !write(fHandle, parcel, parcel_size) )
