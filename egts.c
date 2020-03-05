@@ -96,6 +96,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 			logging("terminal_decode[egts]: SDR:EGTS_PC_INVDATALEN error\n");
 			answer->size += responce_add_teledata_result(answer->answer, answer->size, rec_head->RN, EGTS_PC_INVDATALEN);
 			answer->size += packet_finalize(answer->answer, answer->size);
+            //log2file("/home/locman/glonassd/logs/SDR_EGTS_PC_INVDATALEN", parcel, parcel_size);
 			return;
 		}
 
