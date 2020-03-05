@@ -122,13 +122,17 @@ static int db_connect(int connect, redisContext **rds_context)
 
     if(connect) {	// connecting to database
 
+        logging("database thread[%ld]: try to connect to database %s on host %s:%d", syscall(SYS_gettid), stConfigServer.db_name, stConfigServer.db_host, stConfigServer.db_port);
+
         if( *rds_context == NULL )
             *rds_context = redisConnectWithTimeout(stConfigServer.db_host, stConfigServer.db_port, timeout);
 
         if( *rds_context == NULL )
-            logging("database thread[%ld]: REDIS error: can't allocate redis context\n", syscall(SYS_gettid));
+            logging("database thread[%ld]: db_connect: REDIS error: can't allocate redis context\n", syscall(SYS_gettid));
         else if ( (*rds_context)->err )
-            logging("database thread[%ld]: REDIS error: %s\n", syscall(SYS_gettid), (*rds_context)->errstr);
+            logging("database thread[%ld]: db_connect: REDIS error: %s\n", syscall(SYS_gettid), (*rds_context)->errstr);
+        else
+            logging("database thread[%ld]: Connected to database %s on host %s:%d", syscall(SYS_gettid), stConfigServer.db_name, stConfigServer.db_host, stConfigServer.db_port);
 
     }	// if(connect)
     else {	// disconnect from database
@@ -136,6 +140,7 @@ static int db_connect(int connect, redisContext **rds_context)
         if( *rds_context ) {
             redisFree(*rds_context);
             *rds_context = NULL;
+            logging("database thread[%ld]: disconnect from database %s", syscall(SYS_gettid), stConfigServer.db_name);
         }
 
     }
@@ -188,7 +193,12 @@ static int write_data_to_db(char *msg, redisContext *rds_context)
     /*
     without json-c library
     */
-    sprintf(json, "{ \"imei\": \"%s\", \"datetime\": %lld, \"lon\": %03.07lf, \"lat\": %03.07lf, \"speed\": %03.01lf, \"curs\": %d, \"port\": %d, \"satellites\": %d }",
+    sprintf(json, "{ \"imei\": \"%s\", \"datetime\": %lld, \"lon\": %03.07lf, \"lat\": %03.07lf, "
+                    "\"speed\": %03.01lf, \"curs\": %d, \"port\": %d, \"satellites\": %d, "
+                    "\"height\": %d, \"valid\": %d, \"vbort\": %02.01lf, \"vbatt\": %02.01lf, "
+                    "\"temperature\": %d, \"hdop\": %d, \"outputs\": %d, \"inputs\": %d, "
+                    "\"fuel0\": %d, \"fuel1\": %d, \"probeg\": %04.03lf, \"zaj\": %d, \"alarm\": %d, "
+                    "\"port\": %d, \"recnum\": %d, \"status\": %d}",
                 record->imei,
                 (long long)record->data + record->time,
                 record->lon,
@@ -196,7 +206,23 @@ static int write_data_to_db(char *msg, redisContext *rds_context)
                 record->speed,
                 record->curs,
                 record->port,
-                record->satellites);
+                record->satellites,
+                record->height,
+                record->valid,
+                record->vbort,
+                record->vbatt,
+                record->temperature,
+                record->hdop,
+                record->outputs,
+                record->inputs,
+                record->fuel[0],
+                record->fuel[1],
+                record->probeg,
+                record->zaj,
+                record->alarm,
+                record->port,
+                record->recnum,
+                record->status);
     //logging("write_data_to_db: %s", json);
 
     /*
@@ -214,9 +240,9 @@ static int write_data_to_db(char *msg, redisContext *rds_context)
 
     if( !result ){
         if( rds_reply )
-            logging("database thread[%ld]: redisCommand() error: %s\n", syscall(SYS_gettid), rds_reply->str);
+            logging("database thread[%ld]: write_data_to_db: redisCommand() error: %s\n", syscall(SYS_gettid), rds_reply->str);
         else
-            logging("database thread[%ld]: redisCommand() return NULL\n", syscall(SYS_gettid));
+            logging("database thread[%ld]: write_data_to_db: redisCommand() return NULL\n", syscall(SYS_gettid));
     }
 
     freeReplyObject(rds_reply);
@@ -333,31 +359,7 @@ void *db_thread(void *arg)
     logging("database thread[%ld] started, queue size %ld msgs\n", syscall(SYS_gettid), (long)queue_attr.mq_maxmsg);
 
     // try to connect to database
-    if( !db_connect(1, &rds_context) )
-        logging("database thread[%ld]: Can't connect to REDIS on host %s:%d.", syscall(SYS_gettid), stConfigServer.db_host, stConfigServer.db_port);
-    else
-        logging("database thread[%ld]: Connected to database %s on host %s:%d.", syscall(SYS_gettid), stConfigServer.db_name, stConfigServer.db_host, stConfigServer.db_port);
-
-    /* test
-    ST_RECORD rec;
-    sprintf(rec.imei, "%s", "1234567890");
-    rec.time = 50000;
-    rec.lon = 55.55;
-    rec.lat = 66.66;
-    rec.speed = 10;
-    rec.curs = 100;
-    rec.port = 19009;
-
-    while( 1 ) {
-        pthread_testcancel();
-
-        if( rds_context && !rds_context->err ) {
-            write_data_to_db((char *)&rec, rds_context);	// write message to database
-        }
-
-        sleep(5);	// wait
-    }	// while( 1 )
-    */
+    db_connect(1, &rds_context);
 
     // wait messages
     while( 1 ) {
@@ -365,12 +367,17 @@ void *db_thread(void *arg)
 
         if( rds_context && !rds_context->err ) {
             msg_size = mq_receive(queue_workers, msg_buf, buf_size, NULL);
-            if( msg_size > 0 )
+            if( msg_size > 0 ) {
                 write_data_to_db(msg_buf, rds_context);	// write message to database
-        } else {
+            }   // if( msg_size > 0 )
+        }   // if( rds_context && !rds_context->err )
+        else {
+            if( rds_context )   // connected, but error
+                db_connect(0, &rds_context);
+
             sleep(3);	// wait
-            if( db_connect(1, &rds_context) )	// try again
-                logging("database thread[%ld]: Connected to database %s on host %s:%d.", syscall(SYS_gettid), stConfigServer.db_name, stConfigServer.db_host, stConfigServer.db_port);
+
+            db_connect(1, &rds_context);	// try again
         }
 
     }	// while( 1 )

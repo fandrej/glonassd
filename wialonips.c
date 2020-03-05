@@ -31,7 +31,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 	struct tm tm_data;
 	time_t ulliTmp;
 	double dLon, dLat, dAltitude, dHDOP;
-	int iAnswerSize, iTemp, iCurs, iSatellits, iSpeed, iInputs = 0, iOutputs = 0;
+	int iAnswerSize, iTemp, iCurs, iSatellits, iSpeed, iInputs = 0, iOutputs = 0, iReadedRecords = 0;
 
 	if( !parcel || parcel_size <= 0 || !answer )
 		return;
@@ -261,6 +261,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 			cRec1 = strtok(&cRec[3], "|");
 
 			while(cRec1) {
+                iReadedRecords++;   // кол-во считанных сообщений
 				//                       1      2   3   4  5   6  7  8  9  10   11
 				iTemp = sscanf(cRec1, "%[^;];%[^;];%lf;%c;%lf;%c;%d;%d;%lf;%d;%*[^|]",
 									cDate, // 1
@@ -325,14 +326,14 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 			}	// while(cRec1)
 
 			iAnswerSize = 7;
-			if( answer->count > 99 )
-				iAnswerSize += 3;
-			else if( answer->count > 9 )
-				iAnswerSize += 2;
-			else
-				iAnswerSize += 1;
+            if( iReadedRecords > 99 )
+                iAnswerSize += 3;
+            else if( iReadedRecords > 9 )
+                iAnswerSize += 2;
+            else
+                iAnswerSize += 1;
 
-			answer->size += snprintf(&answer->answer[answer->size], iAnswerSize, "#AB#%d\r\n", answer->count);
+            answer->size += snprintf(&answer->answer[answer->size], iAnswerSize, "#AB#%d\r\n", iReadedRecords);
 
 			break;
 		case 'M':	// Сообщение для водителя

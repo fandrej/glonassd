@@ -33,23 +33,32 @@ void toDaemon(const char *PidFilePath)
 	pid = fork();
 
 	/* An error occurred */
-	if (pid < 0)
+	if (pid < 0) {
+        syslog(LOG_NOTICE, "fork() 1 error %d: %s\n", errno, strerror(errno));
+        fprintf(stderr, "fork() 1 error %d: %s\n", errno, strerror(errno));
 		exit(EXIT_FAILURE);
+    }
 
 	/* Success: Let the parent terminate */
 	if (pid > 0)
 		exit(EXIT_SUCCESS);
 
 	/* On success: The child process becomes session leader */
-	if (setsid() < 0)
+	if (setsid() < 0) {
+        syslog(LOG_NOTICE, "setsid() error %d: %s\n", errno, strerror(errno));
+        fprintf(stderr, "setsid() error %d: %s\n", errno, strerror(errno));
 		exit(EXIT_FAILURE);
+    }
 
 	/* Fork off for the second time */
 	pid = fork();
 
 	/* An error occurred */
-	if (pid < 0)
+	if (pid < 0) {
+        syslog(LOG_NOTICE, "fork() 2 error %d: %s\n", errno, strerror(errno));
+        fprintf(stderr, "fork() 2 error %d: %s\n", errno, strerror(errno));
 		exit(EXIT_FAILURE);
+    }
 
     /* close parent */
     if (pid > 0)
@@ -64,7 +73,8 @@ void toDaemon(const char *PidFilePath)
 	/* Change the working directory to the root directory */
 	/* or another appropriated directory */
 	if( chdir("/") ){    // error
-        printf("chdir('/'), error %d: %s\n", errno, strerror(errno));
+        syslog(LOG_NOTICE, "chdir('/'), error %d: %s\n", errno, strerror(errno));
+        fprintf(stderr, "chdir('/'), error %d: %s\n", errno, strerror(errno));
         exit(EXIT_FAILURE);
     }
 
@@ -81,12 +91,14 @@ void toDaemon(const char *PidFilePath)
 	int tmp = open("/dev/null", O_RDWR); /* fd 0 = stdin */
     /* fd 1 = stdout */
 	if( dup(tmp) == -1 ){
-        printf("dup(1), error %d: %s\n", errno, strerror(errno));
+        syslog(LOG_NOTICE, "dup(1), error %d: %s\n", errno, strerror(errno));
+        fprintf(stderr, "dup(1), error %d: %s\n", errno, strerror(errno));
         exit(EXIT_FAILURE);
 	}
     /* fd 2 = stderr */
 	if( dup(tmp) == -1 ){
-        printf("dup(2), error %d: %s\n", errno, strerror(errno));
+        syslog(LOG_NOTICE, "dup(2), error %d: %s\n", errno, strerror(errno));
+        fprintf(stderr, "dup(2), error %d: %s\n", errno, strerror(errno));
         exit(EXIT_FAILURE);
 	}
 

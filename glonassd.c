@@ -336,7 +336,7 @@ void command(const char *pidfile, const char *cmd)
         fclose(handle);
 
         if( pid > 0 && !started && errno == ESRCH ) {
-            printf("Found PID file %s with PID %d without process glonassd(%d)\nPlease delete PID file manually.\n", pidfile, pid, pid);
+            printf("Found PID file %s with PID %d without process glonassd(%d)\nDelete PID file manually, please.\n", pidfile, pid, pid);
             exit(EXIT_FAILURE);
         }
     }	// if(handle)
@@ -347,7 +347,7 @@ void command(const char *pidfile, const char *cmd)
             exit(EXIT_FAILURE);
         }
         if( stParams.daemon )
-            printf("Start glonassd as daemon.\n");
+            printf("Start glonassd as daemon.\nUse 'grep glonassd /var/log/syslog' command to see the result\n");
         else
             printf("Start glonassd.\n");
     }	// if( strcmp(cmd, "start")
@@ -388,7 +388,10 @@ static void usage(void)
 {
     printf("\nglonassd v 1.0\n");
     printf("Fedorov Andrey 2016\n");
-    printf("Usage: ./glonassd start|stop|restart [-c path_to_config_file]\n\n");
+    printf("Usage: ./glonassd start|stop|restart [-c path_to_config_file] [-d]\n");
+    printf("where:\n");
+    printf("-c: full path to config file (glonassd.conf in current directory by default)\n");
+    printf("-d: start in daemon mode\n\n");
 }
 //------------------------------------------------------------------------------
 
@@ -784,10 +787,9 @@ int main(int argc, char* argv[])
         fclose(handle);
     }
     else {
+        fprintf(stderr, "Create PID file %s, error %d: %s\n", gPidFilePath, errno, strerror(errno));
         if( stParams.daemon )
             syslog(LOG_NOTICE, "Create PID file %s, error %d: %s\n", gPidFilePath, errno, strerror(errno));
-        else
-            printf("Create PID file %s, error %d: %s\n", gPidFilePath, errno, strerror(errno));
         exit(EXIT_FAILURE);
     }
 
