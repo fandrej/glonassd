@@ -78,7 +78,6 @@ prototest: prototest.c de.h glonassd.h logger.h
 	$(CC) -shared -o prototest.so prototest.o
 	rm prototest.o
 
-
 # shared library for database PostgreSQL
 pg: pg.c glonassd.h de.h logger.h
 	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) $(INCLUDE) -I/usr/include/postgresql pg.c $(LIBS) -o pg.o -lpq

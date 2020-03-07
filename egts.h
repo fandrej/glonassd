@@ -238,10 +238,10 @@ subrecords:
 #define EGTS_SR_RECORD_RESPONSE			0
 #define EGTS_SR_POS_DATA				16
 #define EGTS_SR_EXT_POS_DATA			17  // http://www.consultant.ru/document/cons_doc_LAW_135553/79bb682c2834f0ce64e168a500b0dc7d3a67b122/
-#define EGTS_SR_AD_SENSORS_DATA			18
+#define EGTS_SR_AD_SENSORS_DATA			18  // http://www.consultant.ru/document/cons_doc_LAW_135553/74ba478d36167ed04d9cb42ba1c469beedb27496/
 #define EGTS_SR_COUNTERS_DATA			19
 #define EGTS_SR_ACCEL_DATA				20
-#define EGTS_SR_STATE_DATA				21	// http://forum.gurtam.com/viewtopic.php?pid=48848#p48848
+#define EGTS_SR_STATE_DATA				21	// http://www.consultant.ru/document/cons_doc_LAW_135553/368bcdd7cdee0e10f98e760b543ce172c6090088/
 #define EGTS_SR_LOOPIN_DATA 			22
 #define EGTS_SR_ABS_DIG_SENS_DATA		23
 #define EGTS_SR_ABS_AN_SENS_DATA		24
@@ -527,6 +527,37 @@ ACFE	:1 – (Authorization Code Field Exists) битовый флаг, опре�
 остальные не используются
 */
 
+
+// EGTS_SR_STATE_DATA
+#pragma pack( push, 1 )
+typedef struct {
+    uint8_t ST;     // текущий режим работы. Список режимов см. ниже
+    uint8_t MPSV;   // значение напряжения основного источника питания, B с дискретностью 0,1 В;
+    uint8_t BBV;    // значение напряжения резервной батареи, B с дискретностью 0,1 В;
+    uint8_t IBV;    // значение напряжения внутренней батареи, B с дискретностью 0,1 В;
+    uint8_t FL;     // Флаги: битовое поле, NMS │ IBU │ BBU см. ниже
+} EGTS_SR_STATE_DATA_RECORD;
+#pragma pack( pop )
+
+/*
+Список режимов EGTS_SR_STATE_DATA ST
+Код   Режим работы абонентского терминала
+0    "Пассивный"
+1    "ЭРА"
+2    "Активный"
+3    "Экстренный вызов"
+4    "Экстренное слежение"
+5    "Тестирование"
+6    "Автосервис"
+7    "Загрузка ПО"
+-----------------------------
+Флаги:
+00000100 NMS - состояние навигационного модуля: 1 - включен; 0 - выключен;
+00000010 IBU - внешний резервный источник питания: 1 - используется; 0 - не используется
+00000001 BBU - источник питания внутренняя батарея: 1 - используется; 0 - не используется
+*/
+
+
 /* команды EGTS_SR_COMMAND_DATA_FIELD.CCD
 http://www.zakonprost.ru/content/base/part/1038461
 */
@@ -671,6 +702,7 @@ int Parse_EGTS_SR_POS_DATA(EGTS_SR_POS_DATA_RECORD *posdata, ST_RECORD *record, 
 int Parse_EGTS_SR_EXT_POS_DATA(EGTS_SR_EXT_POS_DATA_RECORD *posdata, ST_RECORD *record);
 int Parse_EGTS_SR_LIQUID_LEVEL_SENSOR(int rlen, EGTS_SR_LIQUID_LEVEL_SENSOR_RECORD *posdata, ST_RECORD *record);
 int Parse_EGTS_SR_COMMAND_DATA(ST_ANSWER *answer, EGTS_SR_COMMAND_DATA_RECORD *record);
+int Parse_EGTS_SR_STATE_DATA(EGTS_SR_STATE_DATA_RECORD *statedata, ST_RECORD *record);
 
 // функции для encode
 static int packet_add_record_header(char *packet, int position, uint8_t sst, uint8_t rst);
