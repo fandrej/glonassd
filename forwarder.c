@@ -562,7 +562,7 @@ void *forwarder_thread(void *st_forwarder)
 						// decode server answer
 						if( config->terminal_decode ) {
 							pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);	// do not disturb :)
-							config->terminal_decode(config->buffers[OUT_RDBUF], bytes_read, &answer);
+							config->terminal_decode(config->buffers[OUT_RDBUF], bytes_read, &answer, NULL);
 							pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);  // can disturb :)
 						}	// if( config->terminal_decode )
 

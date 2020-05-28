@@ -15,6 +15,7 @@
 #include <stdint.h> /* uint8_t, etc... */
 #include <sys/time.h>
 #include "glonassd.h"
+#include "worker.h"
 #include "de.h"     // ST_ANSWER
 #include "lib.h"    // MIN, MAX, BETWEEN, CRC, etc...
 #include "logger.h"
@@ -31,7 +32,7 @@ static uint16_t crc16(unsigned char *pcBlock, uint16_t len);
    parcel_size - it length
    answer - pointer to ST_ANSWER structure
 */
-void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
+void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER *worker)
 {
 
 	if( !parcel || parcel_size <= 0 || !answer )

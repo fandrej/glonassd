@@ -394,7 +394,7 @@ void *worker_thread(void *st_worker)
 
 		// decode terminal message
 		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);	// do not disturb :)
-		config->listener->terminal_decode(socket_buf, bytes_read, &answer);
+		config->listener->terminal_decode(socket_buf, bytes_read, &answer, config);
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);  // can disturb :)
 
         // set config imei

@@ -23,9 +23,6 @@
 #define MAX_TERMINALS 1000
 #define UTS2010	(1262304000)	// unix timestamp 00:00:00 01.01.2010
 
-// расакомментировать для записи отладки в общий лог (*.conf log_file)
-//#define DEBUG 1
-
 /*
    decode function
    parcel - the raw data from socket
@@ -34,7 +31,7 @@
 
    реализовано только самое необходимое для приема навигационных данных и датчиков
 */
-void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
+void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER *worker)
 {
 	int parcel_pointer = 0, sdr_readed = 0, sdr_count = 0, srd_count = 0;
 	EGTS_PACKET_HEADER *pak_head;
@@ -45,61 +42,75 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 	if( !parcel || parcel_size <= 0 || !answer )
 		return;
 
-    #ifdef DEBUG
-    logging("terminal_decode[egts]: START\n");
-    #endif
+    /*
+    if( worker && worker->listener->log_all ) {
+        logging("terminal_decode[%s:%d]: START\n", worker->listener->name, worker->listener->port);
+        logging("terminal_decode[%s:%d]: parcel_size=%lu\n", worker->listener->name, worker->listener->port, parcel_size);
+    }
+    */
 
 	// создаем ответ на пакет
-	answer->size = packet_create(answer->answer, EGTS_PT_RESPONSE);
+	answer->size = packet_create(answer->answer, EGTS_PT_RESPONSE, worker);
 
     again:
-    #ifdef DEBUG
-    logging("terminal_decode[egts]: parcel_size=%lu\n", parcel_size);
-    logging("terminal_decode[egts]: parcel_pointer=%lu\n", parcel_pointer);
-    logging("terminal_decode[egts]: read header\n");
-    #endif
+    /*
+    if( worker && worker->listener->log_all ) {
+        logging("terminal_decode[%s:%d]: parcel_pointer=%lu\n", worker->listener->name, worker->listener->port, parcel_pointer);
+        logging("terminal_decode[%s:%d]: read header\n", worker->listener->name, worker->listener->port);
+    }
+    */
 
     // разбираем заголовок пакета
 	pak_head = (EGTS_PACKET_HEADER *)&parcel[parcel_pointer];
 	if( !Parse_EGTS_PACKET_HEADER(answer, &parcel[parcel_pointer], parcel_size) ) {
-		answer->size += packet_finalize(answer->answer, answer->size);
+		answer->size += packet_finalize(answer->answer, answer->size, worker);
 		return;
 	}
 	parcel_pointer += pak_head->HL;
 
-    #ifdef DEBUG
-    logging("terminal_decode[egts]: PACKET TYPE=%d\n", pak_head->PT);
-    #endif
+    /*
+    if( worker && worker->listener->log_all ) {
+        logging("terminal_decode[%s:%d]: PACKET TYPE=%d\n", worker->listener->name, worker->listener->port, pak_head->PT);
+	}
+    */
 
 	// проверяем тип пакета
 	switch( pak_head->PT ) {
 	case EGTS_PT_RESPONSE:	// 0, ответ на что-то
-        #ifdef DEBUG
-        logging("terminal_decode[egts]: EGTS_PT_RESPONSE\n");
-        #endif
+        /*
+        if( worker && worker->listener->log_all ) {
+            logging("terminal_decode[%s:%d]: EGTS_PT_RESPONSE\n", worker->listener->name, worker->listener->port);
+        }
+        */
 
         if( parcel_size > 16 && parcel[parcel_pointer + pak_head->FDL + 2] == 1 ){
-            #ifdef DEBUG
-            logging("terminal_decode[egts]: goto again\n");
-            #endif
+            /*
+            if( worker && worker->listener->log_all ) {
+                logging("terminal_decode[%s:%d]: goto again\n", worker->listener->name, worker->listener->port);
+            }
+            */
 
             /* отвтет, за которым идут данные какого-то хуя */
             parcel_pointer += (pak_head->FDL + 2);
             goto again;
         }
         else {
-            #ifdef DEBUG
-            logging("terminal_decode[egts]: END\n\n");
-            #endif
+            /*
+            if( worker && worker->listener->log_all ) {
+                logging("terminal_decode[%s:%d]: END\n\n", worker->listener->name, worker->listener->port);
+            }
+            */
 
     		answer->size = 0;
     		return; // отвечать на ответ моветон
         }
 		break;
 	case EGTS_PT_SIGNED_APPDATA:	// 2, данные с цифровой подписью
-        #ifdef DEBUG
-        logging("terminal_decode[egts]: EGTS_PT_SIGNED_APPDATA\n");
-        #endif
+        /*
+        if( worker && worker->listener->log_all ) {
+            logging("terminal_decode[%s:%d]: EGTS_PT_SIGNED_APPDATA\n", worker->listener->name, worker->listener->port);
+        }
+        */
 
 		//log2file("/var/www/locman.org/tmp/gcc/r_EGTS_PT_SIGNED_APPDATA", parcel, parcel_size);
 
@@ -108,39 +119,48 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 
 		break;
 	case EGTS_PT_APPDATA:	// 1, просто данные
-        #ifdef DEBUG
-        logging("terminal_decode[egts]: EGTS_PT_APPDATA\n");
-        #endif
+        /*
+        if( worker && worker->listener->log_all ) {
+            logging("terminal_decode[%s:%d]: EGTS_PT_APPDATA\n", worker->listener->name, worker->listener->port);
+        }
+        */
 
 		break;
 	}	// switch( pak_head->PT )
 
-    #ifdef DEBUG
-    logging("terminal_decode[egts]: parcel_pointer=%lu\n", parcel_pointer);
-    #endif
+    /*
+    if( worker && worker->listener->log_all ) {
+        logging("terminal_decode[%s:%d]: parcel_pointer=%lu\n", worker->listener->name, worker->listener->port, parcel_pointer);
+    }
+    */
 
 	// вставляем в ответ на пакет OK для транспортного уровня пакета, получили, типа
 	answer->size += responce_add_header(answer->answer, answer->size, pak_head->PID, EGTS_PC_OK);
 
-    #ifdef DEBUG
-    logging("terminal_decode[egts]: SFRD\n");
-    #endif
+    /*
+    if( worker && worker->listener->log_all ) {
+        logging("terminal_decode[%s:%d]: SFRD\n", worker->listener->name, worker->listener->port);
+    }
+    */
 
 	// Чтение данных SFRD
 	while( parcel_pointer < pak_head->HL + pak_head->FDL ) {
 		// получаем указатель на SDR (Service Data Record)
 		rec_head = (EGTS_RECORD_HEADER *)&parcel[parcel_pointer];
 
-        #ifdef DEBUG
-        logging("terminal_decode[egts]: SDR %d, RN=%d, size=%d\n", sdr_count, rec_head->RN, rec_head->RL);
-        #endif
+        /*
+        if( worker && worker->listener->log_all ) {
+            logging("terminal_decode[%s:%d]: SDR %d, RN=%d, size=%d\n", worker->listener->name, worker->listener->port, sdr_count, rec_head->RN, rec_head->RL);
+        }
+        */
 
 		// проверяем длинну присланных данных
 		if( !rec_head->RL ) {	// EGTS_PC_INVDATALEN
-            //log2file("/home/locman/glonassd/logs/SDR_EGTS_PC_INVDATALEN", parcel, parcel_size);
-            #ifdef DEBUG
-            logging("terminal_decode[egts]: SDR:EGTS_PC_INVDATALEN error, rec_head->RL=%d, parcel_pointer=%lu, parcel_size=%lu\n", rec_head->RL, parcel_pointer, parcel_size);
-            #endif
+            /*
+            if( worker && worker->listener->log_all ) {
+                logging("terminal_decode[%s:%d]: SDR:EGTS_PC_INVDATALEN error, rec_head->RL=%d, parcel_pointer=%lu, parcel_size=%lu\n", worker->listener->name, worker->listener->port, rec_head->RL, parcel_pointer, parcel_size);
+            }
+            */
 
             if( answer->count || answer->size ) { // успели расшифровать несколько записей
                 // хрен с ней, отправим EGTS_PC_OK, а то шлют бесконечно эту битую запись
@@ -156,7 +176,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
         sdr_count++;    // record counter
 
 		// разбираем SDR
-		parcel_pointer += Parse_EGTS_RECORD_HEADER(rec_head, &st_rec_header, answer);
+		parcel_pointer += Parse_EGTS_RECORD_HEADER(rec_head, &st_rec_header, answer, worker);
 
 		sdr_readed = 0;	// прочитано данных, байт
 		while(sdr_readed < rec_head->RL) {
@@ -165,12 +185,12 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 			srd_head = (EGTS_SUBRECORD_HEADER *)&parcel[parcel_pointer];
 			// проверяем длинну присланных данных
 			if( !srd_head->SRL ) {
-                #ifdef DEBUG
-                logging("terminal_decode[egts]: SRD:EGTS_PC_INVDATALEN error\n");
-                #endif
+                if( worker && worker->listener->log_err ) {
+                    logging("terminal_decode[%s:%d]: SRD:EGTS_PC_INVDATALEN error\n", worker->listener->name, worker->listener->port);
+                }
 
 				answer->size += responce_add_teledata_result(answer->answer, answer->size, rec_head->RN, EGTS_PC_INVDATALEN);
-				answer->size += packet_finalize(answer->answer, answer->size);
+				answer->size += packet_finalize(answer->answer, answer->size, worker);
 				return;
 			}
 
@@ -179,32 +199,35 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
             sdr_readed += sizeof(EGTS_SUBRECORD_HEADER);
 			parcel_pointer += sizeof(EGTS_SUBRECORD_HEADER);
 
-            #ifdef DEBUG
-            logging("terminal_decode[egts]: SRD %d, TYPE=%d, size=%ld\n", srd_count, srd_head->SRT, srd_head->SRL+sizeof(EGTS_SUBRECORD_HEADER));
-            #endif
+            /*
+            if( worker && worker->listener->log_all ) {
+                logging("terminal_decode[%s:%d]: SRD %d, TYPE=%d, size=%ld\n", worker->listener->name, worker->listener->port, srd_count, srd_head->SRT, srd_head->SRL+sizeof(EGTS_SUBRECORD_HEADER));
+            }
+            */
 
 			// разбираем SRD (Subrecord Data) в зависимости от типа записи
 			switch( srd_head->SRT ) {
 			case EGTS_SR_TERM_IDENTITY:	// авторизация
-                #ifdef DEBUG
-                logging("terminal_decode[egts]: EGTS_SR_TERM_IDENTITY\n");
-                #endif
 
 				answer->size += responce_add_record(answer->answer, answer->size, rec_head->RN, EGTS_PC_OK);
 
-				if( !Parse_EGTS_SR_TERM_IDENTITY( (EGTS_SR_TERM_IDENTITY_RECORD *)&parcel[parcel_pointer], answer ) && !st_rec_header.OID ) { // нет ID терминала
+				if( !Parse_EGTS_SR_TERM_IDENTITY( (EGTS_SR_TERM_IDENTITY_RECORD *)&parcel[parcel_pointer], answer, worker ) && !st_rec_header.OID ) { // нет ID терминала
 					// формируем ответ пройдите на хуй, пожалуйста
 					answer->size += responce_add_result(answer->answer, answer->size, EGTS_PC_AUTH_DENIED);
-				} else {
+				}
+                else {
 					// формируем ответ добро пожаловать
 					answer->size += responce_add_result(answer->answer, answer->size, EGTS_PC_OK);
 				}
 
                 break;
+
 			case EGTS_SR_POS_DATA:	// навигационные данные
-                #ifdef DEBUG
-                logging("terminal_decode[egts]: EGTS_SR_POS_DATA\n");
-                #endif
+                /*
+                if( worker && worker->listener->log_all ) {
+                    logging("terminal_decode[%s:%d]: EGTS_SR_POS_DATA\n", worker->listener->name, worker->listener->port);
+                }
+                */
 
                 // разбираем данные
                 record = &answer->records[answer->count];
@@ -216,9 +239,11 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 
 				break;
 			case EGTS_SR_EXT_POS_DATA:
-                #ifdef DEBUG
-                logging("terminal_decode[egts]: EGTS_SR_EXT_POS_DATA\n");
-                #endif
+                /*
+                if( worker && worker->listener->log_all ) {
+                    logging("terminal_decode[%s:%d]: EGTS_SR_EXT_POS_DATA\n", worker->listener->name, worker->listener->port);
+                }
+                */
 
 				if( record ) {
 					Parse_EGTS_SR_EXT_POS_DATA((EGTS_SR_EXT_POS_DATA_RECORD *)&parcel[parcel_pointer], record);
@@ -226,9 +251,11 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 
 				break;
 			case EGTS_SR_LIQUID_LEVEL_SENSOR:	// датчики уровня жидкости
-                #ifdef DEBUG
-                logging("terminal_decode[egts]: EGTS_SR_LIQUID_LEVEL_SENSOR\n");
-                #endif
+                /*
+                if( worker && worker->listener->log_all ) {
+                    logging("terminal_decode[%s:%d]: EGTS_SR_LIQUID_LEVEL_SENSOR\n", worker->listener->name, worker->listener->port);
+                }
+                */
 
 				if( record ) {
 					Parse_EGTS_SR_LIQUID_LEVEL_SENSOR(srd_head->SRL, (EGTS_SR_LIQUID_LEVEL_SENSOR_RECORD *)&parcel[parcel_pointer], record);
@@ -236,16 +263,18 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 
 				break;
 			case EGTS_SR_COMMAND_DATA:	// команда
-                #ifdef DEBUG
-                logging("terminal_decode[egts]: EGTS_SR_COMMAND_DATA\n");
-                #endif
+                /*
+                if( worker && worker->listener->log_all ) {
+                    logging("terminal_decode[%s:%d]: EGTS_SR_COMMAND_DATA\n", worker->listener->name, worker->listener->port);
+                }
+                */
 
 				// сформировать подтверждение в виде подзаписи EGTS_SR_COMMAND_DATA сервиса EGTS_COMMAND_SERVICE
 				answer->size += responce_add_record(answer->answer, answer->size, rec_head->RN, EGTS_PC_OK);
 
 				if( Parse_EGTS_SR_COMMAND_DATA(answer, (EGTS_SR_COMMAND_DATA_RECORD *)&parcel[parcel_pointer]) ) {
 					// завершаем пакет
-					answer->size += packet_finalize(answer->answer, answer->size);
+					answer->size += packet_finalize(answer->answer, answer->size, worker);
 
 					// сформировать подзапись EGTS_SR_POS_DATA сервиса EGRS_TELEDATA_SERVICE
 					// создать новый пакет и вернуть его
@@ -255,16 +284,20 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 				break;
 			case EGTS_SR_AD_SENSORS_DATA:	// 18, датчики
                 // http://www.consultant.ru/document/cons_doc_LAW_135553/74ba478d36167ed04d9cb42ba1c469beedb27496/
-                #ifdef DEBUG
-                logging("terminal_decode[egts]: EGTS_SR_AD_SENSORS_DATA\n");
-                #endif
+                /*
+                if( worker && worker->listener->log_all ) {
+                    logging("terminal_decode[%s:%d]: EGTS_SR_AD_SENSORS_DATA\n", worker->listener->name, worker->listener->port);
+                }
+                */
 
 				break;
 			case EGTS_SR_STATE_DATA:	// 21, текущий режим работы
                 // http://www.consultant.ru/document/cons_doc_LAW_135553/368bcdd7cdee0e10f98e760b543ce172c6090088/
-                #ifdef DEBUG
-                logging("terminal_decode[egts]: EGTS_SR_STATE_DATA\n");
-                #endif
+                /*
+                if( worker && worker->listener->log_all ) {
+                    logging("terminal_decode[%s:%d]: EGTS_SR_STATE_DATA\n", worker->listener->name, worker->listener->port);
+                }
+                */
 
 				if( record ) {
 					Parse_EGTS_SR_STATE_DATA((EGTS_SR_STATE_DATA_RECORD *)&parcel[parcel_pointer], record);
@@ -272,55 +305,56 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 
 				break;
 			default:	// мы такое не обрабатываем
-                #ifdef DEBUG
-                logging("terminal_decode[egts]: default: srd_head->SRT=%d\n", srd_head->SRT);
-                #endif
-                ;//logging("terminal_decode[egts]: default: srd_head->SRT=%d\n", srd_head->SRT);
+                if( worker && worker->listener->log_err ) {
+                    logging("terminal_decode[%s:%d]: not processed: srd_head->SRT=%d\n", worker->listener->name, worker->listener->port, srd_head->SRT);
+                }
 			}	// switch( srd_head->SRT )
 
 			// переходим к следующей подзаписи
 			sdr_readed += srd_head->SRL;
 			parcel_pointer += srd_head->SRL;
 
-            #ifdef DEBUG
-            logging("terminal_decode[egts]: SRD readed, parcel_pointer=%lu\n", parcel_pointer);
-            #endif
+            /*
+            if( worker && worker->listener->log_all ) {
+                logging("terminal_decode[%s:%d]: SRD readed, parcel_pointer=%lu\n", worker->listener->name, worker->listener->port, parcel_pointer);
+            }
+            */
 		}	// while(sdr_readed < rec_head->RL)
 
-        #ifdef DEBUG
-        logging("terminal_decode[egts]: SDR readed, parcel_pointer=%lu\n", parcel_pointer);
-        #endif
+        /*
+        if( worker && worker->listener->log_all ) {
+            logging("terminal_decode[%s:%d]: SDR readed, parcel_pointer=%lu\n", worker->listener->name, worker->listener->port, parcel_pointer);
+        }
+        */
 		answer->size += responce_add_teledata_result(answer->answer, answer->size, rec_head->RN, EGTS_PC_OK);
 	}	// while( parcel_pointer < pak_head->HL + pak_head->FDL )
 
 
 	if(answer->size) {
 		//log2file("/var/www/locman.org/tmp/gcc/w_answer", answer->answer, answer->size);
-		answer->size += packet_finalize(answer->answer, answer->size);
+		answer->size += packet_finalize(answer->answer, answer->size, worker);
 	}
 
-    /* debug
-    #ifdef DEBUG
-    if(record){
-       logging("terminal_decode[egts]: record->data=%lu\n", record->data);
-	   logging("terminal_decode[egts]: record->imei=%s\n", record->imei);
-	   logging("terminal_decode[egts]: record->lat=%lf\n", record->lat);
-	   logging("terminal_decode[egts]: record->lon=%lf\n", record->lon);
-	   logging("terminal_decode[egts]: record->valid=%d\n", record->valid);
-	   logging("terminal_decode[egts]: record->satellites=%d\n", record->satellites);
-	   logging("terminal_decode[egts]: record->hdop=%d\n", record->hdop);
-	   logging("terminal_decode[egts]: record->height=%d\n", record->height);
-	   logging("terminal_decode[egts]: record->curs=%d\n", record->curs);
-	   logging("terminal_decode[egts]: record->speed=%lf\n", record->speed);
-	   logging("terminal_decode[egts]: record->probeg=%lf\n", record->probeg);
-	}
-    #endif
-    */
 
-    #ifdef DEBUG
-    logging("terminal_decode[egts]: subrecords readed=%d, terminal recods=%d, terminal answer size=%d bytes\n", srd_count, answer->count, answer->size);
-    logging("terminal_decode[egts]: END\n\n");
-    #endif
+    if( worker && worker->listener->log_all ) {
+        if(record){
+            logging("terminal_decode[%s:%d]: record->imei=%s\n", worker->listener->name, worker->listener->port, record->imei);
+            logging("terminal_decode[%s:%d]: record->data=%lu\n", worker->listener->name, worker->listener->port, record->data);
+            logging("terminal_decode[%s:%d]: record->lat=%lf\n", worker->listener->name, worker->listener->port, record->lat);
+            logging("terminal_decode[%s:%d]: record->lon=%lf\n", worker->listener->name, worker->listener->port, record->lon);
+            logging("terminal_decode[%s:%d]: record->valid=%d\n", worker->listener->name, worker->listener->port, record->valid);
+            logging("terminal_decode[%s:%d]: record->satellites=%d\n", worker->listener->name, worker->listener->port, record->satellites);
+            logging("terminal_decode[%s:%d]: record->hdop=%d\n", worker->listener->name, worker->listener->port, record->hdop);
+            logging("terminal_decode[%s:%d]: record->height=%d\n", worker->listener->name, worker->listener->port, record->height);
+            logging("terminal_decode[%s:%d]: record->curs=%d\n", worker->listener->name, worker->listener->port, record->curs);
+            logging("terminal_decode[%s:%d]: record->speed=%lf\n", worker->listener->name, worker->listener->port, record->speed);
+            logging("terminal_decode[%s:%d]: record->probeg=%lf\n", worker->listener->name, worker->listener->port, record->probeg);
+        }
+
+        logging("terminal_decode[%s:%d]: subrecords readed=%d, terminal recods=%d, terminal answer size=%d bytes\n", worker->listener->name, worker->listener->port, srd_count, answer->count, answer->size);
+        logging("terminal_decode[%s:%d]: END\n\n", worker->listener->name, worker->listener->port);
+    }
+
 }
 //------------------------------------------------------------------------------
 
@@ -328,7 +362,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
    buffer - укакзатель на буфер, в котором формируется пакет
    pt - Тип пакета Транспортного Уровня
 */
-int packet_create(char *buffer, uint8_t pt)
+int packet_create(char *buffer, uint8_t pt, ST_WORKER *worker)
 {
 	static unsigned short int PaketNumber = 0;	// packet number, joint for encode & decode
 	EGTS_PACKET_HEADER *pak_head = (EGTS_PACKET_HEADER *)buffer;
@@ -399,10 +433,11 @@ int responce_add_teledata_result(char *buffer, int pointer, uint16_t crn, uint8_
         if( ++RECNUM > 65535 )
             RECNUM = 0;
 
-        //logging("terminal_decode[egts]: RESPONSE_RECORD %d CRN=%d RST=%d\n", RECNUM, crn, rst);
+        //logging("terminal_decode[%s:%d]: RESPONSE_RECORD %d CRN=%d RST=%d\n", worker->listener->name, worker->listener->port, RECNUM, crn, rst);
     }
     else {
-        logging("terminal_decode[egts]: add RESPONSE_RECORD fail - buffer full\n");
+        // if(log_err)
+        //logging("terminal_decode[%s:%d]: add RESPONSE_RECORD fail - buffer full\n", worker->listener->name, worker->listener->port);
     }
 
     return size;
@@ -438,12 +473,12 @@ int responce_add_result(char *buffer, int pointer, uint8_t rcd)
 //------------------------------------------------------------------------------
 
 // расчет CRC16 & CRC8 для данных егтс пакета
-int packet_finalize(char *buffer, int pointer)
+int packet_finalize(char *buffer, int pointer, ST_WORKER *worker)
 {
 	EGTS_PACKET_HEADER *pak_head = (EGTS_PACKET_HEADER *)buffer;
 
 	if( pointer - pak_head->HL > pak_head->FDL ) {
-		logging("terminal_decode[egts]: pak_head->FDL correct from %u to %u\n", pak_head->FDL, pointer - pak_head->HL);
+		//logging("terminal_decode[%s:%d]: pak_head->FDL correct from %u to %u\n", worker->listener->name, worker->listener->port, pak_head->FDL, pointer - pak_head->HL);
 		pak_head->FDL = pointer - pak_head->HL;
 	}
 
@@ -499,35 +534,30 @@ int Parse_EGTS_PACKET_HEADER(ST_ANSWER *answer, char *pc, int parcel_size)
 	EGTS_PACKET_HEADER *ph = (EGTS_PACKET_HEADER *)pc;
 
 	if( ph->PRV != 1 /*|| (ph->PRF & 192)*/ ) {
-		logging("terminal_decode[egts]: EGTS_PC_UNS_PROTOCOL error\n");
 		answer->size += responce_add_teledata_result(answer->answer, answer->size, ph->PID, EGTS_PC_UNS_PROTOCOL);
 		retval = 0;
         //log2file("/home/locman/glonassd/logs/UNS_PROTOCOL", pc, parcel_size);
 	}
 
 	if( retval && ph->HL != 11 && ph->HL != 16 ) {
-		logging("terminal_decode[egts]: EGTS_PC_INC_HEADERFORM error\n");
 		answer->size += responce_add_teledata_result(answer->answer, answer->size, ph->PID, EGTS_PC_INC_HEADERFORM);
 		retval = 0;
         //log2file("/home/locman/glonassd/logs/INC_HEADERFORM", pc, parcel_size);
 	}
 
     if( retval && CRC8EGTS((unsigned char *)ph, ph->HL-1) != ph->HCS ) {
-		logging("terminal_decode[egts]: EGTS_PC_HEADERCRC_ERROR error: need %u got %u\n", CRC8EGTS((unsigned char *)ph, ph->HL-1), ph->HCS);
 		answer->size += responce_add_teledata_result(answer->answer, answer->size, ph->PID, EGTS_PC_HEADERCRC_ERROR);
 		retval = 0;
         //log2file("/home/locman/glonassd/logs/HEADERCRC_ERROR", pc, parcel_size);
 	}
 
 	if( retval && (B5 & ph->PRF) ) {
-		logging("terminal_decode[egts]: EGTS_PC_TTLEXPIRED error\n");
 		answer->size += responce_add_teledata_result(answer->answer, answer->size, ph->PID, EGTS_PC_TTLEXPIRED);
 		retval = 0;
         //log2file("/home/locman/glonassd/logs/TTLEXPIRED", pc, parcel_size);
 	}
 
 	if( retval && !ph->FDL ) {
-		logging("terminal_decode[egts]: EGTS_PC_OK\n");
 		answer->size += responce_add_teledata_result(answer->answer, answer->size, ph->PID, EGTS_PC_OK);
 		retval = 0;
         //log2file("/home/locman/glonassd/logs/EGTS_PC_OK", pc, parcel_size);
@@ -536,7 +566,6 @@ int Parse_EGTS_PACKET_HEADER(ST_ANSWER *answer, char *pc, int parcel_size)
 	// проверяем CRC16
 	unsigned short *SFRCS = (unsigned short *)&pc[ph->HL + ph->FDL];
 	if( retval && *SFRCS != CRC16EGTS( (unsigned char *)&pc[ph->HL], ph->FDL) ) {
-		logging("terminal_decode[egts]: EGTS_PC_DATACRC_ERROR error: need %u got %u\n", CRC16EGTS( (unsigned char *)&pc[ph->HL], ph->FDL), *SFRCS);
 		answer->size += responce_add_teledata_result(answer->answer, answer->size, ph->PID, EGTS_PC_DATACRC_ERROR);
 		retval = 0;
         //log2file("/home/locman/glonassd/logs/DATACRC_ERROR", pc, parcel_size);
@@ -544,7 +573,6 @@ int Parse_EGTS_PACKET_HEADER(ST_ANSWER *answer, char *pc, int parcel_size)
 
 	// проверяем шифрование данных
 	if( retval && (ph->PRF & 24) ) {
-		logging("terminal_decode[egts]: EGTS_PC_DECRYPT_ERROR error\n");
 		answer->size += responce_add_teledata_result(answer->answer, answer->size, ph->PID, EGTS_PC_DECRYPT_ERROR);
 		retval = 0;
         //log2file("/home/locman/glonassd/logs/DECRYPT_ERROR", pc, parcel_size);
@@ -552,7 +580,6 @@ int Parse_EGTS_PACKET_HEADER(ST_ANSWER *answer, char *pc, int parcel_size)
 
 	// проверяем сжатие данных
 	if( retval && (ph->PRF & B2) ) {
-		logging("terminal_decode[egts]: EGTS_PC_INC_DATAFORM error\n");
 		answer->size += responce_add_teledata_result(answer->answer, answer->size, ph->PID, EGTS_PC_INC_DATAFORM);
 		retval = 0;
         //log2file("/home/locman/glonassd/logs/INC_DATAFORM", pc, parcel_size);
@@ -560,17 +587,17 @@ int Parse_EGTS_PACKET_HEADER(ST_ANSWER *answer, char *pc, int parcel_size)
 
     /* debug
     if( !retval ){
-        logging("terminal_decode[egts]: Parse_EGTS_PACKET_HEADER\n", ph->PRV);
-        logging("terminal_decode[egts]: retval=%d\n", retval);
-        logging("terminal_decode[egts]: pak_head->PRV=%d\n", ph->PRV);
-        logging("terminal_decode[egts]: pak_head->SKID=%d\n", ph->SKID);
-        logging("terminal_decode[egts]: pak_head->PRF=%d\n", ph->PRF);
-        logging("terminal_decode[egts]: pak_head->HL=%d\n", ph->HL);
-        logging("terminal_decode[egts]: pak_head->HE=%d\n", ph->HE);
-        logging("terminal_decode[egts]: pak_head->FDL=%d\n", ph->FDL);
-        logging("terminal_decode[egts]: pak_head->PID=%d\n", ph->PID);
-        logging("terminal_decode[egts]: pak_head->PT=%d\n", ph->PT);
-        logging("terminal_decode[egts]: pak_head->HCS=%d\n", ph->HCS);
+        logging("terminal_decode[%s:%d]: Parse_EGTS_PACKET_HEADER\n", ph->PRV);
+        logging("terminal_decode[%s:%d]: retval=%d\n", retval);
+        logging("terminal_decode[%s:%d]: pak_head->PRV=%d\n", ph->PRV);
+        logging("terminal_decode[%s:%d]: pak_head->SKID=%d\n", ph->SKID);
+        logging("terminal_decode[%s:%d]: pak_head->PRF=%d\n", ph->PRF);
+        logging("terminal_decode[%s:%d]: pak_head->HL=%d\n", ph->HL);
+        logging("terminal_decode[%s:%d]: pak_head->HE=%d\n", ph->HE);
+        logging("terminal_decode[%s:%d]: pak_head->FDL=%d\n", ph->FDL);
+        logging("terminal_decode[%s:%d]: pak_head->PID=%d\n", ph->PID);
+        logging("terminal_decode[%s:%d]: pak_head->PT=%d\n", ph->PT);
+        logging("terminal_decode[%s:%d]: pak_head->HCS=%d\n", ph->HCS);
     }
     */
 
@@ -578,7 +605,7 @@ int Parse_EGTS_PACKET_HEADER(ST_ANSWER *answer, char *pc, int parcel_size)
 }
 //------------------------------------------------------------------------------
 
-int Parse_EGTS_RECORD_HEADER(EGTS_RECORD_HEADER *rec_head, EGTS_RECORD_HEADER *st_header, ST_ANSWER *answer)
+int Parse_EGTS_RECORD_HEADER(EGTS_RECORD_HEADER *rec_head, EGTS_RECORD_HEADER *st_header, ST_ANSWER *answer, ST_WORKER *worker)
 {
 
 	int rec_head_size = 2 * sizeof(uint16_t) + sizeof(uint8_t);
@@ -593,7 +620,7 @@ int Parse_EGTS_RECORD_HEADER(EGTS_RECORD_HEADER *rec_head, EGTS_RECORD_HEADER *s
 	// OBFE	0		наличие в данном пакете поля OID 1 = присутствует 0 = отсутствует
 	if( st_header->RFL & B0 ) {
 		st_header->OID = *(uint32_t *)&pc[rec_head_size];
-		if( st_header->OID /*&& !strlen(answer->lastpoint.imei)*/ ) {	// D:\Work\Borland\Satellite\egts\Рекомендации по реализации протокола передачи данных в РНИЦ.doc 5.1.1	Идентификация АС посредством поля OID
+		if( st_header->OID && !strlen(answer->lastpoint.imei) ) {	// D:\Work\Borland\Satellite\egts\Рекомендации по реализации протокола передачи данных в РНИЦ.doc 5.1.1	Идентификация АС посредством поля OID
 			memset(answer->lastpoint.imei, 0, SIZE_TRACKER_FIELD);
 			snprintf(answer->lastpoint.imei, SIZE_TRACKER_FIELD, "%d", st_header->OID);
 		}
@@ -617,17 +644,18 @@ int Parse_EGTS_RECORD_HEADER(EGTS_RECORD_HEADER *rec_head, EGTS_RECORD_HEADER *s
 	st_header->RST = *(uint8_t *)&pc[rec_head_size];
 	rec_head_size += sizeof(uint8_t);
 
-	/*
-	   logging("terminal_decode[egts]: st_header->RL=%d\n", st_header->RL);
-	   logging("terminal_decode[egts]: st_header->RN=%d\n", st_header->RN);
-	   logging("terminal_decode[egts]: st_header->RFL=%d\n", st_header->RFL);
-	   logging("terminal_decode[egts]: st_header->OID=%d\n", st_header->OID);
-	   logging("terminal_decode[egts]: st_header->EVID=%d\n", st_header->EVID);
-	   logging("terminal_decode[egts]: st_header->TM=%d\n", st_header->TM);
-	   logging("terminal_decode[egts]: st_header->SST=%d\n", st_header->SST);
-	   logging("terminal_decode[egts]: st_header->RST=%d\n", st_header->RST);
-	   logging("terminal_decode[egts]: rec_head_size=%d\n", rec_head_size);
-	*/
+    if( worker && worker->listener->log_all ){
+        logging("terminal_decode[%s:%d]: Parse_EGTS_RECORD_HEADER\n", worker->listener->name, worker->listener->port);
+        logging("terminal_decode[%s:%d]: RL=%d\n", worker->listener->name, worker->listener->port, st_header->RL);
+        logging("terminal_decode[%s:%d]: RN=%d\n", worker->listener->name, worker->listener->port, st_header->RN);
+        logging("terminal_decode[%s:%d]: RFL=%d\n", worker->listener->name, worker->listener->port, st_header->RFL);
+        logging("terminal_decode[%s:%d]: OID=%d\n", worker->listener->name, worker->listener->port, st_header->OID);
+        logging("terminal_decode[%s:%d]: EVID=%d\n", worker->listener->name, worker->listener->port, st_header->EVID);
+        logging("terminal_decode[%s:%d]: TM=%d\n", worker->listener->name, worker->listener->port, st_header->TM);
+        logging("terminal_decode[%s:%d]: SST=%d\n", worker->listener->name, worker->listener->port, st_header->SST);
+        logging("terminal_decode[%s:%d]: RST=%d\n", worker->listener->name, worker->listener->port, st_header->RST);
+        logging("terminal_decode[%s:%d]: rec.head.size=%d\n\n", worker->listener->name, worker->listener->port, rec_head_size);
+    }
 
 	return rec_head_size;
 }
@@ -636,7 +664,7 @@ int Parse_EGTS_RECORD_HEADER(EGTS_RECORD_HEADER *rec_head, EGTS_RECORD_HEADER *s
 // разбор записи EGTS_SR_TERM_IDENTITY (Подзапись используется АТ при запросе авторизации на ТП и содержит учётные данные АТ)
 // D:\Work\Borland\Satellite\egts\Рекомендации по реализации протокола передачи данных в РНИЦ.doc
 // 5.1.2	Идентификация АС посредством сервиса EGTS_AUTH_SERVICE
-int Parse_EGTS_SR_TERM_IDENTITY(EGTS_SR_TERM_IDENTITY_RECORD *record, ST_ANSWER *answer)
+int Parse_EGTS_SR_TERM_IDENTITY(EGTS_SR_TERM_IDENTITY_RECORD *record, ST_ANSWER *answer, ST_WORKER *worker)
 {
 	int record_size = sizeof(uint32_t) + sizeof(uint8_t);
 	char *pc = (char *)record;
@@ -678,6 +706,13 @@ int Parse_EGTS_SR_TERM_IDENTITY(EGTS_SR_TERM_IDENTITY_RECORD *record, ST_ANSWER 
 
 	   return record_size;
 	*/
+
+    if( worker && worker->listener->log_all ){
+        logging("terminal_decode[%s:%d]: Parse_EGTS_SR_TERM_IDENTITY\n", worker->listener->name, worker->listener->port);
+        logging("terminal_decode[%s:%d]: TID=%d\n", worker->listener->name, worker->listener->port, record->TID);
+        logging("terminal_decode[%s:%d]: FLG=%d\n", worker->listener->name, worker->listener->port, record->FLG);
+        logging("terminal_decode[%s:%d]: imei=%s\n\n", worker->listener->name, worker->listener->port, answer->lastpoint.imei);
+	}
 
 	return strlen(answer->lastpoint.imei);	// всех пускать
 }
@@ -954,7 +989,7 @@ int terminal_encode(ST_RECORD *records, int reccount, char *buffer, int bufsize)
 	int i, top = 0;
 
 	// create egts packet header
-	top = packet_create(buffer, EGTS_PT_APPDATA);
+	top = packet_create(buffer, EGTS_PT_APPDATA, NULL);
 
 	/*
 	   test for imei logging on the remote server
@@ -973,7 +1008,7 @@ int terminal_encode(ST_RECORD *records, int reccount, char *buffer, int bufsize)
 		top = packet_add_subrecord_EGTS_SR_TERM_IDENTITY(buffer, top, record_header, subrecord_header, records[0].imei);
 
 		// add CRC
-		top += packet_finalize(buffer, top);
+		top += packet_finalize(buffer, top, NULL);
 
 		// authentificate complete, return
 		return top;
@@ -1017,7 +1052,7 @@ int terminal_encode(ST_RECORD *records, int reccount, char *buffer, int bufsize)
 	}	// for(i = 0; i < reccount; i++)
 
 	// add CRC
-	top += packet_finalize(buffer, top);
+	top += packet_finalize(buffer, top, NULL);
 
 	return top;
 }

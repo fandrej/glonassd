@@ -10,6 +10,7 @@
 */
 
 #include "glonassd.h"
+#include "worker.h"
 #include "de.h"     // ST_ANSWER, ST_RECORD
 #include "lib.h"    // MIN, MAX, BETWEEN, CRC, etc...
 #include "logger.h"
@@ -220,7 +221,7 @@ __attribute__ ((constructor)) static void unload(void)
    parcel_size - it length
    answer - pointer to ST_ANSWER structure
 */
-void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
+void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER *worker)
 {
 	static char data[SOCKET_BUF_SIZE]= {0};	// буфер для хранения посылки
 	static unsigned int part_size = 0;

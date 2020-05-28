@@ -16,6 +16,7 @@
 #include <sys/time.h>
 //#include <syslog.h>
 #include "glonassd.h"
+#include "worker.h"
 #include "de.h"     // ST_ANSWER
 #include "lib.h"    // MIN, MAX, BETWEEN, CRC, etc...
 #include "logger.h"
@@ -30,7 +31,7 @@
    parcel_size - it length
    answer - pointer to ST_ANSWER structure (de.h)
 */
-void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
+void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER *worker)
 {
 	static __thread uint32_t uiPrevProbeg = 0;
 	ARNAVI_HEADER *arnavi_header;

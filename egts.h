@@ -1,3 +1,4 @@
+#include "worker.h"
 /*
 Описание типов данных:
 #include <stdint.h> // uint8_t, etc...
@@ -684,8 +685,8 @@ const unsigned short Crc16Table[256] = {
 
 
 // функции общие для encode/decode
-int packet_create(char *buffer, uint8_t pt);
-int packet_finalize(char *buffer, int pointer);
+int packet_create(char *buffer, uint8_t pt, ST_WORKER *worker);
+int packet_finalize(char *buffer, int pointer, ST_WORKER *worker);
 
 // функции для decode
 int responce_add_header(char *buffer, int pointer, uint16_t pid, uint8_t pr);
@@ -696,8 +697,8 @@ int responce_add_subrecord_EGTS_SR_COMMAND_DATA(char *buffer, int pointer, EGTS_
 unsigned char CRC8EGTS(unsigned char *lpBlock, unsigned char len);
 unsigned short CRC16EGTS(unsigned char * pcBlock, unsigned short len);
 int Parse_EGTS_PACKET_HEADER(ST_ANSWER *answer, char *pc, int parcel_size);
-int Parse_EGTS_RECORD_HEADER(EGTS_RECORD_HEADER *rec_head, EGTS_RECORD_HEADER *st_header, ST_ANSWER *answer);
-int Parse_EGTS_SR_TERM_IDENTITY(EGTS_SR_TERM_IDENTITY_RECORD *record, ST_ANSWER *answer);
+int Parse_EGTS_RECORD_HEADER(EGTS_RECORD_HEADER *rec_head, EGTS_RECORD_HEADER *st_header, ST_ANSWER *answer, ST_WORKER *worker);
+int Parse_EGTS_SR_TERM_IDENTITY(EGTS_SR_TERM_IDENTITY_RECORD *record, ST_ANSWER *answer, ST_WORKER *worker);
 int Parse_EGTS_SR_POS_DATA(EGTS_SR_POS_DATA_RECORD *posdata, ST_RECORD *record, ST_ANSWER *answer);
 int Parse_EGTS_SR_EXT_POS_DATA(EGTS_SR_EXT_POS_DATA_RECORD *posdata, ST_RECORD *record);
 int Parse_EGTS_SR_LIQUID_LEVEL_SENSOR(int rlen, EGTS_SR_LIQUID_LEVEL_SENSOR_RECORD *posdata, ST_RECORD *record);
