@@ -240,7 +240,7 @@ subrecords:
 #define EGTS_SR_POS_DATA				16
 #define EGTS_SR_EXT_POS_DATA			17  // http://www.consultant.ru/document/cons_doc_LAW_135553/79bb682c2834f0ce64e168a500b0dc7d3a67b122/
 #define EGTS_SR_AD_SENSORS_DATA			18  // http://www.consultant.ru/document/cons_doc_LAW_135553/74ba478d36167ed04d9cb42ba1c469beedb27496/
-#define EGTS_SR_COUNTERS_DATA			19
+#define EGTS_SR_COUNTERS_DATA			19  // https://sudact.ru/law/prikaz-mintransa-rossii-ot-31072012-n-285/prilozhenie-n-7/2_1/2.6/tablitsa-n-6_1/
 #define EGTS_SR_ACCEL_DATA				20
 #define EGTS_SR_STATE_DATA				21	// http://www.consultant.ru/document/cons_doc_LAW_135553/368bcdd7cdee0e10f98e760b543ce172c6090088/
 #define EGTS_SR_LOOPIN_DATA 			22
@@ -696,10 +696,10 @@ int responce_add_result(char *buffer, int pointer, uint8_t rcd);
 int responce_add_subrecord_EGTS_SR_COMMAND_DATA(char *buffer, int pointer, EGTS_SR_COMMAND_DATA_RECORD *cmdrec);
 unsigned char CRC8EGTS(unsigned char *lpBlock, unsigned char len);
 unsigned short CRC16EGTS(unsigned char * pcBlock, unsigned short len);
-int Parse_EGTS_PACKET_HEADER(ST_ANSWER *answer, char *pc, int parcel_size);
+int Parse_EGTS_PACKET_HEADER(ST_ANSWER *answer, char *pc, int parcel_size, ST_WORKER *worker);
 int Parse_EGTS_RECORD_HEADER(EGTS_RECORD_HEADER *rec_head, EGTS_RECORD_HEADER *st_header, ST_ANSWER *answer, ST_WORKER *worker);
 int Parse_EGTS_SR_TERM_IDENTITY(EGTS_SR_TERM_IDENTITY_RECORD *record, ST_ANSWER *answer, ST_WORKER *worker);
-int Parse_EGTS_SR_POS_DATA(EGTS_SR_POS_DATA_RECORD *posdata, ST_RECORD *record, ST_ANSWER *answer);
+int Parse_EGTS_SR_POS_DATA(EGTS_SR_POS_DATA_RECORD *posdata, ST_RECORD *record, ST_ANSWER *answer, ST_WORKER *worker);
 int Parse_EGTS_SR_EXT_POS_DATA(EGTS_SR_EXT_POS_DATA_RECORD *posdata, ST_RECORD *record);
 int Parse_EGTS_SR_LIQUID_LEVEL_SENSOR(int rlen, EGTS_SR_LIQUID_LEVEL_SENSOR_RECORD *posdata, ST_RECORD *record);
 int Parse_EGTS_SR_COMMAND_DATA(ST_ANSWER *answer, EGTS_SR_COMMAND_DATA_RECORD *record);

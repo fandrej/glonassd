@@ -448,12 +448,14 @@ void *worker_thread(void *st_worker)
 
 			if( bytes_write <= 0 ){	// socket write error
                 if( config->listener->log_err || stConfigServer.log_enable > 1 )
-    				logging("%s[%ld]: send to terminal error %d: %s\n", config->listener->name, syscall(SYS_gettid), errno, strerror(errno));
+    				logging("%s[%ld]: sended to terminal error %d: %s\n", config->listener->name, syscall(SYS_gettid), errno, strerror(errno));
     			exit_worker(config);
     			return NULL;
             }
             else if( stConfigServer.log_enable > 1 )
-    			logging("%s[%ld]: send to terminal %zu bytes\n", config->listener->name, syscall(SYS_gettid), bytes_write);
+    			logging("%s[%ld]: sended to terminal %zu bytes\n", config->listener->name, syscall(SYS_gettid), bytes_write);
+            else if( config->listener->log_all )
+    			logging("%s[%ld:%d]: ANSWER SENDED to terminal (%zu bytes)\n\n", config->listener->name, syscall(SYS_gettid), config->listener->port, bytes_write);
 
 			// log answer to terminal
 			if( stConfigServer.log_imei[0] && stConfigServer.log_imei[0] == answer.lastpoint.imei[0] ){
