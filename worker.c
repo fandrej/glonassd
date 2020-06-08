@@ -160,11 +160,11 @@ static void send_data_to_forward(ST_WORKER *config, void *data, int data_size, S
 				set_forward_socket(config, NULL, &fa->forward_socket);	// close socket
 			}	// if( send(
 			else {
-				if( stConfigServer.log_enable > 1 ){
+				if( stConfigServer.log_enable > 1 && config->listener->log_all ){
 					if( msg->encode )
-						logging("%s[%ld]: %s: send to forward %d records, encode=%d\n", config->listener->name, syscall(SYS_gettid), msg->imei, msg->len, msg->encode);
+						logging("%s[%d:%ld]: %s: send to forward %d records, encode=%d\n", config->listener->name, config->listener->port, syscall(SYS_gettid), msg->imei, msg->len, msg->encode);
 					else
-						logging("%s[%ld]: %s: send to forward %d bytes, encode=%d\n", config->listener->name, syscall(SYS_gettid), msg->imei, msg->len, msg->encode);
+						logging("%s[%d:%ld]: %s: send to forward %d bytes, encode=%d\n", config->listener->name, config->listener->port, syscall(SYS_gettid), msg->imei, msg->len, msg->encode);
 				}
 			}	// else if( send(
 		}
@@ -175,12 +175,12 @@ static void send_data_to_forward(ST_WORKER *config, void *data, int data_size, S
 
 	}	// if( data && data_size )
 	else {
-		if( stConfigServer.log_enable > 1 ){
+		if( stConfigServer.log_enable > 1 && config->listener->log_all ){
 			if( data_size )
-				logging("%s[%ld]: send_data_to_forward: %s data is NULL\n", config->listener->name, syscall(SYS_gettid), config->imei);
+				logging("%s[%d:%ld]: send_data_to_forward: %s data is NULL\n", config->listener->name, config->listener->port, syscall(SYS_gettid), config->imei);
 			else
-				logging("%s[%ld]: send_data_to_forward: %s data_size <= 0\n", config->listener->name, syscall(SYS_gettid), config->imei);
-		}	// if( stConfigServer.log_enable > 1 )
+				logging("%s[%d:%ld]: send_data_to_forward: %s data_size <= 0\n", config->listener->name, config->listener->port, syscall(SYS_gettid), config->imei);
+		}	// if( stConfigServer.log_enable > 1 && config->listener->log_all )
 	}	// else if( data && data_size )
 }
 //------------------------------------------------------------------------------
@@ -265,11 +265,11 @@ void *worker_thread(void *st_worker)
 			}
 
 			// log, if required
-			if( stConfigServer.log_enable > 1 ) {
+			if( stConfigServer.log_enable > 1 && config->listener->log_all ) {
 				if( config->imei[0] )   // imei exists
-					logging("%s[%ld]: %s shutdown\n", config->listener->name, syscall(SYS_gettid), config->imei);
+					logging("%s[%d:%ld]: %s shutdown\n", config->listener->name, config->listener->port, syscall(SYS_gettid), config->imei);
 				else
-					logging("%s[%ld]: shutdown\n", config->listener->name, syscall(SYS_gettid));
+					logging("%s[%d:%ld]: shutdown\n", config->listener->name, config->listener->port, syscall(SYS_gettid));
 			}	// if( stConfigServer.log_enable )
 
 			free(config);
@@ -360,8 +360,8 @@ void *worker_thread(void *st_worker)
 			exit_worker(config);
 			return NULL;
 		case 0:	// timeout
-			if( config->listener->log_err || stConfigServer.log_enable > 1 )
-				logging("%s[%ld]: %s timeout\n", config->listener->name, syscall(SYS_gettid), config->imei);
+			if( config->listener->log_err || (stConfigServer.log_enable > 1 && config->listener->log_all) )
+				logging("%s[%d:%ld]: %s timeout\n", config->listener->name, config->listener->port, syscall(SYS_gettid), config->imei);
 
 			exit_worker(config);
 			return NULL;
@@ -383,14 +383,14 @@ void *worker_thread(void *st_worker)
         }
 
 		if( bytes_read <= 0 ) {	// socket read error or terminal disconnect
-            if( stConfigServer.log_enable > 1 )
-                logging("%s[%ld]: bytes_read (%zu) <= 0\n", config->listener->name, syscall(SYS_gettid), config->imei, bytes_read);
+            if( stConfigServer.log_enable > 1 && config->listener->log_all )
+                logging("%s[%d:%ld]: bytes_read (%zu) <= 0\n", config->listener->name, config->listener->port, syscall(SYS_gettid), config->imei, bytes_read);
 			exit_worker(config);
 			return NULL;
 		}
 
-        if( stConfigServer.log_enable > 1 )
-			logging("%s[%ld]: socket read %zd bytes\n", config->listener->name, syscall(SYS_gettid), bytes_read);
+        if( stConfigServer.log_enable > 1 && config->listener->log_all )
+			logging("%s[%d:%ld]: socket read %zd bytes\n", config->listener->name, config->listener->port, syscall(SYS_gettid), bytes_read);
 
 		// decode terminal message
 		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);	// do not disturb :)
@@ -401,12 +401,12 @@ void *worker_thread(void *st_worker)
         if( strcmp(config->imei, answer.lastpoint.imei) ){
             strcpy(config->imei, answer.lastpoint.imei);
 
-            if( stConfigServer.log_enable > 1 )
-    			logging("%s[%ld]: assigned imei %s\n", config->listener->name, syscall(SYS_gettid), answer.lastpoint.imei);
+            if( stConfigServer.log_enable > 1 && config->listener->log_all )
+    			logging("%s[%d:%ld]: assigned imei %s\n", config->listener->name, config->listener->port, syscall(SYS_gettid), answer.lastpoint.imei);
         }
 
-        if( stConfigServer.log_enable > 1 )
-			logging("%s[%ld]: decoded %u records, answer.size %u bytes\n", config->listener->name, syscall(SYS_gettid), answer.count, answer.size);
+        if( stConfigServer.log_enable > 1 && config->listener->log_all )
+			logging("%s[%d:%ld]: decoded %u records, answer.size %u bytes\n", config->listener->name, config->listener->port, syscall(SYS_gettid), answer.count, answer.size);
 
         /* log error: parcel without decoded records */
         if( config->listener->log_err && bytes_read > 16 && answer.count == 0 ){
@@ -435,8 +435,8 @@ void *worker_thread(void *st_worker)
 		if( answer.count ) {
 			send_data_to_db(config, answer.records, answer.count);
 
-            if( stConfigServer.log_enable > 1 )
-            	logging("%s[%ld]: %s saved %d records\n", config->listener->name, syscall(SYS_gettid), answer.lastpoint.imei, answer.count);
+            if( stConfigServer.log_enable > 1 && config->listener->log_all )
+            	logging("%s[%d:%ld]: %s saved %d records\n", config->listener->name, config->listener->port, syscall(SYS_gettid), answer.lastpoint.imei, answer.count);
 		}	// if( answer.count )
 
         // answer to terminal
@@ -447,15 +447,13 @@ void *worker_thread(void *st_worker)
 				bytes_write = sendto(config->client_socket, answer.answer, answer.size, 0, (struct sockaddr *)&config->client_addr, sizeof(struct sockaddr_in));
 
 			if( bytes_write <= 0 ){	// socket write error
-                if( config->listener->log_err || stConfigServer.log_enable > 1 )
-    				logging("%s[%ld]: sended to terminal error %d: %s\n", config->listener->name, syscall(SYS_gettid), errno, strerror(errno));
+                if( config->listener->log_err || (stConfigServer.log_enable > 1 && config->listener->log_all) )
+    				logging("%s[%d:%ld]: sended to terminal error %d: %s\n", config->listener->name, config->listener->port, syscall(SYS_gettid), errno, strerror(errno));
     			exit_worker(config);
     			return NULL;
             }
-            else if( stConfigServer.log_enable > 1 )
-    			logging("%s[%ld]: sended to terminal %zu bytes\n", config->listener->name, syscall(SYS_gettid), bytes_write);
-            else if( config->listener->log_all )
-    			logging("%s[%ld:%d]: ANSWER SENDED to terminal (%zu bytes)\n\n", config->listener->name, syscall(SYS_gettid), config->listener->port, bytes_write);
+            else if( stConfigServer.log_enable > 1 && config->listener->log_all )
+    			logging("%s[%d:%ld]: sended to terminal %zu bytes\n", config->listener->name, config->listener->port, syscall(SYS_gettid), bytes_write);
 
 			// log answer to terminal
 			if( stConfigServer.log_imei[0] && stConfigServer.log_imei[0] == answer.lastpoint.imei[0] ){

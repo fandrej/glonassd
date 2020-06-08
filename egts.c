@@ -58,6 +58,10 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 	// проверяем тип пакета
 	switch( pak_head->PT ) {
 	case EGTS_PT_RESPONSE:	// 0, ответ на что-то
+        if( worker && worker->listener->log_all ) {
+            logging("terminal_decode[%s:%d]: PACKET TYPE: EGTS_PT_RESPONSE\n", worker->listener->name, worker->listener->port);
+        }
+
 
         if( parcel_size > 16 && parcel[parcel_pointer + pak_head->FDL + 2] == 1 ){
             /* отвтет, за которым идут данные */
@@ -128,7 +132,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 
         sdr_count++;    // record counter
 
-		// разбираем SDR
+		// разбираем SDR, здесь может быть первый идентификатор терминала - OID
 		parcel_pointer += Parse_EGTS_RECORD_HEADER(rec_head, &st_rec_header, answer, worker);
 
         if( worker && worker->listener->log_all ) {
@@ -577,9 +581,13 @@ int Parse_EGTS_RECORD_HEADER(EGTS_RECORD_HEADER *rec_head, EGTS_RECORD_HEADER *s
 	st_header->RFL = rec_head->RFL;
 
 	// OBFE	0		наличие в данном пакете поля OID 1 = присутствует 0 = отсутствует
+    /*
+    Рекомендации по реализации протокола передачи данных в РНИЦ.doc:
+    Не допускается в рамках одного TCP соединения использовать более одного типа идентификации (OID, TID, IMEI).
+    */
 	if( st_header->RFL & B0 ) {
 		st_header->OID = *(uint32_t *)&pc[rec_head_size];
-		if( st_header->OID && !strlen(answer->lastpoint.imei) ) {	// D:\Work\Borland\Satellite\egts\Рекомендации по реализации протокола передачи данных в РНИЦ.doc 5.1.1	Идентификация АС посредством поля OID
+		if( st_header->OID /*&& !strlen(answer->lastpoint.imei)*/ ) {	// D:\Work\Borland\Satellite\egts\Рекомендации по реализации протокола передачи данных в РНИЦ.doc 5.1.1	Идентификация АС посредством поля OID
 			memset(answer->lastpoint.imei, 0, SIZE_TRACKER_FIELD);
 			snprintf(answer->lastpoint.imei, SIZE_TRACKER_FIELD, "%d", st_header->OID);
 		}
@@ -633,17 +641,32 @@ int Parse_EGTS_SR_TERM_IDENTITY(EGTS_SR_TERM_IDENTITY_RECORD *record, ST_ANSWER 
 
 	memset(answer->lastpoint.imei, 0, SIZE_TRACKER_FIELD);
 
-	if( record->FLG & B1 ) { // наличие поля IMEI в подзаписи
+    /*
+    Написано же: Не допускается в рамках одного TCP соединения использовать более одного типа идентификации (OID, TID, IMEI).
+    Однако, используют все 3 поля.
+    Поэтому на этом этапе наш IMEI уже может быть заполнен значением OID из Parse_EGTS_RECORD_HEADER
+    */
+    if( (record->FLG & B1) ) { // наличие поля IMEI в подзаписи
+        // пропускаем поле HDID, если есть
 		if( record->FLG & B0 ) {	// наличие поля HDID в подзаписи
-			record_size += sizeof(uint16_t);	// пропускаем поле HDID, если есть
+			record_size += sizeof(uint16_t);
 		}
-		memcpy(answer->lastpoint.imei, &pc[record_size], 15);
+        // заполняем IMEI, если он есть, наплевав на OID
+   		memcpy(answer->lastpoint.imei, &pc[record_size], 15);
 		record_size += EGTS_IMEI_LEN;
+
+        if( worker->listener->log_all ){
+            logging("terminal_decode[%s:%d]: IMEI='%s' BY IMEI FIELD\n\n", worker->listener->name, worker->listener->port, answer->lastpoint.imei);
+    	}
 	}	// if( record->FLG & B1 )
 	else if( record->TID ) {
 		snprintf(answer->lastpoint.imei, SIZE_TRACKER_FIELD, "%d", record->TID);
+
+        if( worker->listener->log_all ){
+            logging("terminal_decode[%s:%d]: IMEI='%s' BY TID FIELD\n\n", worker->listener->name, worker->listener->port, answer->lastpoint.imei);
+    	}
 	}
-	// если не прислан IMEI и record->TID = 0, то answer->lastpoint.imei окажется пустым
+	// если не прислан IMEI и record->TID = 0, то answer->lastpoint.imei окажется = OID
     retval = strlen(answer->lastpoint.imei);
 
 	/*
@@ -670,17 +693,8 @@ int Parse_EGTS_SR_TERM_IDENTITY(EGTS_SR_TERM_IDENTITY_RECORD *record, ST_ANSWER 
 	   return record_size;
 	*/
 
-    if( worker ){
-        if( !retval && worker->listener->log_err ) {
-            logging("terminal_decode[%s:%d]: Parse_EGTS_SR_TERM_IDENTITY ERROR: NO IMEI, NO TID\n", worker->listener->name, worker->listener->port);
-            if( !worker->listener->log_all )
-                logging("terminal_decode[%s:%d]: Terminal IMEI='%s'\n\n", worker->listener->name, worker->listener->port, answer->lastpoint.imei);
-        }
-
-        if( worker->listener->log_all ){
-            logging("terminal_decode[%s:%d]: Parse_EGTS_SR_TERM_IDENTITY\n", worker->listener->name, worker->listener->port);
-            logging("terminal_decode[%s:%d]: Terminal IMEI='%s'\n\n", worker->listener->name, worker->listener->port, answer->lastpoint.imei);
-    	}
+    if( !retval && worker && worker->listener->log_err ){
+        logging("terminal_decode[%s:%d]: Parse_EGTS_SR_TERM_IDENTITY ERROR: NO IMEI, NO TID\n", worker->listener->name, worker->listener->port);
     } // if( worker )
 
 	return retval;
