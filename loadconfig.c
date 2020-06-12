@@ -1,6 +1,10 @@
 /*
-   loadconfig.c
-   read config file, fill structures with initial parameters
+	loadconfig.c
+	read config file, fill structures with initial parameters
+	ATTENTION: becouse log_thread starting after loading configuration, all log messages written to SYSLOG
+	Use
+	cat /var/log/syslog | grep glonassd
+	for see logs
 */
 #include <stdlib.h>
 #include <string.h>
@@ -9,8 +13,6 @@
 #include "glonassd.h"
 #include "forwarder.h"
 #include "lib.h"
-
-extern void logging(char *template, ...);
 
 // load list of the forwarding terminals
 int load_terminals(char *fname, ST_FORWARD_TERMINAL **list)
@@ -23,9 +25,9 @@ int load_terminals(char *fname, ST_FORWARD_TERMINAL **list)
 
 	if( fname[0] != '/' ) {	// file name without path
 		// add start daemon path to file name
-		snprintf(buffer, FILENAME_MAX, "%s/%s", stParams.start_path, fname);
+		snprintf(buffer, FILENAME_MAX, "%.4040s/%.50s", stParams.start_path, fname);
 	} else {
-		snprintf(buffer, FILENAME_MAX, "%s", fname);
+		snprintf(buffer, FILENAME_MAX, "%.4095s", fname);
 	}
 
 	// open and scan file
@@ -55,7 +57,7 @@ int load_terminals(char *fname, ST_FORWARD_TERMINAL **list)
 		fclose(fp);
 	}	// if( (fp = fopen(
 	else {
-		logging("loadConfig: fopen(%s) error %d: %s\n", buffer, errno, strerror(errno));
+		syslog(LOG_NOTICE, "loadConfig: fopen(%s) error %d: %s\n", buffer, errno, strerror(errno));
 	}
 
 	free(buffer);
@@ -86,7 +88,7 @@ void fill_timer(ST_TIMER *st_timer, char *params)
 				// start time, period
 				args = sscanf(params, "%5d,%s", &p, buffer);
 				if( args != 2 ) {
-					logging("loadConfig: Error in config file: timer params %s\n", params);
+					syslog(LOG_NOTICE, "loadConfig: Error in config file: timer params %s\n", params);
 				}
 			}
 		}
@@ -94,9 +96,9 @@ void fill_timer(ST_TIMER *st_timer, char *params)
 		// check the path to the script
 		if( buffer[0] != '/' ) {	// is not a full path to the script
 			// add the directory to launch the daemon file name
-			snprintf(st_timer->script_path, FILENAME_MAX, "%s/%s", stParams.start_path, buffer);
+			snprintf(st_timer->script_path, FILENAME_MAX, "%.4000s/%.90s", stParams.start_path, buffer);
 		} else {
-			snprintf(st_timer->script_path, FILENAME_MAX, "%s", buffer);
+			snprintf(st_timer->script_path, FILENAME_MAX, "%.4095s", buffer);
 		}
 
 		// check the availability of a script file
@@ -113,13 +115,13 @@ void fill_timer(ST_TIMER *st_timer, char *params)
 			st_timer->period = p;
 		} else {
 			memset(st_timer->script_path, 0, FILENAME_MAX);
-			logging("loadConfig: timer script '%s' not found\n", st_timer->script_path);
+			syslog(LOG_NOTICE, "loadConfig: timer script '%s' not found\n", st_timer->script_path);
 		}
 
 		free(buffer);
 	}	// if( strlen(params) < FILENAME_MAX )
 	else {
-		logging("loadConfig: Error in config file: timer params too long: '%s'", params);
+		syslog(LOG_NOTICE, "loadConfig: Error in config file: timer params too long: '%s'", params);
 	}
 }
 //------------------------------------------------------------------------------
@@ -130,205 +132,195 @@ int set_config(char *section, char *param, char *value)
 	char c;
 	int i;
 
-	if( !section || !strlen(section) || !param || !strlen(param) )
+	if( !section || !strlen(section) /*|| !param || !strlen(param)*/ )
 		return 0;
 
 	if( strcmp(section, "server") == 0 ) {
 		// main server configuration
-
-		if( strcmp(param, "listen") == 0 ) {
-			snprintf(stConfigServer.listen, INET_ADDRSTRLEN, "%s", value);
-		}
-
-		if( strcmp(param, "transmit") == 0 ) {
-			snprintf(stConfigServer.transmit, INET_ADDRSTRLEN, "%s", value);
-		}
-
-		if( strcmp(param, "log_file") == 0 && strlen(value) > 0 ) {
-			snprintf(stConfigServer.log_file, FILENAME_MAX, "%s", value);
-		}
-
-		if( strcmp(param, "log_imei") == 0 && strlen(value) > 0 ) {
-			snprintf(stConfigServer.log_imei, SIZE_TRACKER_FIELD, "%s", value);
-		}
-
-		if( strcmp(param, "log_enable") == 0 ) {
-			if( strlen(value) )
-				stConfigServer.log_enable = atoi(value);
-		}
-
-		if( strcmp(param, "log_maxsize") == 0 ) {
-			if( sscanf(value, "%ld%c", &stConfigServer.log_maxsize, &c) == 2 ) {
-				switch(c) {
-				case 'k':
-				case 'K':
-					stConfigServer.log_maxsize *= 1024;
-					break;
-				case 'm':
-				case 'M':
-					stConfigServer.log_maxsize *= (1024 * 1024);
-					break;
-				case 'g':
-				case 'G':
-					stConfigServer.log_maxsize *= (1024 * 1024 * 1024);
-				}	// switch(c)
-			}	// if( sscanf(value, "%d%c"
-		}	// f( strcmp(param, "log_maxsize") == 0 )
-
-		if( strcmp(param, "db_type") == 0 ) {
-			snprintf(stConfigServer.db_type, STRLEN, "%s", value);
-		}
-
-		if( strcmp(param, "db_host") == 0 ) {
-			snprintf(stConfigServer.db_host, STRLEN, "%s", value);
-		}
-
-		if( strcmp(param, "db_port") == 0 ) {
-			if( strlen(value) )
-				stConfigServer.db_port = abs(atoi(value));
-		}
-
-		if( strcmp(param, "db_name") == 0 ) {
-			snprintf(stConfigServer.db_name, STRLEN, "%s", value);
-		}
-
-		if( strcmp(param, "db_schema") == 0 ) {
-			snprintf(stConfigServer.db_schema, STRLEN, "%s", value);
-		}
-
-		if( strcmp(param, "db_user") == 0 ) {
-			snprintf(stConfigServer.db_user, STRLEN, "%s", value);
-		}
-
-		if( strcmp(param, "db_pass") == 0 ) {
-			snprintf(stConfigServer.db_pass, STRLEN, "%s", value);
-		}
-
-		if( strcmp(param, "socket_queue") == 0 ) {
-			if( strlen(value) )
-				stConfigServer.socket_queue = abs(atoi(value));
-		}
-
-		if( strcmp(param, "socket_timeout") == 0 ) {
-			if( strlen(value) )
-				stConfigServer.socket_timeout = MIN(abs(atoi(value)), 600);
-		}
-
-		if( strcmp(param, "forward_timeout") == 0 ) {
-			if( strlen(value) )
-				stConfigServer.forward_timeout = abs(atoi(value));
-		}
-
-		if( strcmp(param, "forward_wait") == 0 ) {
-			if( strlen(value) )
-				stConfigServer.forward_wait = abs(atoi(value));
-		}
-
-		if( strcmp(param, "forward_files_dir") == 0 && strlen(value) > 0 ) {
-			snprintf(stConfigServer.forward_files, FILENAME_MAX, "%s", value);
-		}
-
-		if( strcmp(param, "timer") == 0 && strlen(value) ) {
-			for(i = 0; i < TIMERS_MAX; i++) {
-				if( !strlen(stConfigServer.timers[i].script_path) ) {
-					fill_timer(&stConfigServer.timers[i], value);
-					break;
-				}
+		if( param && value ) {
+			if( strcmp(param, "listen") == 0 ) {
+				snprintf(stConfigServer.listen, INET_ADDRSTRLEN, "%s", value);
 			}
-		}	// if( strcmp(param, "timer")
+
+			if( strcmp(param, "transmit") == 0 ) {
+				snprintf(stConfigServer.transmit, INET_ADDRSTRLEN, "%s", value);
+			}
+
+			if( strcmp(param, "log_file") == 0 && strlen(value) > 0 ) {
+				snprintf(stConfigServer.log_file, FILENAME_MAX, "%s", value);
+			}
+
+			if( strcmp(param, "log_imei") == 0 && strlen(value) > 0 ) {
+				snprintf(stConfigServer.log_imei, SIZE_TRACKER_FIELD, "%s", value);
+			}
+
+			if( strcmp(param, "log_enable") == 0 ) {
+				if( strlen(value) )
+					stConfigServer.log_enable = atoi(value);
+			}
+
+			if( strcmp(param, "log_maxsize") == 0 ) {
+				if( sscanf(value, "%ld%c", &stConfigServer.log_maxsize, &c) == 2 ) {
+					switch(c) {
+					case 'k':
+					case 'K':
+						stConfigServer.log_maxsize *= 1024;
+						break;
+					case 'm':
+					case 'M':
+						stConfigServer.log_maxsize *= (1024 * 1024);
+						break;
+					case 'g':
+					case 'G':
+						stConfigServer.log_maxsize *= (1024 * 1024 * 1024);
+					}	// switch(c)
+				}	// if( sscanf(value, "%d%c"
+			}	// f( strcmp(param, "log_maxsize") == 0 )
+
+			if( strcmp(param, "db_type") == 0 ) {
+				snprintf(stConfigServer.db_type, STRLEN, "%s", value);
+			}
+
+			if( strcmp(param, "db_host") == 0 ) {
+				snprintf(stConfigServer.db_host, STRLEN, "%s", value);
+			}
+
+			if( strcmp(param, "db_port") == 0 ) {
+				if( strlen(value) )
+					stConfigServer.db_port = abs(atoi(value));
+			}
+
+			if( strcmp(param, "db_name") == 0 ) {
+				snprintf(stConfigServer.db_name, STRLEN, "%s", value);
+			}
+
+			if( strcmp(param, "db_schema") == 0 ) {
+				snprintf(stConfigServer.db_schema, STRLEN, "%s", value);
+			}
+
+			if( strcmp(param, "db_user") == 0 ) {
+				snprintf(stConfigServer.db_user, STRLEN, "%s", value);
+			}
+
+			if( strcmp(param, "db_pass") == 0 ) {
+				snprintf(stConfigServer.db_pass, STRLEN, "%s", value);
+			}
+
+			if( strcmp(param, "socket_queue") == 0 ) {
+				if( strlen(value) )
+					stConfigServer.socket_queue = abs(atoi(value));
+			}
+
+			if( strcmp(param, "socket_timeout") == 0 ) {
+				if( strlen(value) )
+					stConfigServer.socket_timeout = MIN(abs(atoi(value)), 600);
+			}
+
+			if( strcmp(param, "forward_timeout") == 0 ) {
+				if( strlen(value) )
+					stConfigServer.forward_timeout = abs(atoi(value));
+			}
+
+			if( strcmp(param, "forward_wait") == 0 ) {
+				if( strlen(value) )
+					stConfigServer.forward_wait = abs(atoi(value));
+			}
+
+			if( strcmp(param, "forward_files_dir") == 0 && strlen(value) > 0 ) {
+				snprintf(stConfigServer.forward_files, FILENAME_MAX, "%s", value);
+			}
+
+			if( strcmp(param, "timer") == 0 && strlen(value) ) {
+				for(i = 0; i < TIMERS_MAX; i++) {
+					if( !strlen(stConfigServer.timers[i].script_path) ) {
+						fill_timer(&stConfigServer.timers[i], value);
+						break;
+					}
+				}
+			}	// if( strcmp(param, "timer")
+		}	// if( param && value )
 
 	}	// if( strcmp(section, "server") == 0 )
 	else if( strcmp(section, "forward") == 0 ) {
 
-		if( strcmp(param, "list") == 0 ) {
-			// load list of forwarding terminals
-			stForwarders.listcount = load_terminals(value, &stForwarders.terminals);
-		} else {
-			// froward packets configuration
-			stForwarders.count++;
-			stForwarders.forwarder = (ST_FORWARDER *)realloc(stForwarders.forwarder, sizeof(ST_FORWARDER) * stForwarders.count);
-			i = stForwarders.count - 1;
-			memset(&stForwarders.forwarder[i], 0, sizeof(ST_FORWARDER));
-			snprintf(stForwarders.forwarder[i].name, STRLEN, "%s", param);
-			sscanf(value, "%15[^,],%5d,%1d,%15s",
-					 stForwarders.forwarder[i].server,
-					 &stForwarders.forwarder[i].port,
-					 &stForwarders.forwarder[i].protocol,
-					 stForwarders.forwarder[i].app);
-			if(stForwarders.forwarder[i].protocol == 0)
-				stForwarders.forwarder[i].protocol = SOCK_STREAM;
-			else
-				stForwarders.forwarder[i].protocol = SOCK_DGRAM;
-		}
+		if( param && value ) {
+			if( strcmp(param, "list") == 0 ) {
+				// load list of forwarding terminals
+				stForwarders.listcount = load_terminals(value, &stForwarders.terminals);
+			}
+			else {
+				// froward packets configuration
+				stForwarders.count++;
+				stForwarders.forwarder = (ST_FORWARDER *)realloc(stForwarders.forwarder, sizeof(ST_FORWARDER) * stForwarders.count);
+				i = stForwarders.count - 1;
+				memset(&stForwarders.forwarder[i], 0, sizeof(ST_FORWARDER));
+				snprintf(stForwarders.forwarder[i].name, STRLEN, "%s", param);
+				sscanf(value, "%15[^,],%5d,%1d,%15s",
+						 stForwarders.forwarder[i].server,
+						 &stForwarders.forwarder[i].port,
+						 &stForwarders.forwarder[i].protocol,
+						 stForwarders.forwarder[i].app);
+				if(stForwarders.forwarder[i].protocol == 0)
+					stForwarders.forwarder[i].protocol = SOCK_STREAM;
+				else
+					stForwarders.forwarder[i].protocol = SOCK_DGRAM;
+			}	// else if( strcmp(param, "list") == 0 )
+		}	// if( param && value )
 
 	}	// else if( strcmp(section, "forward") == 0 )
 	else {
 		// packets listeners configuration
+		if( !param ) {
+			// add new listener
+			i = stListeners.count;
 
-		i = -1;
-		if( !stListeners.count ) {
-			stListeners.listener = (ST_LISTENER *)malloc(sizeof(ST_LISTENER));
-			if(stListeners.listener) {
-				i = stListeners.count;
-				stListeners.count++;
-				memset(&stListeners.listener[i], 0, sizeof(ST_LISTENER));
-				snprintf(stListeners.listener[i].name, STRLEN, "%s", section);
-			}
-		} else {
-			for(i=0; i<stListeners.count; i++) {
-				if( strcmp(section, stListeners.listener[i].name) == 0 ) {
-					break;
-				}
-			}	// for(i=0; i<stListeners.count; i++)
+			stListeners.count++;
+			stListeners.listener = (ST_LISTENER *)realloc(stListeners.listener, sizeof(ST_LISTENER)*stListeners.count);
 
-			if(i >= stListeners.count) {
-				i = stListeners.count;
-				stListeners.count++;
-				stListeners.listener = (ST_LISTENER *)realloc(stListeners.listener, sizeof(ST_LISTENER)*stListeners.count);
-				memset(&stListeners.listener[i], 0, sizeof(ST_LISTENER));
-				snprintf(stListeners.listener[i].name, STRLEN, "%s", section);
-			}
-		}	// if( !stListeners.count )
-
-		if( i != -1) {
-			if( strcmp(param, "protocol") == 0 ) {
-				if( strcmp(value, "TCP") == 0 || strcmp(value, "tcp") == 0 )
-					stListeners.listener[i].protocol = SOCK_STREAM;
-				else
-					stListeners.listener[i].protocol = SOCK_DGRAM;
-			}
-
-			if( strcmp(param, "port") == 0 ) {
-				if( strlen(value) )
-					stListeners.listener[i].port = abs(atoi(value));
-				else
-					stListeners.listener[i].port = 0;
-			}
-
-			if( strcmp(param, "enabled") == 0 ) {
-				if( strlen(value) )
-					stListeners.listener[i].enabled = abs(atoi(value));
-				else
-					stListeners.listener[i].enabled = 0;
-			}
-
-			if( strcmp(param, "log_all") == 0 ) {
-				if( strlen(value) )
-					stListeners.listener[i].log_all = abs(atoi(value));
-				else
-					stListeners.listener[i].log_all = 0;
-			}
-
-			if( strcmp(param, "log_err") == 0 ) {
-				if( strlen(value) )
-					stListeners.listener[i].log_err = abs(atoi(value));
-				else
-					stListeners.listener[i].log_err = 0;
-			}
-		}	// if( i != -1)
+			memset(&stListeners.listener[i], 0, sizeof(ST_LISTENER));
+			snprintf(stListeners.listener[i].name, STRLEN, "%s", section);
+		}	// if( !param )
 		else {
-			logging("set_config: Can't find or create config for service %s", section);
-		}
+			// set last listener parameters
+			if( param && value ) {
+				i = stListeners.count - 1;
+
+				if( strcmp(param, "protocol") == 0 ) {
+					if( strcmp(value, "TCP") == 0 || strcmp(value, "tcp") == 0 )
+						stListeners.listener[i].protocol = SOCK_STREAM;
+					else
+						stListeners.listener[i].protocol = SOCK_DGRAM;
+				}
+
+				if( strcmp(param, "port") == 0 ) {
+					if( strlen(value) )
+						stListeners.listener[i].port = abs(atoi(value));
+					else
+						stListeners.listener[i].port = 0;
+				}
+
+				if( strcmp(param, "enabled") == 0 ) {
+					if( strlen(value) )
+						stListeners.listener[i].enabled = abs(atoi(value));
+					else
+						stListeners.listener[i].enabled = 0;
+				}
+
+				if( strcmp(param, "log_all") == 0 ) {
+					if( strlen(value) )
+						stListeners.listener[i].log_all = abs(atoi(value));
+					else
+						stListeners.listener[i].log_all = 0;
+				}
+
+				if( strcmp(param, "log_err") == 0 ) {
+					if( strlen(value) )
+						stListeners.listener[i].log_err = abs(atoi(value));
+					else
+						stListeners.listener[i].log_err = 0;
+				}
+			}	// if( param && value )
+		}	// else if( !param )
 
 	}	// else if( strcmp(section, "server") == 0 )
 
@@ -343,7 +335,7 @@ int loadConfig(char *cPathToFile)
 	char *cBuf, *cSection, *cName, *cValue;
 	FILE *fHandle = fopen(cPathToFile, "r");
 	if(!fHandle) {
-		logging("loadConfig: Can't open file %s", cPathToFile);
+		syslog(LOG_NOTICE, "loadConfig: Can't open file %s", cPathToFile);
 		return 0;
 	}
 
@@ -381,9 +373,11 @@ int loadConfig(char *cPathToFile)
 		case '[':
 			memset(cSection, 0, FILENAME_MAX);
 			if( 1 != sscanf(cBuf, "[%[A-Za-z0-9]]", cSection) || !strlen(cSection) ) {
-				logging("loadConfig: Error in config file, line %d", i);
+				syslog(LOG_NOTICE, "loadConfig: Error in config file, line %d", i);
 				iRetval = 0;
 			}
+			else
+				set_config(cSection, 0, 0);
 			break;
 		default:
 			memset(cName, 0, FILENAME_MAX);
@@ -398,7 +392,7 @@ int loadConfig(char *cPathToFile)
 				set_config(cSection, cName, cValue);
 			}	// if( sscanf
 			else {
-				logging("loadConfig: Error in config file, line %d, param %s", i, cName);
+				syslog(LOG_NOTICE, "loadConfig: Error in config file, line %d, param %s", i, cName);
 				iRetval = 0;
 			}
 		}	// switch(cBuf[0])

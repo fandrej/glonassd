@@ -1,3 +1,4 @@
+#include "worker.h"
 /*
 Описание типов данных:
 #include <stdint.h> // uint8_t, etc...
@@ -31,6 +32,7 @@ long double							80		3.37  10^-4932 < |X| < 1.18  10^4932	Financial (18-dig
 */
 
 /* EGTS:
+http://docs.cntd.ru/document/1200095098
 D:\Work\Borland\Satellite\egts
 D:\Work\Borland\Satellite\egts\EGTS_PT_APPDATA.xls
 Упаковка: (Пример передачи данных о местоположении и состоянии транспортного средства.doc)
@@ -71,14 +73,18 @@ EGTS_PACKET {
 #define EGTS_PT_SIGNED_APPDATA 2
 
 /* пакет Протокола Транспортного Уровня
+Общая длина пакета протокола транспортного уровня не превышает значения 65535 байт
 D:\Work\Borland\Satellite\egts\EGTS\EGTS 1.6\RUS\protocol_EGTS_transport_v.1.6_RUS.pdf
 8.1.2 ФОРМАТ ПАКЕТА
+or
+http://docs.cntd.ru/document/1200095098
+// Таблица 4 - Описание параметров (полей), входящих в состав пакета протокола транспортного уровня
 */
 #pragma pack( push, 1 )
 typedef struct {
-    uint8_t		PRV;	// (Protocol Version)
-    uint8_t		SKID;	// (Security Key ID)
-    uint8_t		PRF;	// Flags:
+    uint8_t		PRV;	// (Protocol Version) Параметр определяет версию используемой структуры заголовка и должен содержать значение 0x01
+    uint8_t		SKID;	// (Security Key ID) идентификатор ключа, используемый при шифровании
+    uint8_t		PRF;	// Flags: см. ниже
     uint8_t		HL;		// Длина заголовка Транспортного Уровня в байтах с учётом байта контрольной суммы (поля HCS)
     uint8_t		HE;		// метод кодирования следующей за данным параметром части заголовка Транспортного Уровня = 0
     uint16_t	FDL;	// размер в байтах поля данных SFRD, если 0: отправка EGTS_PT_RESPONSE с RPID=PID и PR=EGTS_PC_OK
@@ -91,10 +97,10 @@ typedef struct {
 /* PRF:
 Name	Bit Value
 PRF		7-6	префикс заголовка Транспортного Уровня и для данной версии должен содержать значение 00
-RTE		5		определяет необходимость дальнейшей маршрутизации = 1, то необходима
+RTE		5   определяет необходимость дальнейшей маршрутизации = 1, то необходима и поля PRA, RCA, TTL присутствуют в пакете
 ENA		4-3	шифрование данных из поля SFRD, значение 0 0 , то данные в поле SFRD не шифруются
-CMP		2		сжатие данных из поля SFRD, = 1, то данные в поле SFRD считаются сжатыми
-PR		1-0	приоритет маршрутизации, 1 0 – средний
+CMP		2	сжатие данных из поля SFRD, = 1, то данные в поле SFRD считаются сжатыми
+PR		1-0	приоритет маршрутизации, 00-высший 10–средний 11-низкий
 */
 /* PT
 0 – EGTS_PT_RESPONSE (подтверждение на пакет Транспортного Уровня);
@@ -231,19 +237,37 @@ OBFE	0		наличие в данном пакете поля OID 1 = прису�
 subrecords:
 */
 #define EGTS_SR_RECORD_RESPONSE			0
-#define EGTS_SR_POS_DATA						16
-#define EGTS_SR_EXT_POS_DATA				17
-#define EGTS_SR_AD_SENSORS_DATA			18
-#define EGTS_SR_COUNTERS_DATA				19
-#define EGTS_SR_ACCEL_DATA					20
-#define EGTS_SR_STATE_DATA					21	// http://forum.gurtam.com/viewtopic.php?pid=48848#p48848
-#define EGTS_SR_LOOPIN_DATA 				22
+#define EGTS_SR_POS_DATA				16
+#define EGTS_SR_EXT_POS_DATA			17  // http://www.consultant.ru/document/cons_doc_LAW_135553/79bb682c2834f0ce64e168a500b0dc7d3a67b122/
+#define EGTS_SR_AD_SENSORS_DATA			18  // http://www.consultant.ru/document/cons_doc_LAW_135553/74ba478d36167ed04d9cb42ba1c469beedb27496/
+#define EGTS_SR_COUNTERS_DATA			19  // https://sudact.ru/law/prikaz-mintransa-rossii-ot-31072012-n-285/prilozhenie-n-7/2_1/2.6/tablitsa-n-6_1/
+#define EGTS_SR_ACCEL_DATA				20
+#define EGTS_SR_STATE_DATA				21	// http://www.consultant.ru/document/cons_doc_LAW_135553/368bcdd7cdee0e10f98e760b543ce172c6090088/
+#define EGTS_SR_LOOPIN_DATA 			22
 #define EGTS_SR_ABS_DIG_SENS_DATA		23
 #define EGTS_SR_ABS_AN_SENS_DATA		24
-#define EGTS_SR_ABS_CNTR_DATA				25
+#define EGTS_SR_ABS_CNTR_DATA			25
 #define EGTS_SR_ABS_LOOPIN_DATA			26
-#define EGTS_SR_LIQUID_LEVEL_SENSOR	27
-#define EGTS_SR_PASSENGERS_COUNTERS	28
+#define EGTS_SR_LIQUID_LEVEL_SENSOR	    27
+#define EGTS_SR_PASSENGERS_COUNTERS	    28
+/*
+На каждую информационную запись уровня поддержки услуг должно быть отправлено подтверждение,
+которое содержит подзапись с информацией об идентификаторе подтверждаемой записи и
+результате ее обработки.
+*/
+
+/*
+Это тот же самый EGTS_RECORD_HEADER но без необязательных полей
+*/
+#pragma pack( push, 1 )
+typedef struct {
+    uint16_t	RL;		// размер данных из поля RD
+    uint16_t	RN;		// номер записи от 0 до 65535
+    uint8_t		RFL;	// битовые флаги
+    uint8_t		SST;	// идентификатор тип Сервиса-отправителя, сгенерировавшего данную запись (=EGTS_TELEDATA_SERVICE)
+    uint8_t		RST;	// идентификатор тип Сервиса-получателя данной записи (=EGTS_TELEDATA_SERVICE)
+} EGTS_TELEDATA_RESULT_HEADER;
+#pragma pack( pop )
 
 /* SRD (Subrecord Data)
 EGTS_SR_POS_DATA_RECORD
@@ -504,6 +528,37 @@ ACFE	:1 – (Authorization Code Field Exists) битовый флаг, опре�
 остальные не используются
 */
 
+
+// EGTS_SR_STATE_DATA
+#pragma pack( push, 1 )
+typedef struct {
+    uint8_t ST;     // текущий режим работы. Список режимов см. ниже
+    uint8_t MPSV;   // значение напряжения основного источника питания, B с дискретностью 0,1 В;
+    uint8_t BBV;    // значение напряжения резервной батареи, B с дискретностью 0,1 В;
+    uint8_t IBV;    // значение напряжения внутренней батареи, B с дискретностью 0,1 В;
+    uint8_t FL;     // Флаги: битовое поле, NMS │ IBU │ BBU см. ниже
+} EGTS_SR_STATE_DATA_RECORD;
+#pragma pack( pop )
+
+/*
+Список режимов EGTS_SR_STATE_DATA ST
+Код   Режим работы абонентского терминала
+0    "Пассивный"
+1    "ЭРА"
+2    "Активный"
+3    "Экстренный вызов"
+4    "Экстренное слежение"
+5    "Тестирование"
+6    "Автосервис"
+7    "Загрузка ПО"
+-----------------------------
+Флаги:
+00000100 NMS - состояние навигационного модуля: 1 - включен; 0 - выключен;
+00000010 IBU - внешний резервный источник питания: 1 - используется; 0 - не используется
+00000001 BBU - источник питания внутренняя батарея: 1 - используется; 0 - не используется
+*/
+
+
 /* команды EGTS_SR_COMMAND_DATA_FIELD.CCD
 http://www.zakonprost.ru/content/base/part/1038461
 */
@@ -630,23 +685,25 @@ const unsigned short Crc16Table[256] = {
 
 
 // функции общие для encode/decode
-int packet_create(char *buffer, uint8_t pt);
-int packet_finalize(char *buffer, int pointer);
+int packet_create(char *buffer, uint8_t pt, ST_WORKER *worker);
+int packet_finalize(char *buffer, int pointer, ST_WORKER *worker);
 
 // функции для decode
-int responce_add_responce(char *buffer, int pointer, uint16_t pid, uint8_t pr);
+int responce_add_header(char *buffer, int pointer, uint16_t pid, uint8_t pr);
 int responce_add_record(char *buffer, int pointer, uint16_t crn, uint8_t rst);
+int responce_add_teledata_result(char *buffer, int pointer, uint16_t crn, uint8_t rst);
 int responce_add_result(char *buffer, int pointer, uint8_t rcd);
 int responce_add_subrecord_EGTS_SR_COMMAND_DATA(char *buffer, int pointer, EGTS_SR_COMMAND_DATA_RECORD *cmdrec);
 unsigned char CRC8EGTS(unsigned char *lpBlock, unsigned char len);
 unsigned short CRC16EGTS(unsigned char * pcBlock, unsigned short len);
-int Parse_EGTS_PACKET_HEADER(ST_ANSWER *answer, char *pc, int parcel_size);
-int Parse_EGTS_RECORD_HEADER(EGTS_RECORD_HEADER *rec_head, EGTS_RECORD_HEADER *st_header, ST_ANSWER *answer);
-int Parse_EGTS_SR_TERM_IDENTITY(EGTS_SR_TERM_IDENTITY_RECORD *record, ST_ANSWER *answer);
-int Parse_EGTS_SR_POS_DATA(EGTS_SR_POS_DATA_RECORD *posdata, ST_RECORD *record, ST_ANSWER *answer);
+int Parse_EGTS_PACKET_HEADER(ST_ANSWER *answer, char *pc, int parcel_size, ST_WORKER *worker);
+int Parse_EGTS_RECORD_HEADER(EGTS_RECORD_HEADER *rec_head, EGTS_RECORD_HEADER *st_header, ST_ANSWER *answer, ST_WORKER *worker);
+int Parse_EGTS_SR_TERM_IDENTITY(EGTS_SR_TERM_IDENTITY_RECORD *record, ST_ANSWER *answer, ST_WORKER *worker);
+int Parse_EGTS_SR_POS_DATA(EGTS_SR_POS_DATA_RECORD *posdata, ST_RECORD *record, ST_ANSWER *answer, ST_WORKER *worker);
 int Parse_EGTS_SR_EXT_POS_DATA(EGTS_SR_EXT_POS_DATA_RECORD *posdata, ST_RECORD *record);
 int Parse_EGTS_SR_LIQUID_LEVEL_SENSOR(int rlen, EGTS_SR_LIQUID_LEVEL_SENSOR_RECORD *posdata, ST_RECORD *record);
 int Parse_EGTS_SR_COMMAND_DATA(ST_ANSWER *answer, EGTS_SR_COMMAND_DATA_RECORD *record);
+int Parse_EGTS_SR_STATE_DATA(EGTS_SR_STATE_DATA_RECORD *statedata, ST_RECORD *record);
 
 // функции для encode
 static int packet_add_record_header(char *packet, int position, uint8_t sst, uint8_t rst);

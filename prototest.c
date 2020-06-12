@@ -18,6 +18,7 @@
 #include "de.h"
 #include "lib.h"        // MIN, MAX, BETWEEN, CRC, etc...
 #include "glonassd.h"   // stParams
+#include "worker.h"
 #include "logger.h"
 
 /*
@@ -26,7 +27,7 @@
    parcel_size - it length
    answer - pointer to ST_ANSWER structure
 */
-void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
+void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER *worker)
 {
 	int fHandle;
 	char fName[FILENAME_MAX];
@@ -46,7 +47,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 					local.tm_hour, local.tm_min, local.tm_sec,
 					rand());
 
-		if( (fHandle = open(fName, O_APPEND | O_CREAT | O_WRONLY)) == -1 ) {
+		if( (fHandle = open(fName, O_APPEND | O_CREAT | O_WRONLY, S_IWRITE)) == -1 ) {
 			logging("terminal_decode[prototest]: open() error %d: %s\n", errno, strerror(errno));
 		} else {
 			if( !write(fHandle, parcel, parcel_size) )

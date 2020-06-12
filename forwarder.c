@@ -47,6 +47,7 @@
 static __thread unsigned long long int disconnect_time = 0;	// time in seconds when out socket disconnected
 static __thread int out_connected = 0;						// out connection established flag
 static __thread int log_server_answer = 0;					// flag for log remote server to file
+static __thread int files_saved = 0;					    // count of saved (not passed) parcels
 
 /*
     utility functions
@@ -60,7 +61,7 @@ static void terimal_reset_logged(char *forward_name)
 {
 	unsigned int i;
 
-	for(i = 0; i < stForwarders.listcount; i++) {
+	for(i = 0; i < stForwarders.listcount; ++i) {
 		if( forward_name[0] == stForwarders.terminals[i].forward[0] )
 		{
 			if( !strcmp(forward_name, stForwarders.terminals[i].forward) )
@@ -81,7 +82,7 @@ static int terimal_logged(char *imei, char *forward_name)
 	unsigned int i, retval = 1;
 
 	if( imei ){
-		for(i = 0; i < stForwarders.listcount; i++) {
+		for(i = 0; i < stForwarders.listcount; ++i) {
 			if( forward_name[0] == stForwarders.terminals[i].forward[0] && imei[0] == stForwarders.terminals[i].imei[0] )
 			{
 				if( !strcmp(forward_name, stForwarders.terminals[i].forward) && !strcmp(imei, stForwarders.terminals[i].imei) )
@@ -105,16 +106,17 @@ static int terimal_logged(char *imei, char *forward_name)
     content - encoded data
     content_size - size of data
 */
-static void data_save(char *config_name, char *imei, char *content, ssize_t content_size)
+static int data_save(char *config_name, char *imei, char *content, ssize_t content_size)
 {
 	int fHandle;
 	time_t t;
 	char fName[FILENAME_MAX];
 	ST_FORWARD_MSG msg;
+    int cnt_files = 0;
 
 	if( content && content_size ) {
 		time(&t);
-		snprintf(fName, FILENAME_MAX, "%s/%s_%llu.bin",
+		snprintf(fName, FILENAME_MAX, "%.4040s/%.20s_%llu.bin",
 				 stConfigServer.forward_files,
 				 config_name,
 				 (unsigned long long)t);
@@ -127,9 +129,12 @@ static void data_save(char *config_name, char *imei, char *content, ssize_t cont
 			}
 			msg.len = content_size;
 			// write header
-			write(fHandle, &msg, sizeof(ST_FORWARD_MSG));
+			if( !write(fHandle, &msg, sizeof(ST_FORWARD_MSG)) ) {}
 			// write data
-			write(fHandle, content, content_size);
+			if( !write(fHandle, content, content_size) ){}
+            else {
+                ++cnt_files;
+            }
 
 			close(fHandle);
 
@@ -142,6 +147,8 @@ static void data_save(char *config_name, char *imei, char *content, ssize_t cont
 	}	// if( content && content_size )
 	else if( stConfigServer.log_enable > 1 )
 		logging("forwarder[%s][%ld]: data_save: content is NULL or content_size=%ld\n", config_name, syscall(SYS_gettid), content_size);
+
+    return cnt_files;
 }
 //---------------------------------------------------------------------------
 
@@ -299,7 +306,7 @@ static void process_terminal(ST_FORWARDER *config, char *bufer, ssize_t size)
 				// log terminal message to remote server
 				if( stConfigServer.log_imei[0] && stConfigServer.log_imei[0] == msg->imei[0] ){
 					if( !strcmp(stConfigServer.log_imei, msg->imei) ){
-						snprintf(l2fname, FILENAME_MAX, "%s/logs/%s_%s_prcl", stParams.start_path, msg->imei, config->name);
+						snprintf(l2fname, FILENAME_MAX, "%.4040s/logs/.15%s_%.20s_prcl", stParams.start_path, msg->imei, config->name);
 						log2file(l2fname, config->buffers[OUT_WRBUF], data_len);
 						// flag for log remote server answer to file,
 						// if forwarder protocol EGTS, then flag = EGTS_RECORD_HEADER.RN (record number)
@@ -317,7 +324,7 @@ static void process_terminal(ST_FORWARDER *config, char *bufer, ssize_t size)
 		}	// if( out_connected )
 
 		if( sended <= 0 )	// save buffer to file for send later
-			data_save(config->name, msg->imei, config->buffers[OUT_WRBUF], data_len);
+			files_saved += data_save(config->name, msg->imei, config->buffers[OUT_WRBUF], data_len);
 
 	}	// if( data_len )
 	else if( stConfigServer.log_enable > 1 )
@@ -331,7 +338,7 @@ static int set_listen_socket(ST_FORWARDER *config)
 	// create socket
 	config->sockets[IN_SOCKET] = socket(AF_UNIX, SOCK_DGRAM, 0);
 	if( config->sockets[IN_SOCKET] < 0 ) {
-		logging("forwarder[%s][%ld]: socket() error %d: %s\n", config->name, syscall(SYS_gettid), errno, strerror(errno));
+		logging("forwarder[%s][%ld]: listen socket() error %d: %s\n", config->name, syscall(SYS_gettid), errno, strerror(errno));
 		return 0;
 	}
 
@@ -346,7 +353,7 @@ static int set_listen_socket(ST_FORWARDER *config)
 	// bind socket
 	memset(&config->addr_un, 0, sizeof(struct sockaddr_un));
 	config->addr_un.sun_family = AF_UNIX;
-	snprintf(config->addr_un.sun_path, 108, "/%s", config->name);	// http://man7.org/linux/man-pages/man7/unix.7.html
+	snprintf(config->addr_un.sun_path, 108, "/%.106s", config->name);	// http://man7.org/linux/man-pages/man7/unix.7.html
 	unlink(config->addr_un.sun_path);	// if exists because crash
 	if( bind(config->sockets[IN_SOCKET], (struct sockaddr *)&config->addr_un, sizeof(struct sockaddr_un)) < 0 ) {
 		logging("forwarder[%s][%ld]: bind(%s) error %d: %s\n", config->name, syscall(SYS_gettid), config->addr_un.sun_path, errno, strerror(errno));
@@ -475,23 +482,29 @@ void *forwarder_thread(void *st_forwarder)
 
 		case 0:	// timeout
 
-			if( stConfigServer.log_enable > 1 )
+			if( stConfigServer.log_enable > 1 ){
 				logging("forwarder[%s][%ld]: read and send saved parcels\n", config->name, syscall(SYS_gettid));
+				logging("forwarder[%s][%ld]: data_dir: %s\n", config->name, syscall(SYS_gettid), stConfigServer.forward_files);
+            }
 
 			/* read saved parcels and send to destination */
-			if( out_connected && config->data_dir ) {
+			if( files_saved && out_connected && config->data_dir ) {
 				rewinddir(config->data_dir);	// resets the position of the directory stream to the beginning of the directory
 				i = 0;	// number of files to read
 
 				// iterate files in directory
-				while( (result = readdir(config->data_dir)) != NULL ) {
+				while( (result = readdir(config->data_dir)) != NULL ) { // CPU usage increase
 					// is file name OK & contain this forwarder name & contain ".bin"?
 					if( strlen(result->d_name)
 							&& strstr(result->d_name, config->name)
 							&& strstr(result->d_name, ".bin") ) {
 
 						// generate full file name
-						snprintf(fName, FILENAME_MAX, "%s/%s", stConfigServer.forward_files, result->d_name);
+						snprintf(fName, FILENAME_MAX, "%.4040s/%.40s", stConfigServer.forward_files, result->d_name);
+
+            			if( stConfigServer.log_enable > 1 ){
+            				logging("forwarder[%s][%ld]: read file %s\n", config->name, syscall(SYS_gettid), result->d_name);
+                        }
 
 						// open file for read
 						if( (fHandle = open(fName, O_RDONLY | O_NOATIME)) != -1 ) {
@@ -499,14 +512,17 @@ void *forwarder_thread(void *st_forwarder)
 							bytes_read = read(fHandle, config->buffers[IN_RDBUF], SOCKET_BUF_SIZE);
 							if( bytes_read > 0 )
 								process_terminal(config, config->buffers[IN_RDBUF], bytes_read);
+    						else if( stConfigServer.log_enable > 1 )
+    							logging("forwarder[%s][%ld]: file is empty\n", config->name, syscall(SYS_gettid));
 
 							close(fHandle);
 
-							if( stConfigServer.log_enable > 1 )
+							if( stConfigServer.log_enable > 1 ){
 								logging("forwarder[%s][%ld]: send saved file %s\n", config->name, syscall(SYS_gettid), result->d_name);
+                            }
 						}	// if( (fHandle = open(fName
 						else if( stConfigServer.log_enable > 1 )
-							logging("forwarder[%s][%ld]: read saved file %s error: %d: %s\n", config->name, syscall(SYS_gettid), result->d_name, errno, strerror(errno));
+							logging("forwarder[%s][%ld]: read file %s error: %d: %s\n", config->name, syscall(SYS_gettid), result->d_name, errno, strerror(errno));
 
 						// delete file
 						unlink(fName);
@@ -516,10 +532,22 @@ void *forwarder_thread(void *st_forwarder)
 					}	// if( strlen(result->d_name) &&
 				}	// while( (result = readdir(config->data_dir)) != NULL )
 
+                if( i < files_saved )
+                    files_saved -= i;
+                else
+                    files_saved = 0;
+
+                if( stConfigServer.log_enable > 1 ){
+                    logging("forwarder[%s][%ld]: %d files processed\n", config->name, syscall(SYS_gettid), i);
+                }
+
 			}	// if( out_connected && config->data_dir )
-			else if( !config->data_dir ){
-				logging("forwarder[%s][%ld]: directory %s is not opened\n", config->name, syscall(SYS_gettid), stConfigServer.forward_files);
+			else if( !config->data_dir && stConfigServer.log_enable > 1 ){
+				logging("forwarder[%s][%ld]: directory '%s' is bad\n", config->name, syscall(SYS_gettid), stConfigServer.forward_files);
 			}	// else if( data_dir )
+            else if( !out_connected && stConfigServer.log_enable > 1 ){
+				logging("forwarder[%s][%ld]: not connected to %s:%s\n", config->name, syscall(SYS_gettid), config->server, config->port);
+            }
 
 			break;
 		default:	// number of ready file descriptors
@@ -562,7 +590,7 @@ void *forwarder_thread(void *st_forwarder)
 						// decode server answer
 						if( config->terminal_decode ) {
 							pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);	// do not disturb :)
-							config->terminal_decode(config->buffers[OUT_RDBUF], bytes_read, &answer);
+							config->terminal_decode(config->buffers[OUT_RDBUF], bytes_read, &answer, NULL);
 							pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);  // can disturb :)
 						}	// if( config->terminal_decode )
 
@@ -579,14 +607,14 @@ void *forwarder_thread(void *st_forwarder)
 								if( *(uint16_t*)&config->buffers[OUT_RDBUF][14] == log_server_answer ){	// EGTS_SR_RECORD_RESPONSE.CRN
 									log_server_answer = 0;	// and reset log flag
 
-									snprintf(fName, FILENAME_MAX, "%s/logs/%s_answ", stParams.start_path, config->name);
+									snprintf(fName, FILENAME_MAX, "%.4040s/logs/%.20s_answ", stParams.start_path, config->name);
 									log2file(fName, config->buffers[OUT_RDBUF], bytes_read);
 								}
 							}
 							else {
 								log_server_answer = 0;	// and reset log flag
 
-								snprintf(fName, FILENAME_MAX, "%s/logs/%s_answ", stParams.start_path, config->name);
+								snprintf(fName, FILENAME_MAX, "%.4040s/logs/%.20s_answ", stParams.start_path, config->name);
 								log2file(fName, config->buffers[OUT_RDBUF], bytes_read);
 							}
 						}	// if( log_server_answer )

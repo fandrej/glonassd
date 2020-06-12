@@ -17,6 +17,7 @@
 #include <sys/time.h>
 //#include <syslog.h>
 #include "glonassd.h"
+#include "worker.h"
 #include "de.h"     // ST_ANSWER
 #include "lib.h"    // MIN, MAX, BETWEEN, CRC, etc...
 #include "logger.h"
@@ -31,7 +32,7 @@
    parcel_size - it length
    answer - pointer to ST_ANSWER structure (de.h)
 */
-void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
+void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER *worker)
 {
 	static __thread uint32_t uiPrevProbeg = 0;
 	ARNAVI_HEADER *arnavi_header;
@@ -69,20 +70,20 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 
 			if( arnavi_header->PV == 0x23 ){	// HEADER2
 				// confirmation HEADER2 (7B 04 00 CRC UNIXTIME 7D) 9 bytes (UNIXTIME - 4 bytes)
-				answer->answer[answer->size++] = 0x7B;
-				answer->answer[answer->size++] = 0x04;
-				answer->answer[answer->size++] = 0;
-				answer->answer[answer->size++] = 0xA0;	// CRC
-				sprintf(&answer->answer[answer->size], "%d", (int)time(NULL));	// UNIXTIME
-				answer->size += 4;
-				answer->answer[answer->size++] = 0x7D;
+				answer->answer[answer->size++] = 0x7B;	// start of the answer / command
+				answer->answer[answer->size++] = sizeof(int);	// The size of the field "command data"
+				answer->answer[answer->size++] = 0;	// parcel number (0x00 - HEADER, 0x01-0xFB - PACKAGE)
+				answer->answer[answer->size++] = 0xA0;	// CRC of the field "command data"
+				sprintf(&answer->answer[answer->size], "%d", (int)time(NULL));	// field "command data": UNIXTIME
+				answer->size += sizeof(int);
+				answer->answer[answer->size++] = 0x7D;	// end response / command
 			}
 			else {	// HEADER
 				// confirmation HEADER (7B 00 00 7D) 4 bytes
-				answer->answer[answer->size++] = 0x7B;
-				answer->answer[answer->size++] = 0;
-				answer->answer[answer->size++] = 0;
-				answer->answer[answer->size++] = 0x7D;
+				answer->answer[answer->size++] = 0x7B;	// start of the answer / command
+				answer->answer[answer->size++] = 0;	// Number of bytes (N) to answer (the size of the field "command data")
+				answer->answer[answer->size++] = 0;	// parcel number (0x00 - HEADER, 0x01-0xFB - PACKAGE)
+				answer->answer[answer->size++] = 0x7D;	// end response / command
 			}
 			//log2file("/home/work/gcc/glonassd/logs/arnavi_out_header", answer->answer, answer->size);
 

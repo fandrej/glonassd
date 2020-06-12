@@ -28,7 +28,7 @@ typedef struct {
     char server[STRLEN];	// IP or DNS-name of the servfer to
     char app[STRLEN];		// hight-level protocol of the messages
     void *library_handle;	// handle to shared library of protocol encode/decode
-    void (*terminal_decode)(char*, int, ST_ANSWER*);        // pointer to decode terminal message function
+    void (*terminal_decode)(char*, int, ST_ANSWER*, void*);        // pointer to decode terminal message function
     int (*terminal_encode)(ST_RECORD*, int, char*, int);    // pointer to encode terminal message function
     int sockets[CNT_SOCKETS];		    // sockets
     fd_set fdset[2];	// pull of the sockets

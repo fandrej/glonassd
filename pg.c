@@ -29,6 +29,7 @@
    http://citforum.ru/programming/unix/threads/
    http://citforum.ru/programming/unix/threads_2/
    http://man7.org/linux/man-pages/man7/sem_overview.7.html
+	 http://zetcode.com/db/postgresqlc/
    http://www.postgresql.org/docs/9.4/static/libpq-build.html
 	(http://www.linux.org.ru/forum/general/11736854)
    http://www.postgresql.org/docs/9.4/static/libpq-connect.html
@@ -81,6 +82,7 @@ static __thread char *paramValues[INSERT_PARAMS_COUNT]= {
 	(char*)1,
 	(char*)1,
 	(char*)1,
+	(char*)1,   // 10
 	(char*)1,
 	(char*)1,
 	(char*)1,
@@ -90,6 +92,7 @@ static __thread char *paramValues[INSERT_PARAMS_COUNT]= {
 	(char*)1,
 	(char*)1,
 	(char*)1,
+	(char*)1,   // 20
 	(char*)1,
 	(char*)1,
 	(char*)1,
@@ -99,9 +102,7 @@ static __thread char *paramValues[INSERT_PARAMS_COUNT]= {
 	(char*)1,
 	(char*)1,
 	(char*)1,
-	(char*)1,
-	(char*)1,
-	(char*)1,
+	(char*)1,   // 30
 	(char*)1,
 	(char*)1,
 	(char*)1
@@ -185,13 +186,15 @@ static int db_connect(int connect, PGconn **connection)
 
 			*connection = PQconnectdb(conninfo);
 			// PQconnectdb use "malloc" internally, leak memory when called from thread
-		} else {
+		}
+        else {
 			PQreset(*connection);
 		}
 
 		if( PQstatus(*connection) == CONNECTION_OK ) {
 
 			if(stConfigServer.db_schema && strlen(stConfigServer.db_schema) ) {
+
 				snprintf(conninfo, FILENAME_MAX, "set search_path to %s;", stConfigServer.db_schema);
 
 				db_result = PQexec(*connection, conninfo);
@@ -353,8 +356,8 @@ void *db_thread(void *arg)
 	pthread_cleanup_push(exit_db, arg);
 
 	// load insert sql from file, temporary using msg_buf
-	memset(msg_buf, 0, MAX_SQL_SIZE);
-	snprintf(msg_buf, SOCKET_BUF_SIZE, "%s/%s.sql", stParams.start_path, stConfigServer.db_type);
+	memset(msg_buf, 0, SOCKET_BUF_SIZE);
+	snprintf(msg_buf, SOCKET_BUF_SIZE, "%.4075s/%.15s.sql", stParams.start_path, stConfigServer.db_type);
 	if( !load_file(msg_buf, sql_insert_point, MAX_SQL_SIZE) || !strlen(sql_insert_point) ) {
 		exit_db(arg);
 		return NULL;
@@ -375,10 +378,6 @@ void *db_thread(void *arg)
 
 	/* Max. message size (bytes) */
 	queue_attr.mq_msgsize = sizeof(ST_RECORD);
-
-	// increase RLIMIT_MSGQUEUE
-	rlim.rlim_cur = rlim.rlim_max = 10 * 65536 * queue_attr.mq_msgsize;
-	setrlimit(RLIMIT_MSGQUEUE, &rlim);
 
 	// get RLIMIT_MSGQUEUE and calculate actual size of queue
 	if( getrlimit(RLIMIT_MSGQUEUE, &rlim) == 0 ) {
@@ -420,7 +419,7 @@ void *db_thread(void *arg)
 	if( !db_connect(2, &db_connection) ) {
 		logging("database thread[%ld]: Can't connect to database %s on host %s:%d.", syscall(SYS_gettid), stConfigServer.db_name, stConfigServer.db_host, stConfigServer.db_port);
 	} else {
-		logging("database thread[%ld]: Connect to database %s on host %s:%d.", syscall(SYS_gettid), stConfigServer.db_name, stConfigServer.db_host, stConfigServer.db_port);
+		logging("database thread[%ld]: Connected to database %s on host %s:%d.", syscall(SYS_gettid), stConfigServer.db_name, stConfigServer.db_host, stConfigServer.db_port);
 	}
 
 	// wait messages

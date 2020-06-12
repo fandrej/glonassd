@@ -10,6 +10,7 @@
 #include <string.h> /* memset */
 #include <errno.h>  /* errno */
 #include "glonassd.h"
+#include "worker.h"
 #include "de.h"     // ST_ANSWER
 #include "logger.h"
 
@@ -20,7 +21,7 @@
    parcel_size - it length
    answer - pointer to ST_ANSWER structure
 */
-void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
+void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER *worker)
 {
 	ST_RECORD *record;
 	char cTime[10], cDate[10];
@@ -31,7 +32,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 	if( !parcel || parcel_size <= 4 )
 		return;
 
-	answer->size = snprintf(answer->answer, 4, "OK\r\n");
+	answer->size = snprintf(answer->answer, 5, "OK\r\n");
 
 	if( answer->count < MAX_RECORDS - 1 )
 		answer->count++;
@@ -66,25 +67,15 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
 
 	// переводим время GMT и текстовом формате в местное
 	memset(&tm_data, 0, sizeof(struct tm));
-  	sscanf(cDate, "%2d%2d%2d", &tm_data.tm_mday, &tm_data.tm_mon, &tm_data.tm_year);
-    /*
-    В ночь на 07.04.19 обнулились счетчики дат в системе GPS. Старое оборудование свихнулось.
-    */
-    if( tm_data.tm_year == 99 ){
-        ulliTmp = time(NULL) + GMT_diff;
-        gmtime_r(&ulliTmp, &tm_data);   // местное время
-    }
-    else {
-    	tm_data.tm_mon--;	// http://www.cplusplus.com/reference/ctime/tm/
-    	tm_data.tm_year = 2000 + tm_data.tm_year - 1900;
-    	sscanf(cTime, "%2d%2d%2d", &tm_data.tm_hour, &tm_data.tm_min, &tm_data.tm_sec);
+	sscanf(cDate, "%2d%2d%2d", &tm_data.tm_mday, &tm_data.tm_mon, &tm_data.tm_year);
+	tm_data.tm_mon--;	// http://www.cplusplus.com/reference/ctime/tm/
+	tm_data.tm_year = 2000 + tm_data.tm_year - 1900;
+	sscanf(cTime, "%2d%2d%2d", &tm_data.tm_hour, &tm_data.tm_min, &tm_data.tm_sec);
 
-    	ulliTmp = timegm(&tm_data) + GMT_diff;	// UTC struct->local simple
-    	gmtime_r(&ulliTmp, &tm_data);           // local simple->local struct
-    }
+	ulliTmp = timegm(&tm_data) + GMT_diff;	// UTC struct->local simple
+	gmtime_r(&ulliTmp, &tm_data);           // local simple->local struct
 	// получаем время как число секунд от начала суток
 	record->time = 3600 * tm_data.tm_hour + 60 * tm_data.tm_min + tm_data.tm_sec;
-
 	// в tm_data обнуляем время
 	tm_data.tm_hour = tm_data.tm_min = tm_data.tm_sec = 0;
 	// получаем дату

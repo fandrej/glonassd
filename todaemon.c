@@ -33,37 +33,36 @@ void toDaemon(const char *PidFilePath)
 	pid = fork();
 
 	/* An error occurred */
-	if (pid < 0)
+	if (pid < 0) {
+        syslog(LOG_NOTICE, "fork() 1 error %d: %s\n", errno, strerror(errno));
+        fprintf(stderr, "fork() 1 error %d: %s\n", errno, strerror(errno));
 		exit(EXIT_FAILURE);
+    }
 
 	/* Success: Let the parent terminate */
 	if (pid > 0)
 		exit(EXIT_SUCCESS);
 
 	/* On success: The child process becomes session leader */
-	if (setsid() < 0)
+	if (setsid() < 0) {
+        syslog(LOG_NOTICE, "setsid() error %d: %s\n", errno, strerror(errno));
+        fprintf(stderr, "setsid() error %d: %s\n", errno, strerror(errno));
 		exit(EXIT_FAILURE);
+    }
 
 	/* Fork off for the second time */
 	pid = fork();
 
 	/* An error occurred */
-	if (pid < 0)
+	if (pid < 0) {
+        syslog(LOG_NOTICE, "fork() 2 error %d: %s\n", errno, strerror(errno));
+        fprintf(stderr, "fork() 2 error %d: %s\n", errno, strerror(errno));
 		exit(EXIT_FAILURE);
+    }
 
-	/* Success: Let the parent terminate */
-	if (pid > 0) {
-		// create pid file
-		FILE *handle = fopen(PidFilePath, "w");
-		if(handle) {
-			fprintf(handle, "%d\n", pid);
-			fclose(handle);
-			exit(EXIT_SUCCESS);
-		} else {
-			printf("Create PID file %s, error %d: %s\n", PidFilePath, errno, strerror(errno));
-			exit(EXIT_FAILURE);
-		}
-	}	// if (pid > 0)
+    /* close parent */
+    if (pid > 0)
+		exit(EXIT_SUCCESS);
 
 	/* Catch, ignore and handle signals */
 	ConfigureSignalHandlers();
@@ -73,7 +72,11 @@ void toDaemon(const char *PidFilePath)
 
 	/* Change the working directory to the root directory */
 	/* or another appropriated directory */
-	chdir("/");    // stParams.start_path
+	if( chdir("/") ){    // error
+        syslog(LOG_NOTICE, "chdir('/'), error %d: %s\n", errno, strerror(errno));
+        fprintf(stderr, "chdir('/'), error %d: %s\n", errno, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
 
 	/* Close all open file descriptors */
 	int x;
@@ -86,8 +89,18 @@ void toDaemon(const char *PidFilePath)
 	    but it should not use real standard descriptors
 	*/
 	int tmp = open("/dev/null", O_RDWR); /* fd 0 = stdin */
-	dup(tmp); /* fd 1 = stdout */
-	dup(tmp); /* fd 2 = stderr */
+    /* fd 1 = stdout */
+	if( dup(tmp) == -1 ){
+        syslog(LOG_NOTICE, "dup(1), error %d: %s\n", errno, strerror(errno));
+        fprintf(stderr, "dup(1), error %d: %s\n", errno, strerror(errno));
+        exit(EXIT_FAILURE);
+	}
+    /* fd 2 = stderr */
+	if( dup(tmp) == -1 ){
+        syslog(LOG_NOTICE, "dup(2), error %d: %s\n", errno, strerror(errno));
+        fprintf(stderr, "dup(2), error %d: %s\n", errno, strerror(errno));
+        exit(EXIT_FAILURE);
+	}
 
 	/*
 	    put server into its own process group. If this process now spawns

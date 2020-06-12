@@ -1,13 +1,14 @@
 PROJECT = glonassd
 
 CC = gcc
-LIBS = -lpq -lpthread -L/usr/lib/nptl -rdynamic -ldl -lrt -lm
-INCLUDE = -I/usr/include/nptl -I/usr/include/postgresql
+LIBS = -lpthread -L/usr/lib/nptl -rdynamic -ldl -lrt -lm
+INCLUDE = -I/usr/include/nptl
 # https://gcc.gnu.org/onlinedocs/gcc/Option-Summary.html#Option-Summary
 CFLAGS = -std=gnu99 -D_REENTERANT -m64
-SOCFLAGS = -std=gnu99 -D_REENTERANT -m64 -fpic -Wall -Werror
+SOCFLAGS = -std=gnu99 -D_REENTERANT -m64 -fpic -Wall
 # https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html
 OPTIMIZE = -O2 -flto -g0
+#OPTIMIZE = -O0 -flto -g -fno-stack-protector
 # https://gcc.gnu.org/onlinedocs/gcc/Debugging-Options.html#Debugging-Options
 DEBUG = -g
 
@@ -15,30 +16,19 @@ SOURCE = glonassd.c loadconfig.c todaemon.c logger.c worker.c lib.c forwarder.c
 
 HEADERS = $(wildcard *.h)
 
+# ATTENTION: $(LIBS) MUST BE AFTER $(SOURCE) !!!
+
 $(PROJECT): $(SOURCE) $(HEADERS)
-	$(CC) $(CFLAGS) $(OPTIMIZE) $(INCLUDE) $(LIBS) $(SOURCE) -o $(PROJECT)
+	$(CC) $(CFLAGS) $(OPTIMIZE) $(INCLUDE) $(SOURCE) $(LIBS) -o $(PROJECT)
 
 run: $(PROJECT)
 	./$(PROJECT) start
-
-# shared library for database PostgreSQL
-pg: pg.c glonassd.h de.h logger.h
-	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) $(INCLUDE) $(LIBS) pg.c -o pg.o
-	$(CC) -shared -o pg.so pg.o
-	rm pg.o
 
 # shared library for decode/encode GALILEO
 galileo: galileo.c de.h logger.h
 	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) galileo.c -o galileo.o
 	$(CC) -shared -o galileo.so galileo.o
 	rm galileo.o
-
-# shared library for decode/encode NTS
-# -lm : link libm for "fmod" and other mathematic functions
-nts: nts.c de.h logger.h
-	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) nts.c -o nts.o
-	$(CC) -lm -shared -o nts.so nts.o
-	rm nts.o
 
 # shared library for decode/encode SAT-LITE/SAT-LITE2
 satlite: satlite.c de.h logger.h
@@ -57,18 +47,6 @@ arnavi5: arnavi5.c arnavi.h de.h logger.h
 	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) arnavi5.c -o arnavi5.o
 	$(CC) -shared -o arnavi5.so arnavi5.o
 	rm arnavi5.o
-
-# shared library for decode/encode FAVW
-favw: favw.c de.h logger.h
-	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) favw.c -o favw.o
-	$(CC) -shared -o favw.so favw.o
-	rm favw.o
-
-# shared library for decode/encode FAVA
-fava: fava.c de.h logger.h
-	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) fava.c -o fava.o
-	$(CC) -shared -o fava.so fava.o
-	rm fava.o
 
 # shared library for decode/encode Wialon IPS
 wialonips: wialonips.c de.h logger.h
@@ -94,14 +72,39 @@ egts: egts.c egts.h de.h logger.h
 	$(CC) -shared -o egts.so egts.o
 	rm egts.o
 
+# shared library for decode/encode FAVW
+favw: favw.c de.h logger.h
+	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) favw.c -o favw.o
+	$(CC) -shared -o favw.so favw.o
+	rm favw.o
+
+# shared library for decode/encode FAVA
+fava: fava.c de.h logger.h
+	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) fava.c -o fava.o
+	$(CC) -shared -o fava.so fava.o
+	rm fava.o
+
 # shared library for test/log protocol
 prototest: prototest.c de.h glonassd.h logger.h
 	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) prototest.c -o prototest.o
 	$(CC) -shared -o prototest.so prototest.o
 	rm prototest.o
 
+# shared library for database PostgreSQL
+pg: pg.c glonassd.h de.h logger.h
+	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) $(INCLUDE) -I/usr/include/postgresql pg.c $(LIBS) -o pg.o -lpq
+	$(CC) -shared -o pg.so pg.o -lpq
+	rm pg.o
+
+# shared library for database REDIS
+rds: rds.c glonassd.h de.h logger.h
+	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) $(INCLUDE) -I/usr/local/include/hiredis rds.c -I/usr/local/include/json-c/ $(LIBS) -o rds.o -lhiredis -ljson-c
+	$(CC) -shared -o rds.so rds.o -lhiredis
+	rm rds.o
+
+
 # all
-all: $(PROJECT) pg galileo nts satlite favw fava wialonips gps103 soap egts arnavi prototest
+all: $(PROJECT) galileo satlite wialonips gps103 soap egts arnavi arnavi5 favw fava prototest pg rds
 
 clean:
 	rm -f *.o

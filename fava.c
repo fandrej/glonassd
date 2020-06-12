@@ -13,6 +13,7 @@
 #include <string.h> /* memset */
 #include <errno.h>  /* errno */
 #include "glonassd.h"
+#include "worker.h"
 #include "de.h"     // ST_ANSWER
 #include "lib.h"    // MIN, MAX, BETWEEN, CRC, etc...
 #include "logger.h"
@@ -24,7 +25,7 @@
    parcel_size - it length
    answer - pointer to ST_ANSWER structure
 */
-void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer)
+void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER *worker)
 {
 	ST_RECORD *record = NULL;
 	int iTemp, rec_ok;

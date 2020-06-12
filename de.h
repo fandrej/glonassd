@@ -25,7 +25,7 @@
 #define BAD_OBJ (-1)
 #endif
 #ifndef SOCKET_BUF_SIZE
-#define SOCKET_BUF_SIZE (4096)
+#define SOCKET_BUF_SIZE (16384)
 #endif
 #ifndef MAX_RECORDS
 #define MAX_RECORDS (30)
@@ -61,8 +61,9 @@ typedef struct {
 	double vbort;   // car on-board voltage
 	double vbatt;   // terminal battery voltage
 	double probeg;  // terminal-calculated distance from prev. point
+	unsigned int port;	// TCP/UDP port of receiving terminal data
 } ST_RECORD;
-// sizeof(ST_RECORD)=224
+// sizeof(ST_RECORD)=228
 
 /*
    structure for terminal_decode function

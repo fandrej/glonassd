@@ -21,6 +21,7 @@ typedef struct {
 	char start_path[FILENAME_MAX];
 	char config_path[FILENAME_MAX];
 	char *cmd;
+    char daemon;
 } ST_PARAMS;
 extern ST_PARAMS stParams;	// glonassd.c
 
@@ -73,8 +74,8 @@ typedef struct {
 	int log_all;
 	int log_err;
 	void *library_handle;	// handle to shared library
-	void (*terminal_decode)(char*, int, ST_ANSWER*);	// pointer to decode terminal message function
-	int (*terminal_encode)(ST_RECORD*, int, char*, int); // pointer to encode terminal message function
+	void (*terminal_decode)(char*, int, ST_ANSWER*, void*);	// pointer to decode terminal message function
+	int (*terminal_encode)(ST_RECORD*, int, char*, int, void*); // pointer to encode terminal message function
 } ST_LISTENER;
 
 // list of the listeners
