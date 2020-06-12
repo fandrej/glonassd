@@ -5,15 +5,16 @@ GPS/GLONASS tracker server for Debian
 
 ### About
 **glonassd** is a linux daemon that receives data from a GPS / GLONASS trackers, processing and preserving them in a database.<br>
-Written in C, сompiled with gcc 4.9.2 for x86_64-linux-gnu.
+Written in C, сompiled with gcc 6.3.0 for x86_64-linux-gnu.
 
 ### Tracker protocols
-**Receiving:** Arnavi, Galileo (all versions), GPS101-GPS103, SAT-LITE / SAT-LITE2, Wialon IPS, Wialon NIS (SOAP / Olympstroy), EGTS (ERA-GLONASS).<br>
+**Receiving:** Arnavi-4/5, Galileo (all versions), GPS101-GPS103, SAT-LITE / SAT-LITE2, Wialon IPS, Wialon NIS (SOAP / Olympstroy), EGTS (ERA-GLONASS).<br>
 **Sending (forwarding):** all receiving without reencode or reencode to Wialon NIS or EGTS.<br>
 Protocols can be added using plug libraries.
 
 ### Database
 PostgreSQL<br>
+Redis<br>
 Databases can be added using plug libraries.
 
 ### Features
@@ -72,3 +73,10 @@ Andrey Fedorov, Kurgan, Russia.<br>
 
 ### Epilog
 This daemon is part of navigation service of [locman.org](http://locman.org/map/index.php).
+
+### Fixes
+12.06.2020<br>
+* Fixed receiving big data (from other servers)
+* EGTS protocol fixed
+* CPU usage improved
+* Redis database added
