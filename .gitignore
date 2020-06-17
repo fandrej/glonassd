@@ -1,7 +1,5 @@
 # main daemon executable
 glonassd
-bin/*
-/bin/*
 forward/*
 logs/*
 hiredis/*
