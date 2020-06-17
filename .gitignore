@@ -4,6 +4,7 @@ bin/*
 /bin/*
 forward/*
 logs/*
+hiredis/*
 
 # my notes
 *.txt
@@ -11,6 +12,7 @@ logs/*
 
 # daemon settings
 *.conf
+*.log
 
 # daemon local scripts
 *.sh
