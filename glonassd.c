@@ -336,8 +336,8 @@ void command(const char *pidfile, const char *cmd)
         fclose(handle);
 
         if( pid > 0 && !started && errno == ESRCH ) {
-            printf("Found PID file %s with PID %d without process glonassd(%d)\nDelete PID file manually, please.\n", pidfile, pid, pid);
-            exit(EXIT_FAILURE);
+            printf("Found PID file %s with PID %d without process glonassd(%d)\nPID file will be deleted.\n", pidfile, pid, pid);
+            unlink(gPidFilePath);
         }
     }	// if(handle)
 
@@ -775,10 +775,15 @@ int main(int argc, char* argv[])
     // process start/restart/stop command
     command(gPidFilePath, stParams.cmd);
 
-    if( stParams.daemon )
+    if( stParams.daemon ) {
         toDaemon(gPidFilePath); // force programm to daemon
-    else
+        syslog(LOG_NOTICE, "glonassd[%d] started\n", (int)getpid());
+    }
+    else {
+        // install CTRL+C handler
         signal(SIGINT, INThandler);
+        printf("glonassd[%d] started\n", (int)getpid());
+    }
 
     // create pid file
     handle = fopen(gPidFilePath, "w");
@@ -792,11 +797,6 @@ int main(int argc, char* argv[])
             syslog(LOG_NOTICE, "Create PID file %s, error %d: %s\n", gPidFilePath, errno, strerror(errno));
         exit(EXIT_FAILURE);
     }
-
-    if( stParams.daemon )
-        syslog(LOG_NOTICE, "glonassd[%d] started\n", (int)getpid());
-    else
-        printf("glonassd[%d] started\n", (int)getpid());
 
     graceful_stop = 0;      // flag "stop programm"
     reconfigure = 1;        // flag "read config"
