@@ -589,7 +589,7 @@ int Parse_EGTS_RECORD_HEADER(EGTS_RECORD_HEADER *rec_head, EGTS_RECORD_HEADER *s
 		st_header->OID = *(uint32_t *)&pc[rec_head_size];
 		if( st_header->OID /*&& !strlen(answer->lastpoint.imei)*/ ) {	// D:\Work\Borland\Satellite\egts\Рекомендации по реализации протокола передачи данных в РНИЦ.doc 5.1.1	Идентификация АС посредством поля OID
 			memset(answer->lastpoint.imei, 0, SIZE_TRACKER_FIELD);
-			snprintf(answer->lastpoint.imei, SIZE_TRACKER_FIELD, "%d", st_header->OID);
+			snprintf(answer->lastpoint.imei, SIZE_TRACKER_FIELD, "%u", st_header->OID);
 		}
 		rec_head_size += sizeof(uint32_t);
 	}
@@ -613,7 +613,7 @@ int Parse_EGTS_RECORD_HEADER(EGTS_RECORD_HEADER *rec_head, EGTS_RECORD_HEADER *s
 
     if( worker && worker->listener->log_all ){
         logging("terminal_decode[%s:%d]: Parse_EGTS_RECORD_HEADER %d \n", worker->listener->name, worker->listener->port, st_header->RN);
-        logging("terminal_decode[%s:%d]: OID=%d\n", worker->listener->name, worker->listener->port, st_header->OID);
+        logging("terminal_decode[%s:%d]: OID=%u\n", worker->listener->name, worker->listener->port, st_header->OID);
         /*
         logging("terminal_decode[%s:%d]: RL=%d\n", worker->listener->name, worker->listener->port, st_header->RL);
         logging("terminal_decode[%s:%d]: RN=%d\n", worker->listener->name, worker->listener->port, st_header->RN);
@@ -660,7 +660,7 @@ int Parse_EGTS_SR_TERM_IDENTITY(EGTS_SR_TERM_IDENTITY_RECORD *record, ST_ANSWER 
     	}
 	}	// if( record->FLG & B1 )
 	else if( record->TID ) {
-		snprintf(answer->lastpoint.imei, SIZE_TRACKER_FIELD, "%d", record->TID);
+		snprintf(answer->lastpoint.imei, SIZE_TRACKER_FIELD, "%u", record->TID);
 
         if( worker->listener->log_all ){
             logging("terminal_decode[%s:%d]: IMEI='%s' BY TID FIELD\n\n", worker->listener->name, worker->listener->port, answer->lastpoint.imei);
