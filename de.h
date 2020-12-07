@@ -19,16 +19,16 @@
 #define MILE 1.852	// коэфф мили/километры
 #endif
 #ifndef SIZE_TRACKER_FIELD
-#define SIZE_TRACKER_FIELD 16
+#define SIZE_TRACKER_FIELD (16)
 #endif
 #ifndef BAD_OBJ
 #define BAD_OBJ (-1)
 #endif
 #ifndef SOCKET_BUF_SIZE
-#define SOCKET_BUF_SIZE (16384)
+#define SOCKET_BUF_SIZE (49152)  
 #endif
 #ifndef MAX_RECORDS
-#define MAX_RECORDS (30)
+#define MAX_RECORDS (168)
 #endif
 
 // decoded data (record/point)

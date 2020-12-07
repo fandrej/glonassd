@@ -552,15 +552,15 @@ int Parse_EGTS_PACKET_HEADER(ST_ANSWER *answer, char *pc, int parcel_size, ST_WO
     if( retval ) {
         if( worker && worker->listener->log_err ){
             logging("terminal_decode[%s:%d]: Parse_EGTS_PACKET_HEADER %d ERROR %d\n", worker->listener->name, worker->listener->port, ph->PID, retval);
-            logging("terminal_decode[%s:%d]: pak_head->PRV=%d\n", worker->listener->name, worker->listener->port, ph->PRV);
-            logging("terminal_decode[%s:%d]: pak_head->SKID=%d\n", worker->listener->name, worker->listener->port, ph->SKID);
-            logging("terminal_decode[%s:%d]: pak_head->PRF=%d\n", worker->listener->name, worker->listener->port, ph->PRF);
-            logging("terminal_decode[%s:%d]: pak_head->HL=%d\n", worker->listener->name, worker->listener->port, ph->HL);
-            logging("terminal_decode[%s:%d]: pak_head->HE=%d\n", worker->listener->name, worker->listener->port, ph->HE);
-            logging("terminal_decode[%s:%d]: pak_head->FDL=%d\n", worker->listener->name, worker->listener->port, ph->FDL);
-            logging("terminal_decode[%s:%d]: pak_head->PID=%d\n", worker->listener->name, worker->listener->port, ph->PID);
-            logging("terminal_decode[%s:%d]: pak_head->PT=%d\n", worker->listener->name, worker->listener->port, ph->PT);
-            logging("terminal_decode[%s:%d]: pak_head->HCS=%d\n\n", worker->listener->name, worker->listener->port, ph->HCS);
+            logging("terminal_decode[%s:%d]: pak_head->PRV=%d (%d)\n", worker->listener->name, worker->listener->port, ph->PRV);
+            logging("terminal_decode[%s:%d]: pak_head->SKID=%d (%d)\n", worker->listener->name, worker->listener->port, ph->SKID);
+            logging("terminal_decode[%s:%d]: pak_head->PRF=%d (%d)\n", worker->listener->name, worker->listener->port, ph->PRF);
+            logging("terminal_decode[%s:%d]: pak_head->HL=%d (%d)\n", worker->listener->name, worker->listener->port, ph->HL);
+            logging("terminal_decode[%s:%d]: pak_head->HE=%d (%d)\n", worker->listener->name, worker->listener->port, ph->HE);
+            logging("terminal_decode[%s:%d]: pak_head->FDL=%d (%d)\n", worker->listener->name, worker->listener->port, ph->FDL);
+            logging("terminal_decode[%s:%d]: pak_head->PID=%d (%d)\n", worker->listener->name, worker->listener->port, ph->PID);
+            logging("terminal_decode[%s:%d]: pak_head->PT=%d (%d)\n", worker->listener->name, worker->listener->port, ph->PT);
+            logging("terminal_decode[%s:%d]: pak_head->HCS=%d (%d)\n\n", worker->listener->name, worker->listener->port, ph->HCS);
         }
     }
 
