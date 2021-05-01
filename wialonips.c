@@ -385,7 +385,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 
 
 /*
-   encode function
+   encode Wialon IPS v.2.0 function
    records - pointer to array of ST_RECORD struct.
    reccount - number of struct in array, and returning (negative if authentificate required)
    buffer - buffer for encoded data
@@ -394,7 +394,65 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 */
 int terminal_encode(ST_RECORD *records, int reccount, char *buffer, int bufsize)
 {
-	int top = 0;
+	int i, head = 0, top = 0;
+    unsigned short crc = 0;
+	struct tm tm_data;
+	time_t ulliTmp;
+
+	if( !records || !reccount || !buffer || !bufsize )
+		return top;
+
+	if( reccount < 0 )
+		reccount *= -1;
+
+	memset(buffer, 0, bufsize);
+
+    // login
+    top = sprintf(buffer, "#L#2.0;%s;N/A;", records[0].imei);
+    crc = CRC16((unsigned char *)buffer, top);
+    top += snprintf(&buffer[top], bufsize - top, "%u\r\n", crc);
+    head = top;
+    top += snprintf(&buffer[top], bufsize - top, "#B#");
+
+    // #B#date;time;lat1;lat2;lon1;lon2;speed;course;height;sats;crc16\r\n
+	for(i = 0; i < reccount; i++) {
+
+		// get local time from terminal record
+		ulliTmp = records[i].data + records[i].time;
+		memset(&tm_data, 0, sizeof(struct tm));
+		// convert local time to UTC
+		gmtime_r(&ulliTmp, &tm_data);
+
+        top += snprintf(&buffer[top], bufsize - top,
+            //     DDMMYY        HHMMSS   5544.6025
+            "%02d%02d%02d;%02d%02d%02d;%04.4f;%c;%05.4f;%c;%d;%u;%d;%u|",
+            tm_data.tm_mday,
+            tm_data.tm_mon + 1,
+            tm_data.tm_year + 1900 - 2000,
+            tm_data.tm_hour,
+            tm_data.tm_min,
+            tm_data.tm_sec,
+            records[i].lat * 100.0,
+            records[i].clat,
+            records[i].lon * 100.0,
+            records[i].clon,
+            (int)records[i].speed,
+            records[i].curs,
+            records[i].height,
+            records[i].satellites
+        );
+
+		if( bufsize - top < 100 )
+            break;
+    }   // for(i = 0; i < reccount; i++)
+
+    if( head && top - head > 0 ) {
+        crc = CRC16((unsigned char *)&buffer[head], top - head);
+    	top += snprintf(&buffer[top], bufsize - top, "%u\r\n", crc);
+    }
+
+    //log2file("/opt/glonassd/logs/aaa.txt", buffer, top);
+
 	return top;
 }
 //------------------------------------------------------------------------------
