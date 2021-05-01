@@ -49,7 +49,8 @@ For forwarding terminals data to remote server see comments in **forward** secti
 For schedule database tasks see comments about **timer** parameter in **server** section of the **glonassd.conf** file.
 
 ### Run
-From daemon folder use **./glonassd start** command for start daemon, **stop** | **restart** parameters for stop and restart daemon.<br>
+From daemon folder use **./glonassd start** command for start in console mode, CTRL+C for stop.<br>
+Use -d parameter for start in daemon mode.<br>
 Use -c path/to/config/file parameter for config file not in daemon folder.<br>
 If daemon configured as automatically startup, use **service glonassd start** and **service glonassd stop** for start/stop if needded.
 
@@ -80,3 +81,8 @@ This daemon is part of navigation service of [locman.org](http://locman.org/map/
 * EGTS protocol fixed
 * CPU usage improved
 * Redis database added
+
+01.05.2021<br>
+* Added TQ GPRS (H02) protocol
+* Added WialonIPS retranslator protocol
+* Small fixes
