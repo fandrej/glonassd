@@ -19,6 +19,17 @@
 #include "logger.h"
 
 
+void logg(ST_WORKER *worker, int it_error, char *msg)
+{
+    if( worker && msg ) {
+        if( worker->listener->log_all )
+            logging("terminal_decode[%s:%d]: %s\n", worker->listener->name, worker->listener->port, msg);
+        else if( it_error && worker->listener->log_err )
+            logging("terminal_decode[%s:%d]: %s\n", worker->listener->name, worker->listener->port, msg);
+    }
+}
+
+
 /*
    decode function
    parcel - the raw data from socket
@@ -34,8 +45,12 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 	double dLon, dLat, dAltitude, dHDOP;
 	int iAnswerSize, iTemp, iCurs, iSatellits, iSpeed, iInputs = 0, iOutputs = 0, iReadedRecords = 0;
 
-	if( !parcel || parcel_size <= 0 || !answer )
+    logg(worker, 0, parcel);
+
+	if( !parcel || parcel_size <= 0 || !answer ) {
+        logg(worker, 1, "!parcel || parcel_size <= 0 || !answer => return");
 		return;
+    }
 
 	answer->size = 0;	// :)
 
@@ -408,7 +423,7 @@ int terminal_encode(ST_RECORD *records, int reccount, char *buffer, int bufsize)
 	memset(buffer, 0, bufsize);
 
     // login
-    top = sprintf(buffer, "#L#2.0;%s;N/A;", records[0].imei);
+    top = sprintf(buffer, "#L#%s;N/A;", records[0].imei);
     crc = CRC16((unsigned char *)buffer, top);
     top += snprintf(&buffer[top], bufsize - top, "%u\r\n", crc);
     head = top;
