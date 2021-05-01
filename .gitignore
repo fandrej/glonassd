@@ -1,8 +1,8 @@
 # main daemon executable
 glonassd
-forward/*
-logs/*
-hiredis/*
+forward/
+logs/
+hiredis/
 
 # my notes
 *.txt
