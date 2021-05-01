@@ -55,7 +55,7 @@ static void satlite_decode_txt(char *parcel, int parcel_size, ST_ANSWER *answer)
 	char cVers[10], cImei[16], cArchive[10], cTime[10], cDate[10], cAltitude[10], cGeoidheight[10],
 		  cXCOORD[12], cYCOORD[12];
 	char *cRec;
-	int iTemp, iFields = 0;
+	int iTemp, iFields;
 	int iLinesOK = 0;	// успешно обработанных строк
 	int iHard = 0;
 	int iSerial, iVIN, iVBAT, iFSDATA, iISSTOP, iISEGNITION, iD_STATE, iFREQ1, iCOUNT1, iFIXTYPE,
@@ -68,158 +68,164 @@ static void satlite_decode_txt(char *parcel, int parcel_size, ST_ANSWER *answer)
 	cRec = strtok(parcel, "\r\n");
 	while( cRec ) {
 
-		iSerial = iVIN = iVBAT = iFSDATA = iISSTOP = iISEGNITION = iD_STATE = iFREQ1 = iCOUNT1 = iFIXTYPE =
-														  iSATCOUNNT = iFREQ2 = iCOUNT2 = iADC1 = iCOUNTER3 = iTS_TEMP = iANT_STATE = 0;
+        iFields = 0;
 
-		memset(cTime, 0, 10);
-		memset(cDate, 0, 10);
-		memset(cAltitude, 0, 10);
-		memset(cXCOORD, 0, 12);
-		memset(cYCOORD, 0, 12);
+        if( strlen(cRec) > 10 ) {
 
-		switch( cRec[5] ) {
-		case '2':	// $AV,V2 - Основное сообщение GPSLite V2
+    		iSerial = iVIN = iVBAT = iFSDATA = iISSTOP = iISEGNITION = iD_STATE = iFREQ1 = iCOUNT1 = iFIXTYPE =
+    														  iSATCOUNNT = iFREQ2 = iCOUNT2 = iADC1 = iCOUNTER3 = iTS_TEMP = iANT_STATE = 0;
 
-			iHard = 2;
-			if( cRec[6] == ',' ) {
-				//                            1     2    3  4  5  6  7  8  9 10 11 12 13  14     15    16   17  18   19    20
-				iFields = sscanf(&cRec[4], "%[^,],%[^,],%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%[^,],%[^,],%[^,],%lf,%lf,%[^,],%[^*]",
-									  //        1       2       3       4       5        6         7         8            9
-									  cVers, cImei, &iSerial, &iVIN, &iVBAT, &iFSDATA, &iISSTOP, &iISEGNITION, &iD_STATE,
-									  //				10				 11	       12          13        14      15      16        17       18
-									  &iFREQ1, &iCOUNT1, &iFIXTYPE, &iSATCOUNNT, cTime, cXCOORD, cYCOORD, &dSPEED, &dCOURSE,
-									  //        19      20
-									  cDate, cArchive);
-			} else {	// $AV,V2DI СЛУЖЕБНОЕ сообщение, Нет необходимости производить разбор
-				iFields = 0;
-				++iLinesOK;	// успешно обработанных строк
-			}
+    		memset(cTime, 0, 10);
+    		memset(cDate, 0, 10);
+    		memset(cAltitude, 0, 10);
+    		memset(cXCOORD, 0, 12);
+    		memset(cYCOORD, 0, 12);
 
-			break;
-		case '3':	// $AV,V3 - Основное сообщение GPSLite V3
+    		switch( cRec[5] ) {
+    		case '2':	// $AV,V2 - Основное сообщение GPSLite V2
 
-			iHard = 3;
-			if( cRec[6] == ',' ) {
-				//    1    2    3    4   5  6  7 8  9  10  12  14    16       17         18      19  20    21   22 23  24   25
-				//$AV,V3,71186,751,1107,381,-1,0,1,192,0,0,0,0,0,2,142302,5827.9176N,03049.9828E,0.0,0.0,120613,10,0,32767,*74
-				//$AV,V3,71098,16926,16,415,-1,0,0,192,0,0,0,0,0,0,,0,0,32767,,SF*60
-				//                                                17         21
+    			iHard = 2;
+    			if( cRec[6] == ',' ) {
+    				//                            1     2    3  4  5  6  7  8  9 10 11 12 13  14     15    16   17  18   19    20
+    				iFields = sscanf(&cRec[4], "%[^,],%[^,],%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%[^,],%[^,],%[^,],%lf,%lf,%[^,],%[^*]",
+    									  //        1       2       3       4       5        6         7         8            9
+    									  cVers, cImei, &iSerial, &iVIN, &iVBAT, &iFSDATA, &iISSTOP, &iISEGNITION, &iD_STATE,
+    									  //				10				 11	       12          13        14      15      16        17       18
+    									  &iFREQ1, &iCOUNT1, &iFIXTYPE, &iSATCOUNNT, cTime, cXCOORD, cYCOORD, &dSPEED, &dCOURSE,
+    									  //        19      20
+    									  cDate, cArchive);
+    			} else {	// $AV,V2DI СЛУЖЕБНОЕ сообщение, Нет необходимости производить разбор
+    				iFields = 0;
+    				++iLinesOK;	// успешно обработанных строк
+    			}
 
-				//                             1    2    3  4  5  6  7  8  9 10 11 12 13 14 15  16     17    18   19  20   21  22 23 24   25
-				iFields = sscanf(&cRec[4], "%[^,],%[^,],%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%[^,],%[^,],%[^,],%lf,%lf,%[^,],%d,%d,%d,%[^*]",
-									  //         1     2        3        4      5       6          7           8            9
-									  cVers, cImei, &iSerial, &iVIN, &iVBAT, &iFSDATA, &iISSTOP, &iISEGNITION, &iD_STATE,
-									  //         10        11       12       13       14         15         16      17       18
-									  &iFREQ1, &iCOUNT1, &iFREQ2, &iCOUNT2, &iFIXTYPE, &iSATCOUNNT, cTime, cXCOORD, cYCOORD,
-									  //         19      20       21      22       23          24        25
-									  &dSPEED, &dCOURSE, cDate, &iADC1, &iCOUNTER3, &iTS_TEMP, cArchive);
+    			break;
+    		case '3':	// $AV,V3 - Основное сообщение GPSLite V3
 
-			} else {
-				iFields = 0;
-				++iLinesOK;	// успешно обработанных строк
-			}
+    			iHard = 3;
+    			if( cRec[6] == ',' ) {
+    				//    1    2    3    4   5  6  7 8  9  10  12  14    16       17         18      19  20    21   22 23  24   25
+    				//$AV,V3,71186,751,1107,381,-1,0,1,192,0,0,0,0,0,2,142302,5827.9176N,03049.9828E,0.0,0.0,120613,10,0,32767,*74
+    				//$AV,V3,71098,16926,16,415,-1,0,0,192,0,0,0,0,0,0,,0,0,32767,,SF*60
+    				//                                                17         21
 
-			break;
-		case '4':	// $AV,V4 - сновное сообщение GPSLite V4
+    				//                             1    2    3  4  5  6  7  8  9 10 11 12 13 14 15  16     17    18   19  20   21  22 23 24   25
+    				iFields = sscanf(&cRec[4], "%[^,],%[^,],%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%[^,],%[^,],%[^,],%lf,%lf,%[^,],%d,%d,%d,%[^*]",
+    									  //         1     2        3        4      5       6          7           8            9
+    									  cVers, cImei, &iSerial, &iVIN, &iVBAT, &iFSDATA, &iISSTOP, &iISEGNITION, &iD_STATE,
+    									  //         10        11       12       13       14         15         16      17       18
+    									  &iFREQ1, &iCOUNT1, &iFREQ2, &iCOUNT2, &iFIXTYPE, &iSATCOUNNT, cTime, cXCOORD, cYCOORD,
+    									  //         19      20       21      22       23          24        25
+    									  &dSPEED, &dCOURSE, cDate, &iADC1, &iCOUNTER3, &iTS_TEMP, cArchive);
 
-			iHard = 4;
-			if( cRec[6] == ',' ) {
-				// отличается от V3: после 14 поля вставлены ещё 2 (15,16)
-				if( strstr(cRec, ",,,") ) {
-					//    1    2     3    4   5   6 7 8  9 10  12  14 15      18      19         20       21   22   23   24    26
-					//$AV,V4,71169,8430,1210,416,-1,1,1,192,0,0,0,0,0,0,,,000026,5959.4886N,03014.9790E,0.0,0.0,060180,10,0,32767,*7C
-					//$AV,V4,84542,25532,1237,424,-1,1,1,192,0,0,0,0,0,0,,,233958,4333.4757N,03946.4132E,0.0,0.0,230816,10,0,32767,*79
-					//                            1     2    3  4  5  6  7  8  9 10 11 12 13 14 15     18    19    20   21  22   23  24 25 26
-					iFields = sscanf(&cRec[4], "%[^,],%[^,],%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,,,%[^,],%[^,],%[^,],%lf,%lf,%[^,],%d,%d,%d,%[^*]",
-										  //        1      2       3         4      5        6         7          8            9
-										  cVers, cImei, &iSerial, &iVIN, &iVBAT, &iFSDATA, &iISSTOP, &iISEGNITION, &iD_STATE,
-										  //         10       11       12         13         14         15          16         17
-										  &iFREQ1, &iCOUNT1, &iFREQ2, &iCOUNT2, &iFIXTYPE, &iSATCOUNNT,
-										  //				18      19       20       21       22       23     24        25          26        27
-										  cTime, cXCOORD, cYCOORD, &dSPEED, &dCOURSE, cDate, &iADC1, &iCOUNTER3, &iTS_TEMP, cArchive);
-				} else {
-					//    1    2     3    4   5   6 7 8  9 10  12  14 15      18      19         20       21   22   23   24    26
-					//$AV,V4,71169,8430,1210,416,-1,1,1,192,0,0,0,0,0,0,,,000026,5959.4886N,03014.9790E,0.0,0.0,060180,10,0,32767,*7C
-					//$AV,V4,84542,25532,1237,424,-1,1,1,192,0,0,0,0,0,0,,,233958,4333.4757N,03946.4132E,0.0,0.0,230816,10,0,32767,*79
-					//                            1     2    3  4  5  6  7  8  9 10 11 12 13 14 15   16    17    18    19    20   21  22   23  24 25 26
-					iFields = sscanf(&cRec[4], "%[^,],%[^,],%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%[^,],%[^,],%[^,],%[^,],%[^,],%lf,%lf,%[^,],%d,%d,%d,%[^*]",
-										  //        1      2       3         4      5        6         7          8            9
-										  cVers, cImei, &iSerial, &iVIN, &iVBAT, &iFSDATA, &iISSTOP, &iISEGNITION, &iD_STATE,
-										  //         10       11       12         13         14         15          16         17
-										  &iFREQ1, &iCOUNT1, &iFREQ2, &iCOUNT2, &iFIXTYPE, &iSATCOUNNT, cAltitude, cGeoidheight,
-										  //				18      19       20       21       22       23     24        25          26        27
-										  cTime, cXCOORD, cYCOORD, &dSPEED, &dCOURSE, cDate, &iADC1, &iCOUNTER3, &iTS_TEMP, cArchive);
-				}
+    			} else {
+    				iFields = 0;
+    				++iLinesOK;	// успешно обработанных строк
+    			}
 
-			}	// if( cRec[6] == ',' )
-			else {
-				iFields = 0;
-				++iLinesOK;	// успешно обработанных строк
-			}
+    			break;
+    		case '4':	// $AV,V4 - сновное сообщение GPSLite V4
 
-			break;
-		case '5':	// $AV,V5 - Основное сообщение GPSLite V5, $AV,V5SD - Дополнительное сообщение GPSLite V5
+    			iHard = 4;
+    			if( cRec[6] == ',' ) {
+    				// отличается от V3: после 14 поля вставлены ещё 2 (15,16)
+    				if( strstr(cRec, ",,,") ) {
+    					//    1    2     3    4   5   6 7 8  9 10  12  14 15      18      19         20       21   22   23   24    26
+    					//$AV,V4,71169,8430,1210,416,-1,1,1,192,0,0,0,0,0,0,,,000026,5959.4886N,03014.9790E,0.0,0.0,060180,10,0,32767,*7C
+    					//$AV,V4,84542,25532,1237,424,-1,1,1,192,0,0,0,0,0,0,,,233958,4333.4757N,03946.4132E,0.0,0.0,230816,10,0,32767,*79
+    					//                            1     2    3  4  5  6  7  8  9 10 11 12 13 14 15     18    19    20   21  22   23  24 25 26
+    					iFields = sscanf(&cRec[4], "%[^,],%[^,],%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,,,%[^,],%[^,],%[^,],%lf,%lf,%[^,],%d,%d,%d,%[^*]",
+    										  //        1      2       3         4      5        6         7          8            9
+    										  cVers, cImei, &iSerial, &iVIN, &iVBAT, &iFSDATA, &iISSTOP, &iISEGNITION, &iD_STATE,
+    										  //         10       11       12         13         14         15          16         17
+    										  &iFREQ1, &iCOUNT1, &iFREQ2, &iCOUNT2, &iFIXTYPE, &iSATCOUNNT,
+    										  //				18      19       20       21       22       23     24        25          26        27
+    										  cTime, cXCOORD, cYCOORD, &dSPEED, &dCOURSE, cDate, &iADC1, &iCOUNTER3, &iTS_TEMP, cArchive);
+    				} else {
+    					//    1    2     3    4   5   6 7 8  9 10  12  14 15      18      19         20       21   22   23   24    26
+    					//$AV,V4,71169,8430,1210,416,-1,1,1,192,0,0,0,0,0,0,,,000026,5959.4886N,03014.9790E,0.0,0.0,060180,10,0,32767,*7C
+    					//$AV,V4,84542,25532,1237,424,-1,1,1,192,0,0,0,0,0,0,,,233958,4333.4757N,03946.4132E,0.0,0.0,230816,10,0,32767,*79
+    					//                            1     2    3  4  5  6  7  8  9 10 11 12 13 14 15   16    17    18    19    20   21  22   23  24 25 26
+    					iFields = sscanf(&cRec[4], "%[^,],%[^,],%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%[^,],%[^,],%[^,],%[^,],%[^,],%lf,%lf,%[^,],%d,%d,%d,%[^*]",
+    										  //        1      2       3         4      5        6         7          8            9
+    										  cVers, cImei, &iSerial, &iVIN, &iVBAT, &iFSDATA, &iISSTOP, &iISEGNITION, &iD_STATE,
+    										  //         10       11       12         13         14         15          16         17
+    										  &iFREQ1, &iCOUNT1, &iFREQ2, &iCOUNT2, &iFIXTYPE, &iSATCOUNNT, cAltitude, cGeoidheight,
+    										  //				18      19       20       21       22       23     24        25          26        27
+    										  cTime, cXCOORD, cYCOORD, &dSPEED, &dCOURSE, cDate, &iADC1, &iCOUNTER3, &iTS_TEMP, cArchive);
+    				}
 
-			iHard = 5;
-			// отличается от V4: после 13 поля вставлено поле iANT_STATE
-			if( cRec[6] == 'S' ) {	// $AV,V5SD - Дополнительное сообщение GPSLite V5
-				iFields = 0;
-				++iLinesOK;	// успешно обработанных строк
-			} else {
-				if( strstr(cRec, ",,,") ) {
-					//     1   2      3    4   5  6  7 8  9 10  12  14   16     17       18        19        20    21     22   23    25   26
-					//$AV,V5,206804,2046,1312,422,-1,0,1,192,0,0,0,0,0,2,18,,,034906,5526.6511N,06526.8890E,6.60,199.59,240816,36,0,32767,*59
-					//                            1     2    3  4  5  6  7  8  9 10 11 12 13 14 15 16     17    18    19   20  21   22  23 24 25
-					iFields = sscanf(&cRec[4], "%[^,],%[^,],%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,,,%[^,],%[^,],%[^,],%lf,%lf,%[^,],%d,%d,%d,%[^*]",
-										  //        1      2        3       4       5        6         7          8            9
-										  cVers, cImei, &iSerial, &iVIN, &iVBAT, &iFSDATA, &iISSTOP, &iISEGNITION, &iD_STATE,
-										  //         10       11        12       13          14          15          16
-										  &iFREQ1, &iCOUNT1, &iFREQ2, &iCOUNT2, &iANT_STATE, &iFIXTYPE, &iSATCOUNNT,
-										  //        17      18       19       20        21      22      23       24          25        26
-										  cTime, cXCOORD, cYCOORD, &dSPEED, &dCOURSE, cDate, &iADC1, &iCOUNTER3, &iTS_TEMP, cArchive);
+    			}	// if( cRec[6] == ',' )
+    			else {
+    				iFields = 0;
+    				++iLinesOK;	// успешно обработанных строк
+    			}
 
-					if( iFields < 20 ) {
-						//     1   2      3    4    5  6  7 8  9 10  12  14  16     17       18  19    20   21 22  23   24
-						//$AV,V5,206664,15285,1396,418,-1,0,1,192,0,0,0,0,1,0,0,,,075516,,,0.00,0.00,230816,49,0,32767,*6D
-						//                            1     2    3  4  5  6  7  8  9 10 11 12 13 14 15 16     17     18  19   20  21 22 23  24
-						iFields = sscanf(&cRec[4], "%[^,],%[^,],%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,,,%[^,],,,%lf,%lf,%[^,],%d,%d,%d,%[^*]",
-											  //        1      2        3       4       5        6         7          8            9
-											  cVers, cImei, &iSerial, &iVIN, &iVBAT, &iFSDATA, &iISSTOP, &iISEGNITION, &iD_STATE,
-											  //         10       11        12       13          14          15          16
-											  &iFREQ1, &iCOUNT1, &iFREQ2, &iCOUNT2, &iANT_STATE, &iFIXTYPE, &iSATCOUNNT,
-											  //        17      18       19       20      21      22           23       24
-											  cTime, &dSPEED, &dCOURSE, cDate, &iADC1, &iCOUNTER3, &iTS_TEMP, cArchive);
-					}
+    			break;
+    		case '5':	// $AV,V5 - Основное сообщение GPSLite V5, $AV,V5SD - Дополнительное сообщение GPSLite V5
 
-				}	// if( strstr(cRec, ",,,") )
-				else {
-					//$AV,V5,203747,44942,1199,424,-1,0,1,192,0,0,0,0,0,1,20,74.1,-19.2,160110,5527.2197N,06521.0973E,0.00,0.00,120215,25,0,32767,*41
-					iFields = sscanf(&cRec[4], "%[^,],%[^,],%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%[^,],%[^,],%[^,],%[^,],%[^,],%lf,%lf,%[^,],%d,%d,%d,%[^*]",
-										  cVers, cImei, &iSerial, &iVIN, &iVBAT, &iFSDATA, &iISSTOP, &iISEGNITION, &iD_STATE,
-										  &iFREQ1, &iCOUNT1, &iFREQ2, &iCOUNT2, &iANT_STATE, &iFIXTYPE, &iSATCOUNNT, cAltitude, cGeoidheight,
-										  cTime, cXCOORD, cYCOORD, &dSPEED, &dCOURSE, cDate, &iADC1, &iCOUNTER3, &iTS_TEMP, cArchive);
-				}
-			}	// else if( cRec[6] == 'S' )
+    			iHard = 5;
+    			// отличается от V4: после 13 поля вставлено поле iANT_STATE
+    			if( cRec[6] == 'S' ) {	// $AV,V5SD - Дополнительное сообщение GPSLite V5
+    				iFields = 0;
+    				++iLinesOK;	// успешно обработанных строк
+    			} else {
+    				if( strstr(cRec, ",,,") ) {
+    					//     1   2      3    4   5  6  7 8  9 10  12  14   16     17       18        19        20    21     22   23    25   26
+    					//$AV,V5,206804,2046,1312,422,-1,0,1,192,0,0,0,0,0,2,18,,,034906,5526.6511N,06526.8890E,6.60,199.59,240816,36,0,32767,*59
+    					//                            1     2    3  4  5  6  7  8  9 10 11 12 13 14 15 16     17    18    19   20  21   22  23 24 25
+    					iFields = sscanf(&cRec[4], "%[^,],%[^,],%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,,,%[^,],%[^,],%[^,],%lf,%lf,%[^,],%d,%d,%d,%[^*]",
+    										  //        1      2        3       4       5        6         7          8            9
+    										  cVers, cImei, &iSerial, &iVIN, &iVBAT, &iFSDATA, &iISSTOP, &iISEGNITION, &iD_STATE,
+    										  //         10       11        12       13          14          15          16
+    										  &iFREQ1, &iCOUNT1, &iFREQ2, &iCOUNT2, &iANT_STATE, &iFIXTYPE, &iSATCOUNNT,
+    										  //        17      18       19       20        21      22      23       24          25        26
+    										  cTime, cXCOORD, cYCOORD, &dSPEED, &dCOURSE, cDate, &iADC1, &iCOUNTER3, &iTS_TEMP, cArchive);
 
-			break;
-		case '6':	// $AV,V6SD - Дополнительное сообщение GPSLite V6
-			iFields = 0;
-			++iLinesOK;
-			iHard = 6;
-			break;
-		case 'O':	// $GSMCONT,GPRSACK,205553,1,"+RESP:SMSD,78.108.77.230,40101,",,SF*0D - ответ на команду
-			iFields = 0;
-			++iLinesOK;
-			break;
-		case 'S':	// $AV,CSPOLL,74711,57601,1385888805,*3F - сообщение для сервера обновлений
-			iFields = 0;
-			++iLinesOK;	// успешно обработанных строк
-			break;
-		case 'K':	// RCPTOK - server responce
-			return;
-		default:
-			iFields = 0;
-		}	// switch( cRec[5] )
+    					if( iFields < 20 ) {
+    						//     1   2      3    4    5  6  7 8  9 10  12  14  16     17       18  19    20   21 22  23   24
+    						//$AV,V5,206664,15285,1396,418,-1,0,1,192,0,0,0,0,1,0,0,,,075516,,,0.00,0.00,230816,49,0,32767,*6D
+    						//                            1     2    3  4  5  6  7  8  9 10 11 12 13 14 15 16     17     18  19   20  21 22 23  24
+    						iFields = sscanf(&cRec[4], "%[^,],%[^,],%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,,,%[^,],,,%lf,%lf,%[^,],%d,%d,%d,%[^*]",
+    											  //        1      2        3       4       5        6         7          8            9
+    											  cVers, cImei, &iSerial, &iVIN, &iVBAT, &iFSDATA, &iISSTOP, &iISEGNITION, &iD_STATE,
+    											  //         10       11        12       13          14          15          16
+    											  &iFREQ1, &iCOUNT1, &iFREQ2, &iCOUNT2, &iANT_STATE, &iFIXTYPE, &iSATCOUNNT,
+    											  //        17      18       19       20      21      22           23       24
+    											  cTime, &dSPEED, &dCOURSE, cDate, &iADC1, &iCOUNTER3, &iTS_TEMP, cArchive);
+    					}
+
+    				}	// if( strstr(cRec, ",,,") )
+    				else {
+    					//$AV,V5,203747,44942,1199,424,-1,0,1,192,0,0,0,0,0,1,20,74.1,-19.2,160110,5527.2197N,06521.0973E,0.00,0.00,120215,25,0,32767,*41
+    					iFields = sscanf(&cRec[4], "%[^,],%[^,],%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%[^,],%[^,],%[^,],%[^,],%[^,],%lf,%lf,%[^,],%d,%d,%d,%[^*]",
+    										  cVers, cImei, &iSerial, &iVIN, &iVBAT, &iFSDATA, &iISSTOP, &iISEGNITION, &iD_STATE,
+    										  &iFREQ1, &iCOUNT1, &iFREQ2, &iCOUNT2, &iANT_STATE, &iFIXTYPE, &iSATCOUNNT, cAltitude, cGeoidheight,
+    										  cTime, cXCOORD, cYCOORD, &dSPEED, &dCOURSE, cDate, &iADC1, &iCOUNTER3, &iTS_TEMP, cArchive);
+    				}
+    			}	// else if( cRec[6] == 'S' )
+
+    			break;
+    		case '6':	// $AV,V6SD - Дополнительное сообщение GPSLite V6
+    			iFields = 0;
+    			++iLinesOK;
+    			iHard = 6;
+    			break;
+    		case 'O':	// $GSMCONT,GPRSACK,205553,1,"+RESP:SMSD,78.108.77.230,40101,",,SF*0D - ответ на команду
+    			iFields = 0;
+    			++iLinesOK;
+    			break;
+    		case 'S':	// $AV,CSPOLL,74711,57601,1385888805,*3F - сообщение для сервера обновлений
+    			iFields = 0;
+    			++iLinesOK;	// успешно обработанных строк
+    			break;
+    		case 'K':	// RCPTOK - server responce
+    			return;
+    		default:
+    			iFields = 0;
+    		}	// switch( cRec[5] )
+
+        }   // if( strlen(cRec) > 10 )
 
 		if( iFields >= 19 && strlen(cDate) == 6 ) {
 			++iLinesOK;	// успешно обработанных строк

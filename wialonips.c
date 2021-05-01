@@ -41,6 +41,12 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 
 	cRec = strtok(parcel, "\r\n");
 	while( cRec ) {
+
+        if( strlen(cRec) < 5 ){
+    		cRec = strtok(NULL, "\r\n");
+            continue;
+        }
+
 		switch( cRec[1] ) {
 		case 'L':	// пакет логина: #L#imei;password\r\n
 			// #L#353451048036030;NA
@@ -262,7 +268,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 			cRec1 = strtok(&cRec[3], "|");
 
 			while(cRec1) {
-                iReadedRecords++;   // кол-во считанных сообщений
+                ++iReadedRecords;   // кол-во считанных сообщений
 				//                       1      2   3   4  5   6  7  8  9  10   11
 				iTemp = sscanf(cRec1, "%[^;];%[^;];%lf;%c;%lf;%c;%d;%d;%lf;%d;%*[^|]",
 									cDate, // 1

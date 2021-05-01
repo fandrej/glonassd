@@ -84,6 +84,12 @@ fava: fava.c de.h logger.h
 	$(CC) -shared -o fava.so fava.o
 	rm fava.o
 
+# shared library for decode/encode TQ GPRS
+tqgprs: tqgprs.c de.h logger.h
+	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) tqgprs.c -o tqgprs.o
+	$(CC) -shared -o tqgprs.so tqgprs.o
+	rm tqgprs.o
+
 # shared library for test/log protocol
 prototest: prototest.c de.h glonassd.h logger.h
 	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) prototest.c -o prototest.o
@@ -104,7 +110,7 @@ rds: rds.c glonassd.h de.h logger.h
 
 
 # all
-all: $(PROJECT) galileo satlite wialonips gps103 soap egts arnavi arnavi5 favw fava prototest pg rds
+all: $(PROJECT) galileo satlite wialonips gps103 soap egts arnavi arnavi5 favw fava tqgprs prototest pg rds
 
 clean:
 	rm -f *.o

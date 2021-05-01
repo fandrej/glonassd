@@ -27,6 +27,7 @@ typedef struct {
     char name[STRLEN];		// name of the forwarder
     char server[STRLEN];	// IP or DNS-name of the servfer to
     char app[STRLEN];		// hight-level protocol of the messages
+    int debug;              // debug messages enable
     void *library_handle;	// handle to shared library of protocol encode/decode
     void (*terminal_decode)(char*, int, ST_ANSWER*, void*);        // pointer to decode terminal message function
     int (*terminal_encode)(ST_RECORD*, int, char*, int);    // pointer to encode terminal message function

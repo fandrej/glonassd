@@ -265,10 +265,10 @@ void *worker_thread(void *st_worker)
 			}
 
 			// log, if required
-			if( stConfigServer.log_enable > 1 ) {
+			if( stConfigServer.log_enable > 1 && config->listener->log_all ) {
 				if( config->imei[0] )   // imei exists
 					logging("%s[%d:%ld]: %s shutdown\n", config->listener->name, config->listener->port, syscall(SYS_gettid), config->imei);
-				else if( config->listener->log_all )
+				else
 					logging("%s[%d:%ld]: shutdown\n", config->listener->name, config->listener->port, syscall(SYS_gettid));
 			}	// if( stConfigServer.log_enable )
 

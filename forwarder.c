@@ -101,12 +101,11 @@ static int terimal_logged(char *imei, char *forward_name)
 
 /*
     save forwarding data to file (!!! data encoded to required protocol !!!)
-    config_name - name of the forwarder
+    config - config of the forwarder
     imei - IMEI saved terminal
-    content - encoded data
     content_size - size of data
 */
-static int data_save(char *config_name, char *imei, char *content, ssize_t content_size)
+static int data_save(ST_FORWARDER *config, char *imei, ssize_t content_size)
 {
 	int fHandle;
 	time_t t;
@@ -114,11 +113,11 @@ static int data_save(char *config_name, char *imei, char *content, ssize_t conte
 	ST_FORWARD_MSG msg;
     int cnt_files = 0;
 
-	if( content && content_size ) {
+	if( config->buffers[OUT_WRBUF] && content_size ) {
 		time(&t);
 		snprintf(fName, FILENAME_MAX, "%.4040s/%.20s_%llu.bin",
 				 stConfigServer.forward_files,
-				 config_name,
+				 config->name,
 				 (unsigned long long)t);
 
 		if( (fHandle = open(fName, O_CREAT | O_WRONLY | O_NOATIME | O_TRUNC, S_IRWXU | S_IRGRP | S_IROTH)) != -1 ) {
@@ -131,22 +130,22 @@ static int data_save(char *config_name, char *imei, char *content, ssize_t conte
 			// write header
 			if( !write(fHandle, &msg, sizeof(ST_FORWARD_MSG)) ) {}
 			// write data
-			if( !write(fHandle, content, content_size) ){}
+			if( !write(fHandle, config->buffers[OUT_WRBUF], content_size) ){}
             else {
                 ++cnt_files;
             }
 
 			close(fHandle);
 
-			if( stConfigServer.log_enable > 1 )
-				logging("forwarder[%s][%ld]: data_save: written %ld bytes to file\n", config_name, syscall(SYS_gettid), content_size);
+			if( config->debug )
+				logging("forwarder[%s][%ld]: data_save: written %ld bytes to file\n", config->name, syscall(SYS_gettid), content_size);
 		}
-		else if( stConfigServer.log_enable )
-			logging("forwarder[%s][%ld]: data_save: open(%s) error %d: %s\n", config_name, syscall(SYS_gettid), fName, errno, strerror(errno));
+		else if( stConfigServer.log_enable && config->debug )
+			logging("forwarder[%s][%ld]: data_save: open(%s) error %d: %s\n", config->name, syscall(SYS_gettid), fName, errno, strerror(errno));
 
-	}	// if( content && content_size )
-	else if( stConfigServer.log_enable > 1 )
-		logging("forwarder[%s][%ld]: data_save: content is NULL or content_size=%ld\n", config_name, syscall(SYS_gettid), content_size);
+	}	// if( config->buffers[OUT_WRBUF] && content_size )
+	else if( config->debug )
+		logging("forwarder[%s][%ld]: data_save: config->buffers[OUT_WRBUF] is NULL or content_size=%ld\n", config->name, syscall(SYS_gettid), content_size);
 
     return cnt_files;
 }
@@ -161,7 +160,7 @@ static int set_out_socket(ST_FORWARDER *config, int create)
 	disconnect_time = seconds();
 
 	if( create ) {	// create socket
-		if( stConfigServer.log_enable > 1 )
+		if( config->debug )
 			logging("forwarder[%s][%ld]: start connect to remote host %s:%d\n", config->name, syscall(SYS_gettid), config->server, config->port);
 
 		if( config->sockets[OUT_SOCKET] == BAD_OBJ ) {
@@ -258,20 +257,20 @@ static void process_terminal(ST_FORWARDER *config, char *bufer, ssize_t size)
 	char l2fname[FILENAME_MAX];		// terminal log file name
 
 	if( !bufer ){
-		if( stConfigServer.log_enable > 1 )
+		if( config->debug )
 			logging("forwarder[%s][%ld]: process_terminal %s: bufer is NULL\n", config->name, syscall(SYS_gettid), msg->imei);
 		return;
 	}
 
 	if( !size ){
-		if( stConfigServer.log_enable > 1 )
+		if( config->debug )
 			logging("forwarder[%s][%ld]: process_terminal %s: size = 0\n", config->name, syscall(SYS_gettid), msg->imei);
 		return;
 	}
 
 	msg = (ST_FORWARD_MSG *)bufer;
 	if( !msg->len ){
-		if( stConfigServer.log_enable > 1 )
+		if( config->debug )
 			logging("forwarder[%s][%ld]: process_terminal %s: msg->len = 0\n", config->name, syscall(SYS_gettid), msg->imei);
 		return;
 	}
@@ -318,16 +317,16 @@ static void process_terminal(ST_FORWARDER *config, char *bufer, ssize_t size)
 					}	// if( !strcmp(stConfigServer.log_imei, msg->imei) )
 				}	// if( stConfigServer.log_imei[0]
 
-				if( stConfigServer.log_enable > 1 )
+				if( config->debug )
 					logging("forwarder[%s][%ld]: process_terminal %s: sended %ld bytes to remote server\n", config->name, syscall(SYS_gettid), msg->imei, sended);
 			}	// else if( sended <= 0 )
 		}	// if( out_connected )
 
 		if( sended <= 0 )	// save buffer to file for send later
-			files_saved += data_save(config->name, msg->imei, config->buffers[OUT_WRBUF], data_len);
+			files_saved += data_save(config, msg->imei, data_len);
 
 	}	// if( data_len )
-	else if( stConfigServer.log_enable > 1 )
+	else if( config->debug )
 		logging("forwarder[%s][%ld]: process_terminal %s: data_len=%ld\n", config->name, syscall(SYS_gettid), msg->imei, data_len);
 }
 //------------------------------------------------------------------------------
@@ -482,7 +481,7 @@ void *forwarder_thread(void *st_forwarder)
 
 		case 0:	// timeout
 
-			if( stConfigServer.log_enable > 1 ){
+			if( config->debug ){
 				logging("forwarder[%s][%ld]: read and send saved parcels\n", config->name, syscall(SYS_gettid));
 				logging("forwarder[%s][%ld]: data_dir: %s\n", config->name, syscall(SYS_gettid), stConfigServer.forward_files);
             }
@@ -502,7 +501,7 @@ void *forwarder_thread(void *st_forwarder)
 						// generate full file name
 						snprintf(fName, FILENAME_MAX, "%.4040s/%.40s", stConfigServer.forward_files, result->d_name);
 
-            			if( stConfigServer.log_enable > 1 ){
+            			if( config->debug ){
             				logging("forwarder[%s][%ld]: read file %s\n", config->name, syscall(SYS_gettid), result->d_name);
                         }
 
@@ -512,16 +511,16 @@ void *forwarder_thread(void *st_forwarder)
 							bytes_read = read(fHandle, config->buffers[IN_RDBUF], SOCKET_BUF_SIZE);
 							if( bytes_read > 0 )
 								process_terminal(config, config->buffers[IN_RDBUF], bytes_read);
-    						else if( stConfigServer.log_enable > 1 )
+    						else if( config->debug )
     							logging("forwarder[%s][%ld]: file is empty\n", config->name, syscall(SYS_gettid));
 
 							close(fHandle);
 
-							if( stConfigServer.log_enable > 1 ){
+							if( config->debug ){
 								logging("forwarder[%s][%ld]: send saved file %s\n", config->name, syscall(SYS_gettid), result->d_name);
                             }
 						}	// if( (fHandle = open(fName
-						else if( stConfigServer.log_enable > 1 )
+						else if( config->debug )
 							logging("forwarder[%s][%ld]: read file %s error: %d: %s\n", config->name, syscall(SYS_gettid), result->d_name, errno, strerror(errno));
 
 						// delete file
@@ -537,15 +536,15 @@ void *forwarder_thread(void *st_forwarder)
                 else
                     files_saved = 0;
 
-                if( stConfigServer.log_enable > 1 ){
+                if( config->debug ){
                     logging("forwarder[%s][%ld]: %d files processed\n", config->name, syscall(SYS_gettid), i);
                 }
 
 			}	// if( out_connected && config->data_dir )
-			else if( !config->data_dir && stConfigServer.log_enable > 1 ){
+			else if( !config->data_dir && config->debug ){
 				logging("forwarder[%s][%ld]: directory '%s' is bad\n", config->name, syscall(SYS_gettid), stConfigServer.forward_files);
 			}	// else if( data_dir )
-            else if( !out_connected && stConfigServer.log_enable > 1 ){
+            else if( !out_connected && config->debug ){
 				logging("forwarder[%s][%ld]: not connected to %s:%s\n", config->name, syscall(SYS_gettid), config->server, config->port);
             }
 

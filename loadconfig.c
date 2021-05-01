@@ -255,11 +255,12 @@ int set_config(char *section, char *param, char *value)
 				i = stForwarders.count - 1;
 				memset(&stForwarders.forwarder[i], 0, sizeof(ST_FORWARDER));
 				snprintf(stForwarders.forwarder[i].name, STRLEN, "%s", param);
-				sscanf(value, "%15[^,],%5d,%1d,%15s",
+				sscanf(value, "%15[^,],%5d,%1d,%15[^,],%d",
 						 stForwarders.forwarder[i].server,
 						 &stForwarders.forwarder[i].port,
 						 &stForwarders.forwarder[i].protocol,
-						 stForwarders.forwarder[i].app);
+						 stForwarders.forwarder[i].app,
+                         &stForwarders.forwarder[i].debug);
 				if(stForwarders.forwarder[i].protocol == 0)
 					stForwarders.forwarder[i].protocol = SOCK_STREAM;
 				else
