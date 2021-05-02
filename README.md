@@ -9,7 +9,7 @@ Written in C, сompiled with gcc 6.3.0 for x86_64-linux-gnu.
 
 ### Tracker protocols
 **Receiving:** Arnavi-4/5, Galileo (all versions), GPS101-GPS103, SAT-LITE / SAT-LITE2, Wialon IPS, Wialon NIS (SOAP / Olympstroy), EGTS (ERA-GLONASS), TQ GPRS (H02).<br>
-**Sending (forwarding):** all receiving without reencode or reencode to Wialon NIS or EGTS.<br>
+**Sending (forwarding):** all receiving without reencode or reencode to EGTS, Wialon NIS, WialonIPS, Galileo.<br>
 Protocols can be added using plug libraries.
 
 ### Database
@@ -83,6 +83,7 @@ This daemon is part of navigation service of [locman.org](http://locman.org/map/
 * Redis database added
 
 01.05.2021<br>
-* Added TQ GPRS (H02) protocol
-* Added WialonIPS retranslator protocol
+* Added TQ GPRS (H02) receiver protocol (SinoTrack ST-901 device)
+* Added WialonIPS retranslation protocol
+* Added Galileo retranslation protocol
 * Small fixes
