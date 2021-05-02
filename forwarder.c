@@ -415,7 +415,7 @@ void *forwarder_thread(void *st_forwarder)
 	static __thread ST_ANSWER answer;
 	static __thread int i, fHandle, so_error;
 	static __thread socklen_t so_error_len = sizeof(int);
-	static __thread ssize_t bytes_read = 0;
+	static __thread ssize_t tmp, bytes_read = 0;
 	static __thread char fName[FILENAME_MAX];
 	static __thread struct dirent *result;
 
@@ -595,8 +595,13 @@ void *forwarder_thread(void *st_forwarder)
 					// receive data
 					memset(config->buffers[OUT_RDBUF], 0, SOCKET_BUF_SIZE);
 
-					bytes_read = recv(config->sockets[OUT_SOCKET], config->buffers[OUT_RDBUF], SOCKET_BUF_SIZE, 0);
-					if( bytes_read > 0 ) { // data
+					bytes_read = 0;
+                    while( bytes_read < SOCKET_BUF_SIZE && (tmp = recv(config->sockets[OUT_SOCKET], &config->buffers[OUT_RDBUF][bytes_read], SOCKET_BUF_SIZE-bytes_read, 0)) > 0 ){
+                        bytes_read += tmp;
+                        usleep(25000);
+                    }
+
+                    if( bytes_read > 0 ) { // data
 
 						// decode server answer
 						if( config->terminal_decode ) {
