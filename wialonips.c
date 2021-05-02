@@ -9,7 +9,6 @@
    make -B wialonips
 */
 
-#include <stdlib.h> /* malloc */
 #include <string.h> /* memset */
 #include <errno.h>  /* errno */
 #include "glonassd.h"
