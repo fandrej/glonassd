@@ -137,15 +137,18 @@ static int data_save(ST_FORWARDER *config, char *imei, ssize_t content_size)
 
 			close(fHandle);
 
-			if( config->debug )
+			if( config->debug ) {
 				logging("forwarder[%s][%ld]: data_save: written %ld bytes to file\n", config->name, syscall(SYS_gettid), content_size);
+            }
 		}
-		else if( stConfigServer.log_enable && config->debug )
+		else if( stConfigServer.log_enable && config->debug ) {
 			logging("forwarder[%s][%ld]: data_save: open(%s) error %d: %s\n", config->name, syscall(SYS_gettid), fName, errno, strerror(errno));
+        }
 
 	}	// if( config->buffers[OUT_WRBUF] && content_size )
-	else if( config->debug )
+	else if( config->debug ) {
 		logging("forwarder[%s][%ld]: data_save: config->buffers[OUT_WRBUF] is NULL or content_size=%ld\n", config->name, syscall(SYS_gettid), content_size);
+    }
 
     return cnt_files;
 }
@@ -160,8 +163,9 @@ static int set_out_socket(ST_FORWARDER *config, int create)
 	disconnect_time = seconds();
 
 	if( create ) {	// create socket
-		if( config->debug )
+		if( config->debug ) {
 			logging("forwarder[%s][%ld]: start connect to remote host %s:%d\n", config->name, syscall(SYS_gettid), config->server, config->port);
+        }
 
 		if( config->sockets[OUT_SOCKET] == BAD_OBJ ) {
 			config->sockets[OUT_SOCKET] = socket(AF_INET, config->protocol, 0);
@@ -257,21 +261,24 @@ static void process_terminal(ST_FORWARDER *config, char *bufer, ssize_t size)
 	char l2fname[FILENAME_MAX];		// terminal log file name
 
 	if( !bufer ){
-		if( config->debug )
+		if( config->debug ) {
 			logging("forwarder[%s][%ld]: process_terminal %s: bufer is NULL\n", config->name, syscall(SYS_gettid), msg->imei);
+        }
 		return;
 	}
 
 	if( !size ){
-		if( config->debug )
+		if( config->debug ) {
 			logging("forwarder[%s][%ld]: process_terminal %s: size = 0\n", config->name, syscall(SYS_gettid), msg->imei);
+        }
 		return;
 	}
 
 	msg = (ST_FORWARD_MSG *)bufer;
 	if( !msg->len ){
-		if( config->debug )
+		if( config->debug ) {
 			logging("forwarder[%s][%ld]: process_terminal %s: msg->len = 0\n", config->name, syscall(SYS_gettid), msg->imei);
+        }
 		return;
 	}
 
@@ -317,8 +324,9 @@ static void process_terminal(ST_FORWARDER *config, char *bufer, ssize_t size)
 					}	// if( !strcmp(stConfigServer.log_imei, msg->imei) )
 				}	// if( stConfigServer.log_imei[0]
 
-				if( config->debug )
+				if( config->debug ) {
 					logging("forwarder[%s][%ld]: process_terminal %s: sended %ld bytes to remote server\n", config->name, syscall(SYS_gettid), msg->imei, sended);
+                }
 			}	// else if( sended <= 0 )
 		}	// if( out_connected )
 
@@ -326,8 +334,9 @@ static void process_terminal(ST_FORWARDER *config, char *bufer, ssize_t size)
 			files_saved += data_save(config, msg->imei, data_len);
 
 	}	// if( data_len )
-	else if( config->debug )
+	else if( config->debug ) {
 		logging("forwarder[%s][%ld]: process_terminal %s: data_len=%ld\n", config->name, syscall(SYS_gettid), msg->imei, data_len);
+    }
 }
 //------------------------------------------------------------------------------
 
@@ -481,11 +490,6 @@ void *forwarder_thread(void *st_forwarder)
 
 		case 0:	// timeout
 
-			if( config->debug ){
-				logging("forwarder[%s][%ld]: read and send saved parcels\n", config->name, syscall(SYS_gettid));
-				logging("forwarder[%s][%ld]: data_dir: %s\n", config->name, syscall(SYS_gettid), stConfigServer.forward_files);
-            }
-
 			/* read saved parcels and send to destination */
 			if( files_saved && out_connected && config->data_dir ) {
 				rewinddir(config->data_dir);	// resets the position of the directory stream to the beginning of the directory
@@ -501,18 +505,24 @@ void *forwarder_thread(void *st_forwarder)
 						// generate full file name
 						snprintf(fName, FILENAME_MAX, "%.4040s/%.40s", stConfigServer.forward_files, result->d_name);
 
-            			if( config->debug ){
+                        /*
+                        if( config->debug ){
             				logging("forwarder[%s][%ld]: read file %s\n", config->name, syscall(SYS_gettid), result->d_name);
                         }
+                        */
 
 						// open file for read
 						if( (fHandle = open(fName, O_RDONLY | O_NOATIME)) != -1 ) {
 
 							bytes_read = read(fHandle, config->buffers[IN_RDBUF], SOCKET_BUF_SIZE);
-							if( bytes_read > 0 )
+							if( bytes_read > 0 ) {
 								process_terminal(config, config->buffers[IN_RDBUF], bytes_read);
-    						else if( config->debug )
+                            }
+                            /*
+    						else if( config->debug ) {
     							logging("forwarder[%s][%ld]: file is empty\n", config->name, syscall(SYS_gettid));
+                            }
+                            */
 
 							close(fHandle);
 
@@ -520,8 +530,9 @@ void *forwarder_thread(void *st_forwarder)
 								logging("forwarder[%s][%ld]: send saved file %s\n", config->name, syscall(SYS_gettid), result->d_name);
                             }
 						}	// if( (fHandle = open(fName
-						else if( config->debug )
+						else if( config->debug ) {
 							logging("forwarder[%s][%ld]: read file %s error: %d: %s\n", config->name, syscall(SYS_gettid), result->d_name, errno, strerror(errno));
+                        }
 
 						// delete file
 						unlink(fName);
@@ -545,7 +556,7 @@ void *forwarder_thread(void *st_forwarder)
 				logging("forwarder[%s][%ld]: directory '%s' is bad\n", config->name, syscall(SYS_gettid), stConfigServer.forward_files);
 			}	// else if( data_dir )
             else if( !out_connected && config->debug ){
-				logging("forwarder[%s][%ld]: not connected to %s:%s\n", config->name, syscall(SYS_gettid), config->server, config->port);
+				logging("forwarder[%s][%ld]: not connected to %s:%d\n", config->name, syscall(SYS_gettid), config->server, config->port);
             }
 
 			break;
@@ -559,8 +570,9 @@ void *forwarder_thread(void *st_forwarder)
 				if( !getsockopt(config->sockets[OUT_SOCKET], SOL_SOCKET, SO_ERROR, &so_error, &so_error_len) )
 					out_connected = !so_error;
 
-				if( out_connected )
+				if( out_connected ) {
 					logging("forwarder[%s][%ld]: remote host %s:%d connected\n", config->name, syscall(SYS_gettid), config->server, config->port);
+                }
 				else {
 					switch(so_error){
 					case 0:		// Sucess
