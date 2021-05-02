@@ -409,8 +409,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 */
 int terminal_encode(ST_RECORD *records, int reccount, char *buffer, int bufsize)
 {
-	int i, head = 0, top = 0;
-    unsigned short crc = 0;
+	int i, top = 0;
 	struct tm tm_data;
 	time_t ulliTmp;
 
@@ -423,14 +422,13 @@ int terminal_encode(ST_RECORD *records, int reccount, char *buffer, int bufsize)
 	memset(buffer, 0, bufsize);
 
     // login
-    top = sprintf(buffer, "#L#%s;N/A;", records[0].imei);
-    crc = CRC16((unsigned char *)buffer, top);
-    top += snprintf(&buffer[top], bufsize - top, "%u\r\n", crc);
-    head = top;
-    top += snprintf(&buffer[top], bufsize - top, "#B#");
+    top = sprintf(buffer, "#L#%s;NA\r\n#B#", records[0].imei);
 
     // #B#date;time;lat1;lat2;lon1;lon2;speed;course;height;sats;crc16\r\n
 	for(i = 0; i < reccount; i++) {
+
+        if( i )
+            top += snprintf(&buffer[top], bufsize - top, "|");
 
 		// get local time from terminal record
 		ulliTmp = records[i].data + records[i].time;
@@ -440,7 +438,7 @@ int terminal_encode(ST_RECORD *records, int reccount, char *buffer, int bufsize)
 
         top += snprintf(&buffer[top], bufsize - top,
             //     DDMMYY        HHMMSS   5544.6025
-            "%02d%02d%02d;%02d%02d%02d;%04.4f;%c;%05.4f;%c;%d;%u;%d;%u|",
+            "%02d%02d%02d;%02d%02d%02d;%04.4f;%c;%05.4f;%c;%d;%u;NA;NA",
             tm_data.tm_mday,
             tm_data.tm_mon + 1,
             tm_data.tm_year + 1900 - 2000,
@@ -452,18 +450,15 @@ int terminal_encode(ST_RECORD *records, int reccount, char *buffer, int bufsize)
             records[i].lon * 100.0,
             records[i].clon,
             (int)records[i].speed,
-            records[i].curs,
-            records[i].height,
-            records[i].satellites
+            records[i].curs
         );
 
 		if( bufsize - top < 100 )
             break;
     }   // for(i = 0; i < reccount; i++)
 
-    if( head && top - head > 0 ) {
-        crc = CRC16((unsigned char *)&buffer[head], top - head);
-    	top += snprintf(&buffer[top], bufsize - top, "%u\r\n", crc);
+    if( top ) {
+    	top += snprintf(&buffer[top], bufsize - top, "\r\n");
     }
 
     //log2file("/opt/glonassd/logs/aaa.txt", buffer, top);
