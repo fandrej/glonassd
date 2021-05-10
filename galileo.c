@@ -770,8 +770,6 @@ int terminal_encode(ST_RECORD *records, int reccount, char *buffer, int bufsize)
             break;
     }   // for(i = 0; i < reccount; i++)
 
-    //log2file("/opt/glonassd/logs/aaa.txt", buffer, top);
-
 	return top;
 }
 //------------------------------------------------------------------------------

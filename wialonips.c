@@ -460,8 +460,6 @@ int terminal_encode(ST_RECORD *records, int reccount, char *buffer, int bufsize)
     	top += snprintf(&buffer[top], bufsize - top, "\r\n");
     }
 
-    //log2file("/opt/glonassd/logs/aaa.txt", buffer, top);
-
 	return top;
 }
 //------------------------------------------------------------------------------

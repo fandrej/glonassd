@@ -108,6 +108,8 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 			record->valid = (cValid == 'A') && record->lon > 0.0 && record->lat > 0.0;
 
 			rec_ok++;
+
+            memcpy(&answer->lastpoint, record, sizeof(ST_RECORD));
 		}	// if(iTemp == 13 || iTemp == 18)
 
 		cPart = strtok(NULL, "*");
