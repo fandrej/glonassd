@@ -375,10 +375,13 @@ void *worker_thread(void *st_worker)
         }
 
         if( bytes_read <= 0 ) {    // socket read error or terminal disconnect
+
             if( stConfigServer.log_enable > 1 && config->listener->log_all )
-                logging("%s[%d:%ld]: bytes_read (%zu) <= 0\n", config->listener->name, config->listener->port, syscall(SYS_gettid), config->imei, bytes_read);
+                logging("%s[%d:%ld]: bytes_read (%zu) <= 0\n", config->listener->name, config->listener->port, syscall(SYS_gettid), bytes_read);
+
             exit_worker(config);
             return NULL;
+
         }
 
         if( stConfigServer.log_enable > 1 && config->listener->log_all )
