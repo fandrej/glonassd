@@ -312,6 +312,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 					memset(&tm_data, 0, sizeof(struct tm));
 					sscanf(cDate, "%2d%2d%2d", &tm_data.tm_mday, &tm_data.tm_mon, &tm_data.tm_year);
 					tm_data.tm_mon--;	// http://www.cplusplus.com/reference/ctime/tm/
+    				tm_data.tm_year += 100;
 					sscanf(cTime, "%2d%2d%2d", &tm_data.tm_hour, &tm_data.tm_min, &tm_data.tm_sec);
 
 					ulliTmp = timegm(&tm_data) + GMT_diff;	// UTC struct->local simple
