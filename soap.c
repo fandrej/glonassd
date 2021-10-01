@@ -35,14 +35,25 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 	// 1460 байт максимальный размер полезных данных стандартного TCP пакета без фрагментации
 	iBufSize = 1460 - 178 - 1;	// нулевой байт в конце
 
+    //char debugbuf[4096];
+
 	if( !parcel || !parcel_size || !answer )
 		return;
 
 	memset(cAswerBuf, 0, iBufSize);
 
+    //sprintf(debugbuf, "%s\n\n", parcel);
+	//log2file("/opt/glonassd/soap", debugbuf, strlen(debugbuf));
+    if( worker && worker->listener->log_all ) {
+        logging("terminal_decode[%s:%d]: parcel: \n%s\n", worker->listener->name, worker->listener->port, parcel);
+    }
+
 	rec_ok = 1;
 	cRec = strtok(parcel, "\r\n");
 	while( cRec ) {
+
+        //sprintf(debugbuf, "cRec=%s\n", cRec);
+    	//log2file("/opt/glonassd/soap", debugbuf, strlen(debugbuf));
 
 		// <ObjectID>01326273</ObjectID>
 		if( strstr(cRec, "<ObjectID>") ) {
@@ -58,10 +69,20 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 			snprintf(record->soft, SIZE_TRACKER_FIELD, "%f", 1.6);
 
 			rec_ok = sscanf(cRec, "<ObjectID>%15[^<]</ObjectID>", record->imei);
+
+            //sprintf(debugbuf, "record->imei=%s\n", record->imei);
+        	//log2file("/opt/glonassd/soap", debugbuf, strlen(debugbuf));
+            if( worker && worker->listener->log_all ) {
+                logging("terminal_decode[%s:%d]: record->imei: %s\n", worker->listener->name, worker->listener->port, record->imei);
+            }
 		}	// <ObjectID>
 
 		// <Coord time="2015-12-25T04:31:40Z" lon="65.222512" lat="55.403608" alt="0" speed="0.0" dir="0" valid="1" />
 		if( rec_ok && strstr(cRec, "<Coord time") ) {
+
+            if( worker && worker->listener->log_all ) {
+                logging("terminal_decode[%s:%d]: %s\n", worker->listener->name, worker->listener->port, cRec);
+            }
 
 			//               1    2 3   4  5  6           7                8           9         10       11        12
 			// <Coord time="2015-12-25T04:31:40Z" lon="65.222512" lat="55.403608" alt="0" speed="0.0" dir="0" valid="1" />
@@ -82,6 +103,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 							  );
 
 			rec_ok = (iTemp == 12);
+
 			if( rec_ok ) {
 				// переводим время GMT в местное
 				// http://www.cplusplus.com/reference/ctime/tm/
@@ -101,13 +123,14 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 				record->clon = 'E';
 				record->clat = 'N';
 
+                //sprintf(debugbuf, "write to cAswerBuf\n");
+                //log2file("/opt/glonassd/soap", debugbuf, strlen(debugbuf));
 				if( iBufSize - strlen(cAswerBuf) > 281 ) {
 					answer->size += snprintf(&cAswerBuf[answer->size], iBufSize - answer->size,
 													 "<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n<soapenv:Envelope xmlns:env=\"http://schemas.xmlsoap.org/soap/envelope\">\n<soapenv:Header/>\n<soapenv:Body>\n<ws:PutCoordResponce>\n<ObjectID>%s</ObjectID>\n</ws:PutCoordResponce>\n</soapenv:Body>\n</soapenv:Envelope>\n",
 													 record->imei);
 				}
 			}	// if( rec_ok )
-
 		}	// <Coord time
 
 		// <DigI inpnum="6" />
@@ -128,7 +151,13 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 	gmtime_r(&ulliTmp, &tm_data);
 	strftime(cTime, 24, "%a, %d %b %Y %H:%M:%S", &tm_data);
 
-	snprintf(answer->answer, 1460,
+    //sprintf(debugbuf, "cAswerBuf(%d)=%s\n", (int)strlen(cAswerBuf), cAswerBuf);
+    //log2file("/opt/glonassd/soap", debugbuf, strlen(debugbuf));
+
+    //sprintf(debugbuf, "write cAswerBuf to answer->answer\n");
+    //log2file("/opt/glonassd/soap", debugbuf, strlen(debugbuf));
+
+	snprintf(answer->answer, SOCKET_BUF_SIZE,
 				"HTTP/1.1 200 OK\r\nServer: glonassd/1.0\r\nContent-Type: text/xml;charset=UTF-8\r\nConnection: keep-alive\r\nContent-Length: %d\r\nDate: %s GMT\r\n\r\n%s",
 				(int)strlen(cAswerBuf),
 				cTime,
@@ -139,6 +168,13 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 		memcpy(&answer->lastpoint, record, sizeof(ST_RECORD));
 	}	// if( answer->count )
 
+    //sprintf(debugbuf, "answer->count=%d\nanswer(%d): %s\nend\n\n", answer->count, answer->size, answer->answer);
+    //log2file("/opt/glonassd/soap", debugbuf, strlen(debugbuf));
+    if( worker && worker->listener->log_all ) {
+        logging("terminal_decode[%s:%d]: decoded %d records\n", worker->listener->name, worker->listener->port, answer->count);
+        logging("terminal_decode[%s:%d]: answer(%d): \n%s\n", worker->listener->name, worker->listener->port, answer->size, answer->answer);
+        logging("terminal_decode[%s:%d]: end\n", worker->listener->name, worker->listener->port);
+    }
 }   // terminal_decode
 //------------------------------------------------------------------------------
 
