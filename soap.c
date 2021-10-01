@@ -40,6 +40,10 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 
 	memset(cAswerBuf, 0, iBufSize);
 
+    if( worker && worker->listener->log_all ) {
+        logging("terminal_decode[%s:%d]: parcel: \n%s\n", worker->listener->name, worker->listener->port, parcel);
+    }
+
 	rec_ok = 1;
 	cRec = strtok(parcel, "\r\n");
 	while( cRec ) {
@@ -58,10 +62,17 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 			snprintf(record->soft, SIZE_TRACKER_FIELD, "%f", 1.6);
 
 			rec_ok = sscanf(cRec, "<ObjectID>%15[^<]</ObjectID>", record->imei);
+            if( worker && worker->listener->log_all ) {
+                logging("terminal_decode[%s:%d]: record->imei: %s\n", worker->listener->name, worker->listener->port, record->imei);
+            }
 		}	// <ObjectID>
 
 		// <Coord time="2015-12-25T04:31:40Z" lon="65.222512" lat="55.403608" alt="0" speed="0.0" dir="0" valid="1" />
 		if( rec_ok && strstr(cRec, "<Coord time") ) {
+
+            if( worker && worker->listener->log_all ) {
+                logging("terminal_decode[%s:%d]: %s\n", worker->listener->name, worker->listener->port, cRec);
+            }
 
 			//               1    2 3   4  5  6           7                8           9         10       11        12
 			// <Coord time="2015-12-25T04:31:40Z" lon="65.222512" lat="55.403608" alt="0" speed="0.0" dir="0" valid="1" />
@@ -128,7 +139,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 	gmtime_r(&ulliTmp, &tm_data);
 	strftime(cTime, 24, "%a, %d %b %Y %H:%M:%S", &tm_data);
 
-	snprintf(answer->answer, 1460,
+	snprintf(answer->answer, SOCKET_BUF_SIZE,
 				"HTTP/1.1 200 OK\r\nServer: glonassd/1.0\r\nContent-Type: text/xml;charset=UTF-8\r\nConnection: keep-alive\r\nContent-Length: %d\r\nDate: %s GMT\r\n\r\n%s",
 				(int)strlen(cAswerBuf),
 				cTime,
@@ -139,6 +150,11 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 		memcpy(&answer->lastpoint, record, sizeof(ST_RECORD));
 	}	// if( answer->count )
 
+    if( worker && worker->listener->log_all ) {
+        logging("terminal_decode[%s:%d]: decoded %d records\n", worker->listener->name, worker->listener->port, answer->count);
+        logging("terminal_decode[%s:%d]: answer(%d): \n%s\n", worker->listener->name, worker->listener->port, answer->size, answer->answer);
+        logging("terminal_decode[%s:%d]: end\n", worker->listener->name, worker->listener->port);
+    }
 }   // terminal_decode
 //------------------------------------------------------------------------------
 
