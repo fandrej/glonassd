@@ -15,6 +15,7 @@ Protocols can be added using plug libraries.
 ### Database
 PostgreSQL<br>
 Redis<br>
+Oracle<br>
 Databases can be added using plug libraries.
 
 ### Features
@@ -23,14 +24,16 @@ Databases can be added using plug libraries.
 * Storing data at the time of connection failure with the remote server and sending the stored data after the restoration of communication.
 * The maximum number of relay servers: 3 for each terminal.
 * Perform scheduled tasks (maximum 5 timers).
-* Easy configuration using .conf files
+* Easy configuration using two .conf files (Examples: [glonassd.conf](https://github.com/fandrej/glonassd/wiki/glonassd.conf), [forward.conf](https://github.com/fandrej/glonassd/wiki/forward.conf))
 * Extensibility through plug libraries without recompilation daemon.
 
 ### Compilation
 **make all** for compile daemon + database library + terminals libraries<br>
 **make glonassd** for compile daemon only<br>
 **make pg** for compile database (PostgreSQL) library<br>
-**make name** for compile terminal **name** library
+**make name** for compile terminal **name** library<br>
+
+[Additional information about threed party libraries](https://github.com/fandrej/glonassd/wiki/Compilation)
 
 ### Installation
 Create folder for daemon an copy in it files **glonassd, *.so, *.sql**, or use folder where project compiled.<br>
