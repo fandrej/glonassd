@@ -26,6 +26,7 @@ Databases can be added using plug libraries.
 * Perform scheduled tasks (maximum 5 timers).
 * Easy configuration using two .conf files (Examples: [glonassd.conf](https://github.com/fandrej/glonassd/wiki/glonassd.conf), [forward.conf](https://github.com/fandrej/glonassd/wiki/forward.conf))
 * Extensibility through plug libraries without recompilation daemon.
+* Run in daemon or simple application mode
 
 ### Compilation
 **make all** for compile daemon + database library + terminals libraries<br>
@@ -90,3 +91,8 @@ This daemon is part of navigation service of [locman.org](http://locman.org/map/
 * Added WialonIPS retranslation protocol
 * Added Galileo retranslation protocol
 * Small fixes
+
+
+13.11.2021<br>
+* Added library for working with Oracle database
+* Improved logs in databases libraries
