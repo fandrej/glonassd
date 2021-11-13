@@ -108,9 +108,14 @@ rds: rds.c glonassd.h de.h logger.h
 	$(CC) -shared -o rds.so rds.o -lhiredis
 	rm rds.o
 
+# shared library for database ORACLE
+oracle: oracle.c glonassd.h de.h logger.h
+	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) $(INCLUDE) -I/usr/local/include oracle.c $(LIBS) -o oracle.o -lodpic
+	$(CC) -shared -o oracle.so oracle.o -lodpic
+	rm oracle.o
 
 # all
-all: $(PROJECT) galileo satlite wialonips gps103 soap egts arnavi arnavi5 favw fava tqgprs prototest pg rds
+all: $(PROJECT) galileo satlite wialonips gps103 soap egts arnavi arnavi5 favw fava tqgprs prototest pg rds oracle
 
 clean:
 	rm -f *.o

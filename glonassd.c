@@ -832,7 +832,9 @@ int main(int argc, char* argv[])
             if( setup(stParams.config_path) && listeners_start() ) {
                 timers_start();
                 forwarders_start();
-            } else {
+            }
+            else {
+                graceful_stop = 1;
                 exit_code = EXIT_FAILURE;
                 break;
             }
