@@ -28,13 +28,13 @@
     help:
     Oracle Database Programming Interface for C (ODPI-C):
     https://oracle.github.io/odpi/
+    https://oracle.github.io/odpi/doc/index.html
     https://oracle.github.io/odpi/doc/installation.html#oracle-instant-client-zip-files
-
-    https://blogs.oracle.com/opal/post/odpi-c-a-light-weight-driver-for-oracle-database
-    https://oracle.github.io/odpi/doc/functions/dpiContext.html#c.dpiContext_createWithParams
 
     https://github.com/oracle/odpi/tree/main/samples
     https://github.com/oracle/odpi/blob/main/samples/DemoInsert.c
+
+    https://blogs.oracle.com/opal/post/odpi-c-a-light-weight-driver-for-oracle-database
 */
 
 #ifndef _GNU_SOURCE
@@ -73,12 +73,6 @@
 
 #define MAX_SQL_SIZE 4096
 
-// Locals
-static __thread dpiContext *gContext = NULL;
-// debug:
-static __thread ST_RECORD test_record;
-
-
 /*
    load_file:
    read file content
@@ -92,22 +86,22 @@ static int load_file(char *path, char *buf, size_t bufsize)
 
 	// check file exists
 	if( (fp = open(path, O_RDONLY)) == BAD_OBJ ) {
-		logging("database thread[%ld]: open(%s): error %d: %s\n", syscall(SYS_gettid), path, errno, strerror(errno));
+		logging("thread[%ld]: open(%s): error %d: %s\n", syscall(SYS_gettid), path, errno, strerror(errno));
 		return 0;
 	}
 
 	// check file size
 	size = lseek(fp, 0, SEEK_END);
 	if( size == -1L || lseek(fp, 0, SEEK_SET) ) {
-		logging("database thread[%ld]: lseek(SEEK_END) error %d: %s\n", syscall(SYS_gettid), errno, strerror(errno));
+		logging("thread[%ld]: lseek(SEEK_END) error %d: %s\n", syscall(SYS_gettid), errno, strerror(errno));
 		close(fp);
 		return 0;
 	} else if( size >= bufsize ) {
-		logging("database thread[%ld]: sql file size %d >= buffer size %d\n", syscall(SYS_gettid), size, bufsize);
+		logging("thread[%ld]: sql file size %d >= buffer size %d\n", syscall(SYS_gettid), size, bufsize);
 		close(fp);
 		return 0;
 	} else if( !size ) {
-		logging("database thread[%ld]: sql file size = %d, is file empty?\n", syscall(SYS_gettid), size);
+		logging("thread[%ld]: sql file size = %d, is file empty?\n", syscall(SYS_gettid), size);
 		close(fp);
 		return 0;
 	}
@@ -115,7 +109,7 @@ static int load_file(char *path, char *buf, size_t bufsize)
 	// read file content into buffer
 	memset(buf, 0, bufsize);
 	if( (readed = read(fp, buf, size)) != size ) {
-		logging("database thread[%ld]: read(%ld)=%ld error %d: %s\n", syscall(SYS_gettid), size, readed, errno, strerror(errno));
+		logging("thread[%ld]: read(%ld)=%ld error %d: %s\n", syscall(SYS_gettid), size, readed, errno, strerror(errno));
 		close(fp);
 		return 0;
 	}
@@ -126,7 +120,7 @@ static int load_file(char *path, char *buf, size_t bufsize)
 //------------------------------------------------------------------------------
 
 
-void db_log_error(const char *message)
+void db_log_error(dpiContext *gContext, const char *message)
 {
     dpiErrorInfo info;
     dpiContext_getError(gContext, &info);
@@ -138,6 +132,7 @@ void db_log_error(const char *message)
     }
 }
 
+
 /*
    db_connect:
    connection to / disconnection from database
@@ -146,7 +141,7 @@ void db_log_error(const char *message)
    connection - pointer to dpiConn
    return 1 if success or 0 if error
 */
-static int db_connect(int connect, dpiConn **connection)
+static int db_connect(int connect, dpiConn **connection, dpiContext **gContext)
 {
     dpiErrorInfo errorInfo;
 
@@ -154,27 +149,28 @@ static int db_connect(int connect, dpiConn **connection)
 
 		if( !*connection ) {
             // perform initialization
-            if ( !gContext ) {
+            if ( !*gContext ) {
                 // https://oracle.github.io/odpi/doc/functions/dpiContext.html#c.dpiContext_createWithParams
-                if (dpiContext_createWithParams(DPI_MAJOR_VERSION, DPI_MINOR_VERSION, NULL, &gContext, &errorInfo) < 0) {
-                    logging("database thread[%ld]: %s\n%s\n", syscall(SYS_gettid), errorInfo.message, "Cannot create DPI context.");
-                    dpiContext_destroy(gContext);
-                    gContext = NULL;
+                if (dpiContext_createWithParams(DPI_MAJOR_VERSION, DPI_MINOR_VERSION, NULL, gContext, &errorInfo) < 0) {
+                    logging("database thread[%ld]: %s: %s\n", syscall(SYS_gettid), "Cannot create DPI context.", errorInfo.message);
+                    dpiContext_destroy(*gContext);
+                    *gContext = NULL;
                 }
             }
 
             // create a standalone connection
-            if ( gContext ) {
+            if ( *gContext ) {
                 // https://oracle.github.io/odpi/doc/functions/dpiConn.html#c.dpiConn_create
-                if (dpiConn_create(gContext,
+                logging("database thread[%ld]: Attempt connect to %s\n", syscall(SYS_gettid), stConfigServer.db_name);
+                if (dpiConn_create(*gContext,
                                     stConfigServer.db_user, strlen(stConfigServer.db_user),
                                     stConfigServer.db_pass, strlen(stConfigServer.db_pass),
                                     stConfigServer.db_name, strlen(stConfigServer.db_name),
                                     NULL, NULL, connection) < 0)
                 {
-                    db_log_error("Unable to create connection");
-                    dpiContext_destroy(gContext);
-                    gContext = NULL;
+                    db_log_error(*gContext, "Unable to create connection");
+                    dpiContext_destroy(*gContext);
+                    *gContext = NULL;
                     connection = NULL;
                 }
             }   // if ( !gContext )
@@ -186,9 +182,9 @@ static int db_connect(int connect, dpiConn **connection)
 		if( *connection ) {
             dpiConn_release(*connection);
 			*connection = NULL;
-            if( gContext ){
-                dpiContext_destroy(gContext);
-                gContext = NULL;
+            if( *gContext ){
+                dpiContext_destroy(*gContext);
+                *gContext = NULL;
             }
 		}
 
@@ -206,7 +202,7 @@ static int db_connect(int connect, dpiConn **connection)
    msg - pointer to ST_RECORD structure
    return 1 if success or 0 if error
 */
-static int write_data_to_db(dpiConn *connection, char *msg, char *sql_insert_point)
+static int write_data_to_db(dpiConn *connection, dpiContext *gContext, char *msg, char *sql_insert_point)
 {
     struct tm tm_data;
     char tmp[SIZE_TRACKER_FIELD];
@@ -247,7 +243,7 @@ static int write_data_to_db(dpiConn *connection, char *msg, char *sql_insert_poi
     // prepare insert statement for execution
     if( !stmt ){
         if ( dpiConn_prepareStmt(connection, 0, sql_insert_point, strlen(sql_insert_point), NULL, 0, &stmt) < 0 ){
-            db_log_error("dpiConn_prepareStmt");
+            db_log_error(gContext, "dpiConn_prepareStmt");
     		return 0;
         }
     }
@@ -264,28 +260,28 @@ static int write_data_to_db(dpiConn *connection, char *msg, char *sql_insert_poi
                             tm_data.tm_hour, tm_data.tm_min, tm_data.tm_sec,
                             0, 0, 0);
     if (dpiStmt_bindValueByPos(stmt, 1, DPI_NATIVE_TYPE_TIMESTAMP, &intDDATA) < 0){
-        db_log_error(NULL);
+        db_log_error(gContext, "DDATA");
   		return 0;
     }
 
     // :2    NTIME
     dpiData_setInt64(&intNTIME, record->time);
     if (dpiStmt_bindValueByPos(stmt, 2, DPI_NATIVE_TYPE_INT64, &intNTIME) < 0){
-        db_log_error("aaa");
+        db_log_error(gContext, "NTIME");
   		return 0;
     }
 
     // :3   CID
     dpiData_setBytes(&strCID, record->imei, strlen(record->imei));
     if (dpiStmt_bindValueByPos(stmt, 3, DPI_NATIVE_TYPE_BYTES, &strCID) < 0){
-        db_log_error(NULL);
+        db_log_error(gContext, "CID");
   		return 0;
     }
 
     // :4    NNUM
     dpiData_setInt64(&intNNUM, record->recnum);
     if (dpiStmt_bindValueByPos(stmt, 4, DPI_NATIVE_TYPE_INT64, &intNNUM) < 0){
-        db_log_error(NULL);
+        db_log_error(gContext, "NNUM");
   		return 0;
     }
 
@@ -293,7 +289,7 @@ static int write_data_to_db(dpiConn *connection, char *msg, char *sql_insert_poi
     snprintf(tmp, 11, "%03.07lf", record->lat);
     dpiData_setBytes(&strCLATITUDE, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 5, DPI_NATIVE_TYPE_BYTES, &strCLATITUDE) < 0){
-        db_log_error(NULL);
+        db_log_error(gContext, "CLATITUDE");
   		return 0;
     }
 
@@ -301,42 +297,42 @@ static int write_data_to_db(dpiConn *connection, char *msg, char *sql_insert_poi
     snprintf(tmp, 2, "%c", record->clat);
     dpiData_setBytes(&strCNS, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 6, DPI_NATIVE_TYPE_BYTES, &strCNS) < 0){
-        db_log_error(NULL);
+        db_log_error(gContext, "CNS");
   		return 0;
     }
 
     snprintf(tmp, 11, "%03.07lf", record->lon);     // :7 10+1    CLONGTITUDE
     dpiData_setBytes(&strCLONGTITUDE, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 7, DPI_NATIVE_TYPE_BYTES, &strCLONGTITUDE) < 0){
-        db_log_error(NULL);
+        db_log_error(gContext, "CLONGTITUDE");
   		return 0;
     }
 
     snprintf(tmp, 2, "%c", record->clon);                      // :8 1+1    CEW
     dpiData_setBytes(&strCEW, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 8, DPI_NATIVE_TYPE_BYTES, &strCEW) < 0){
-        db_log_error(NULL);
+        db_log_error(gContext, "CEW");
   		return 0;
     }
 
     snprintf(tmp, 4, "%d", record->curs);                 // :9 3+1    CCURSE
     dpiData_setBytes(&strCCURSE, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 9, DPI_NATIVE_TYPE_BYTES, &strCCURSE) < 0){
-        db_log_error(NULL);
+        db_log_error(gContext, "CCURSE");
   		return 0;
     }
 
     snprintf(tmp, 4, "%03.0lf", record->speed);                 // :10 3+1   CSPEED
     dpiData_setBytes(&strCSPEED, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 10, DPI_NATIVE_TYPE_BYTES, &strCSPEED) < 0){
-        db_log_error(NULL);
+        db_log_error(gContext, "CSPEED");
   		return 0;
     }
 
     snprintf(tmp, 4, "%d", record->fuel[0]);                 // :11 3+1   CFUEL
     dpiData_setBytes(&strCFUEL, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 11, DPI_NATIVE_TYPE_BYTES, &strCFUEL) < 0){
-        db_log_error(NULL);
+        db_log_error(gContext, "CFUEL");
   		return 0;
     }
 
@@ -348,118 +344,118 @@ static int write_data_to_db(dpiConn *connection, char *msg, char *sql_insert_poi
     }
     dpiData_setBytes(&strCDATAVALID, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 12, DPI_NATIVE_TYPE_BYTES, &strCDATAVALID) < 0){
-        db_log_error(NULL);
+        db_log_error(gContext, "CDATAVALID");
   		return 0;
     }
 
     snprintf(tmp, 4, "%02.0lf", record->vbort);                  // :13 3+1   CNAPR
     dpiData_setBytes(&strCNAPR, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 13, DPI_NATIVE_TYPE_BYTES, &strCNAPR) < 0){
-        db_log_error(NULL);
+        db_log_error(gContext, "CNAPR");
   		return 0;
     }
 
     snprintf(tmp, 4, "%02.0lf", record->vbatt);                   // :14 3+1   CBAT
     dpiData_setBytes(&strCBAT, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 14, DPI_NATIVE_TYPE_BYTES, &strCBAT) < 0){
-        db_log_error(NULL);
+        db_log_error(gContext, "CBAT");
   		return 0;
     }
 
     snprintf(tmp, 4, "%d", record->temperature);                // :15 3+1   CTEMPER
     dpiData_setBytes(&strCTEMPER, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 15, DPI_NATIVE_TYPE_BYTES, &strCTEMPER) < 0){
-        db_log_error(NULL);
+        db_log_error(gContext, "CTEMPER");
   		return 0;
     }
 
     snprintf(tmp, 2, "%d", record->zaj);                     // :16 1+1   CZAJ
     dpiData_setBytes(&strCZAJ, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 16, DPI_NATIVE_TYPE_BYTES, &strCZAJ) < 0){
-        db_log_error(NULL);
+        db_log_error(gContext, "CZAJ");
   		return 0;
     }
 
     snprintf(tmp, 3, "%d", record->satellites);                  // :17 2+1   CSATEL
     dpiData_setBytes(&strCSATEL, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 17, DPI_NATIVE_TYPE_BYTES, &strCSATEL) < 0){
-        db_log_error(NULL);
+        db_log_error(gContext, "CSATEL");
   		return 0;
     }
 
     snprintf(tmp, 11, "%04.0lf", record->probeg);         // :18 10+1   CPROBEG
     dpiData_setBytes(&strCPROBEG, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 18, DPI_NATIVE_TYPE_BYTES, &strCPROBEG) < 0){
-        db_log_error(NULL);
+        db_log_error(gContext, "CPROBEG");
   		return 0;
     }
 
     snprintf(tmp, 11, "%d", record->ainputs[0]);            // :19 10+1   CIN0
     dpiData_setBytes(&strCIN0, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 19, DPI_NATIVE_TYPE_BYTES, &strCIN0) < 0){
-        db_log_error(NULL);
+        db_log_error(gContext, "CIN0");
   		return 0;
     }
 
     snprintf(tmp, 11, "%d", record->ainputs[0]);            // :20 10+1   CIN1
     dpiData_setBytes(&strCIN1, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 20, DPI_NATIVE_TYPE_BYTES, &strCIN1) < 0){
-        db_log_error(NULL);
+        db_log_error(gContext, "CIN1");
   		return 0;
     }
 
     snprintf(tmp, 11, "%d", record->ainputs[0]);            // :21 10+1   CIN2
     dpiData_setBytes(&strCIN2, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 21, DPI_NATIVE_TYPE_BYTES, &strCIN2) < 0){
-        db_log_error(NULL);
+        db_log_error(gContext, "CIN2");
   		return 0;
     }
 
     snprintf(tmp, 11, "%d", record->ainputs[0]);            // :22 10+1   CIN3
     dpiData_setBytes(&strCIN3, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 22, DPI_NATIVE_TYPE_BYTES, &strCIN3) < 0){
-        db_log_error(NULL);
+        db_log_error(gContext, "CIN3");
   		return 0;
     }
 
     snprintf(tmp, 11, "%d", record->ainputs[0]);            // :23 10+1   CIN4
     dpiData_setBytes(&strCIN4, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 23, DPI_NATIVE_TYPE_BYTES, &strCIN4) < 0){
-        db_log_error(NULL);
+        db_log_error(gContext, "CIN4");
   		return 0;
     }
 
     snprintf(tmp, 11, "%d", record->ainputs[0]);            // :24 10+1   CIN5
     dpiData_setBytes(&strCIN5, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 24, DPI_NATIVE_TYPE_BYTES, &strCIN5) < 0){
-        db_log_error(NULL);
+        db_log_error(gContext, "CIN5");
   		return 0;
     }
 
     snprintf(tmp, 11, "%d", record->ainputs[0]);            // :25 10+1   CIN6
     dpiData_setBytes(&strCIN6, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 25, DPI_NATIVE_TYPE_BYTES, &strCIN6) < 0){
-        db_log_error(NULL);
+        db_log_error(gContext, "CIN6");
   		return 0;
     }
 
     snprintf(tmp, 11, "%d", record->ainputs[0]);            // :26 10+1   CIN7
     dpiData_setBytes(&strCIN7, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 26, DPI_NATIVE_TYPE_BYTES, &strCIN7) < 0){
-        db_log_error(NULL);
+        db_log_error(gContext, "CIN7");
   		return 0;
     }
 
 
     // insert
-    if (dpiStmt_execute(stmt, DPI_MODE_EXEC_DEFAULT, NULL) < 0){
-        db_log_error("dpiStmt_execute");
+    if ( dpiStmt_execute(stmt, DPI_MODE_EXEC_DEFAULT, NULL) < 0 ){
+        db_log_error(gContext, "dpiStmt_execute");
   		return 0;
     }
 
     // commit changes
-    if (dpiConn_commit(connection) < 0){
-        db_log_error("dpiConn_commit");
+    if ( dpiConn_commit(connection) < 0 ){
+        db_log_error(gContext, "dpiConn_commit");
   		return 0;
     }
 
@@ -479,6 +475,7 @@ static int write_data_to_db(dpiConn *connection, char *msg, char *sql_insert_poi
 */
 void *db_thread(void *arg)
 {
+    static __thread dpiContext *gContext = NULL;
 	static __thread dpiConn *db_connection = NULL;
 	static __thread char sql_insert_point[MAX_SQL_SIZE];	// text of inserting sql
 	static __thread char msg_buf[SOCKET_BUF_SIZE];
@@ -499,7 +496,7 @@ void *db_thread(void *arg)
 
 				while( (msg_size = mq_receive(queue_workers, msg_buf, buf_size, NULL)) > 0 ) {
 					if( db_connection )
-						write_data_to_db(db_connection, msg_buf, sql_insert_point);
+						write_data_to_db(db_connection, gContext, msg_buf, sql_insert_point);
 					else
 						break;
 				}   // while
@@ -517,7 +514,7 @@ void *db_thread(void *arg)
 		}   // if( queue_workers != -1 )
 
 		// disconnect from database
-		db_connect(0, &db_connection);
+		db_connect(0, &db_connection, &gContext);
 
 		logging("database thread[%ld] destroyed\n", syscall(SYS_gettid));
 	}   // exit_db
@@ -582,49 +579,23 @@ void *db_thread(void *arg)
 	logging("database thread[%ld] started, queue size %ld msgs\n", syscall(SYS_gettid), (long)queue_attr.mq_maxmsg);
 
 	// try to connect to database
-	if( !db_connect(2, &db_connection) ) {
+	if( !db_connect(2, &db_connection, &gContext) ) {
 		logging("database thread[%ld]: Can't connect to database %s on host %s:%d.", syscall(SYS_gettid), stConfigServer.db_name, stConfigServer.db_host, stConfigServer.db_port);
 	} else {
 		logging("database thread[%ld]: Connected to database %s on host %s:%d.", syscall(SYS_gettid), stConfigServer.db_name, stConfigServer.db_host, stConfigServer.db_port);
 	}
-
-    // debug:
-	snprintf(test_record.imei, 16, "%s", "123456789012345");			   // $3
-    struct tm tm_data;
-    memset(&tm_data, 0, sizeof(struct tm));
-    tm_data.tm_year = 2011;
-    tm_data.tm_mon = 5;
-    tm_data.tm_mday = 10;
-    test_record.data = timegm(&tm_data);
-    test_record.time = 3600 * 2;
-    test_record.lon = 1.1;
-    test_record.clon = 'N';
-    test_record.lat = 2.2;
-    test_record.clat = 'E';
-    test_record.speed = 100.3;
-    test_record.curs = 180;
-    test_record.satellites = 15;
-    test_record.valid = 1;
-    test_record.recnum = 10;
-    test_record.vbort = 12.3;
-    test_record.vbatt = 3.5;
-    test_record.temperature = 33;
-    test_record.zaj = 1;
 
     // wait messages
 	while( 1 ) {
 		pthread_testcancel();
 
         if( db_connection ) {
-            // debug:
-            write_data_to_db(db_connection, (char *)&test_record, sql_insert_point);
-
 			msg_size = mq_receive(queue_workers, msg_buf, buf_size, NULL);
 			if( msg_size > 0 )
-				write_data_to_db(db_connection, msg_buf, sql_insert_point);	// write message to database
+				write_data_to_db(db_connection, gContext, msg_buf, sql_insert_point);	// write message to database
 		} else {
 			sleep(3);	// wait
-			if( db_connect(2, &db_connection) )	// try again
+			if( db_connect(2, &db_connection, &gContext) )	// try again
 				logging("database thread[%ld]: Connect to database %s on host %s:%d.", syscall(SYS_gettid), stConfigServer.db_name, stConfigServer.db_host, stConfigServer.db_port);
 		}
 	}	// while( 1 )
@@ -644,22 +615,18 @@ void *db_thread(void *arg)
 */
 void *timer_function(void *ptr)
 {
-    /*
 	static __thread ST_TIMER *st_timer = 0;
 	static __thread const char *name = 0;
 	static __thread sem_t *semaphore = SEM_FAILED;
 	static __thread char sql[MAX_SQL_SIZE];
-	static __thread PGconn *db_connection = 0;
-	static __thread PGresult *sql_result = 0;
-	static __thread ExecStatusType resultStatus = 0;
+    static __thread dpiContext *gContext = NULL;
+	static __thread dpiConn *db_connection = NULL;
+	static __thread dpiStmt *stmt = NULL;
 
 	// eror handler:
 	void exit_timerfunc(void * arg) {
-		if( sql_result )
-			PQclear(sql_result);
-
 		if( db_connection )
-			db_connect(0, &db_connection);
+			db_connect(0, &db_connection, &gContext);
 
 		if( semaphore != SEM_FAILED ) {
 			sem_close(semaphore);
@@ -674,35 +641,44 @@ void *timer_function(void *ptr)
 
 	// initialise
 	st_timer = (ST_TIMER *)ptr;
-	name = strrchr(st_timer->script_path, '/');
+	name = strrchr(st_timer->script_path, '/') + 1;
+	logging("timer[%ld]: %s: start\n", syscall(SYS_gettid), name);
+
 	semaphore = sem_open(name, O_CREAT | O_EXCL, O_RDWR, 0);	// create named semaphore
 
 	if( semaphore != SEM_FAILED ) {	// if semaphore not exists, continue
 
 		if( !load_file(st_timer->script_path, sql, MAX_SQL_SIZE) || !strlen(sql) ) {
+        	logging("timer[%ld]: %s: script loading error, exit\n", syscall(SYS_gettid), name);
+			exit_timerfunc(ptr);
+			return NULL;
+		}
+      	//logging("timer[%ld]: sql=%s\n", syscall(SYS_gettid), sql);
+
+		if( !db_connect(2, &db_connection, &gContext) ) {
+        	logging("timer[%ld]: %s: failed database connection, exit\n", syscall(SYS_gettid), name);
 			exit_timerfunc(ptr);
 			return NULL;
 		}
 
-		if( !db_connect(2, &db_connection) ) {
-			exit_timerfunc(ptr);
-			return NULL;
-		}
+        // https://github.com/oracle/odpi/blob/main/samples/DemoCallProc.c
 
-		sql_result = PQexec(db_connection, sql);
-		resultStatus = PQresultStatus(sql_result);
+        // prepare statement for execution
+        if( !stmt ){
+            if ( dpiConn_prepareStmt(db_connection, 0, sql, strlen(sql), NULL, 0, &stmt) < 0 ){
+                db_log_error(gContext, "timer: dpiConn_prepareStmt");
+    			exit_timerfunc(ptr);
+    			return NULL;
+            }
+        }
 
-		switch(resultStatus) {
-		case PGRES_COMMAND_OK:	// INSERT or UPDATE without a RETURNING clause, etc.
-		case PGRES_TUPLES_OK:   // retrieve the rows returned by the query (SELECT)
-		case PGRES_SINGLE_TUPLE:// same as above
-		case PGRES_COPY_OUT:    // Copy Out (from server) data transfer started
-		case PGRES_COPY_IN:     // Copy In (to server) data transfer started
-			logging("timer[%ld]: %s: result %s\n", syscall(SYS_gettid), name, PQresStatus(resultStatus));
-			break;
-		default:
-			logging("timer[%ld]: %s: result %s, error: %s\n", syscall(SYS_gettid), name, PQresStatus(resultStatus), PQresultErrorMessage(sql_result));
-		}
+        // execute statement
+        if ( dpiStmt_execute(stmt, DPI_MODE_EXEC_DEFAULT, NULL) < 0 ){
+            db_log_error(gContext, "timer: dpiStmt_execute");
+        }
+        else {
+    		logging("timer[%ld]: %s: complete\n", syscall(SYS_gettid), name);
+        }
 
 	}	// if( semaphore != SEM_FAILED )
 	else {
@@ -714,7 +690,7 @@ void *timer_function(void *ptr)
 
 	// clear error handler with run it (0 - not run, 1 - run)
 	pthread_cleanup_pop(1);
-    */
+
 	return NULL;
 }
 //------------------------------------------------------------------------------
@@ -771,7 +747,7 @@ CREATE TABLE DISPATCHER.TGPSDATA
 /*
 SQL-script for insert record to table
 
-INSERT INTO DISPATCHER.TGPSDATA_TEST (
+INSERT INTO DISPATCHER.TGPSDATA (
     DDATA,
     NTIME,
     CID,
