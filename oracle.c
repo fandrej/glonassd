@@ -204,6 +204,7 @@ static int db_connect(int connect, dpiConn **connection, dpiContext **gContext)
 */
 static int write_data_to_db(dpiConn *connection, dpiContext *gContext, char *msg, char *sql_insert_point)
 {
+    int retval = 0;
     struct tm tm_data;
     char tmp[SIZE_TRACKER_FIELD];
 
@@ -259,28 +260,28 @@ static int write_data_to_db(dpiConn *connection, dpiContext *gContext, char *msg
                             0, 0, 0);
     if (dpiStmt_bindValueByPos(stmt, 1, DPI_NATIVE_TYPE_TIMESTAMP, &intDDATA) < 0){
         db_log_error(gContext, "DDATA");
-  		return 0;
+  		goto the_end;
     }
 
     // :2    NTIME
     dpiData_setInt64(&intNTIME, record->time);
     if (dpiStmt_bindValueByPos(stmt, 2, DPI_NATIVE_TYPE_INT64, &intNTIME) < 0){
         db_log_error(gContext, "NTIME");
-  		return 0;
+  		goto the_end;
     }
 
     // :3   CID
     dpiData_setBytes(&strCID, record->imei, strlen(record->imei));
     if (dpiStmt_bindValueByPos(stmt, 3, DPI_NATIVE_TYPE_BYTES, &strCID) < 0){
         db_log_error(gContext, "CID");
-  		return 0;
+  		goto the_end;
     }
 
     // :4    NNUM
     dpiData_setInt64(&intNNUM, record->recnum);
     if (dpiStmt_bindValueByPos(stmt, 4, DPI_NATIVE_TYPE_INT64, &intNNUM) < 0){
         db_log_error(gContext, "NNUM");
-  		return 0;
+  		goto the_end;
     }
 
     // :5 10    CLATITUDE
@@ -288,7 +289,7 @@ static int write_data_to_db(dpiConn *connection, dpiContext *gContext, char *msg
     dpiData_setBytes(&strCLATITUDE, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 5, DPI_NATIVE_TYPE_BYTES, &strCLATITUDE) < 0){
         db_log_error(gContext, "CLATITUDE");
-  		return 0;
+  		goto the_end;
     }
 
     // :6 1+1    CNS
@@ -296,42 +297,42 @@ static int write_data_to_db(dpiConn *connection, dpiContext *gContext, char *msg
     dpiData_setBytes(&strCNS, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 6, DPI_NATIVE_TYPE_BYTES, &strCNS) < 0){
         db_log_error(gContext, "CNS");
-  		return 0;
+  		goto the_end;
     }
 
     snprintf(tmp, 11, "%03.07lf", record->lon);     // :7 10+1    CLONGTITUDE
     dpiData_setBytes(&strCLONGTITUDE, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 7, DPI_NATIVE_TYPE_BYTES, &strCLONGTITUDE) < 0){
         db_log_error(gContext, "CLONGTITUDE");
-  		return 0;
+  		goto the_end;
     }
 
     snprintf(tmp, 2, "%c", record->clon);                      // :8 1+1    CEW
     dpiData_setBytes(&strCEW, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 8, DPI_NATIVE_TYPE_BYTES, &strCEW) < 0){
         db_log_error(gContext, "CEW");
-  		return 0;
+  		goto the_end;
     }
 
     snprintf(tmp, 4, "%d", record->curs);                 // :9 3+1    CCURSE
     dpiData_setBytes(&strCCURSE, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 9, DPI_NATIVE_TYPE_BYTES, &strCCURSE) < 0){
         db_log_error(gContext, "CCURSE");
-  		return 0;
+  		goto the_end;
     }
 
     snprintf(tmp, 4, "%03.0lf", record->speed);                 // :10 3+1   CSPEED
     dpiData_setBytes(&strCSPEED, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 10, DPI_NATIVE_TYPE_BYTES, &strCSPEED) < 0){
         db_log_error(gContext, "CSPEED");
-  		return 0;
+  		goto the_end;
     }
 
     snprintf(tmp, 4, "%d", record->fuel[0]);                 // :11 3+1   CFUEL
     dpiData_setBytes(&strCFUEL, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 11, DPI_NATIVE_TYPE_BYTES, &strCFUEL) < 0){
         db_log_error(gContext, "CFUEL");
-  		return 0;
+  		goto the_end;
     }
 
     if( record->valid ) {
@@ -343,123 +344,127 @@ static int write_data_to_db(dpiConn *connection, dpiContext *gContext, char *msg
     dpiData_setBytes(&strCDATAVALID, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 12, DPI_NATIVE_TYPE_BYTES, &strCDATAVALID) < 0){
         db_log_error(gContext, "CDATAVALID");
-  		return 0;
+  		goto the_end;
     }
 
     snprintf(tmp, 4, "%02.0lf", record->vbort);                  // :13 3+1   CNAPR
     dpiData_setBytes(&strCNAPR, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 13, DPI_NATIVE_TYPE_BYTES, &strCNAPR) < 0){
         db_log_error(gContext, "CNAPR");
-  		return 0;
+  		goto the_end;
     }
 
     snprintf(tmp, 4, "%02.0lf", record->vbatt);                   // :14 3+1   CBAT
     dpiData_setBytes(&strCBAT, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 14, DPI_NATIVE_TYPE_BYTES, &strCBAT) < 0){
         db_log_error(gContext, "CBAT");
-  		return 0;
+  		goto the_end;
     }
 
     snprintf(tmp, 4, "%d", record->temperature);                // :15 3+1   CTEMPER
     dpiData_setBytes(&strCTEMPER, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 15, DPI_NATIVE_TYPE_BYTES, &strCTEMPER) < 0){
         db_log_error(gContext, "CTEMPER");
-  		return 0;
+  		goto the_end;
     }
 
     snprintf(tmp, 2, "%d", record->zaj);                     // :16 1+1   CZAJ
     dpiData_setBytes(&strCZAJ, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 16, DPI_NATIVE_TYPE_BYTES, &strCZAJ) < 0){
         db_log_error(gContext, "CZAJ");
-  		return 0;
+  		goto the_end;
     }
 
     snprintf(tmp, 3, "%d", record->satellites);                  // :17 2+1   CSATEL
     dpiData_setBytes(&strCSATEL, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 17, DPI_NATIVE_TYPE_BYTES, &strCSATEL) < 0){
         db_log_error(gContext, "CSATEL");
-  		return 0;
+  		goto the_end;
     }
 
     snprintf(tmp, 11, "%04.0lf", record->probeg);         // :18 10+1   CPROBEG
     dpiData_setBytes(&strCPROBEG, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 18, DPI_NATIVE_TYPE_BYTES, &strCPROBEG) < 0){
         db_log_error(gContext, "CPROBEG");
-  		return 0;
+  		goto the_end;
     }
 
     snprintf(tmp, 11, "%d", record->ainputs[0]);            // :19 10+1   CIN0
     dpiData_setBytes(&strCIN0, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 19, DPI_NATIVE_TYPE_BYTES, &strCIN0) < 0){
         db_log_error(gContext, "CIN0");
-  		return 0;
+  		goto the_end;
     }
 
     snprintf(tmp, 11, "%d", record->ainputs[0]);            // :20 10+1   CIN1
     dpiData_setBytes(&strCIN1, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 20, DPI_NATIVE_TYPE_BYTES, &strCIN1) < 0){
         db_log_error(gContext, "CIN1");
-  		return 0;
+  		goto the_end;
     }
 
     snprintf(tmp, 11, "%d", record->ainputs[0]);            // :21 10+1   CIN2
     dpiData_setBytes(&strCIN2, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 21, DPI_NATIVE_TYPE_BYTES, &strCIN2) < 0){
         db_log_error(gContext, "CIN2");
-  		return 0;
+  		goto the_end;
     }
 
     snprintf(tmp, 11, "%d", record->ainputs[0]);            // :22 10+1   CIN3
     dpiData_setBytes(&strCIN3, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 22, DPI_NATIVE_TYPE_BYTES, &strCIN3) < 0){
         db_log_error(gContext, "CIN3");
-  		return 0;
+  		goto the_end;
     }
 
     snprintf(tmp, 11, "%d", record->ainputs[0]);            // :23 10+1   CIN4
     dpiData_setBytes(&strCIN4, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 23, DPI_NATIVE_TYPE_BYTES, &strCIN4) < 0){
         db_log_error(gContext, "CIN4");
-  		return 0;
+  		goto the_end;
     }
 
     snprintf(tmp, 11, "%d", record->ainputs[0]);            // :24 10+1   CIN5
     dpiData_setBytes(&strCIN5, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 24, DPI_NATIVE_TYPE_BYTES, &strCIN5) < 0){
         db_log_error(gContext, "CIN5");
-  		return 0;
+  		goto the_end;
     }
 
     snprintf(tmp, 11, "%d", record->ainputs[0]);            // :25 10+1   CIN6
     dpiData_setBytes(&strCIN6, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 25, DPI_NATIVE_TYPE_BYTES, &strCIN6) < 0){
         db_log_error(gContext, "CIN6");
-  		return 0;
+  		goto the_end;
     }
 
     snprintf(tmp, 11, "%d", record->ainputs[0]);            // :26 10+1   CIN7
     dpiData_setBytes(&strCIN7, tmp, strlen(tmp));
     if (dpiStmt_bindValueByPos(stmt, 26, DPI_NATIVE_TYPE_BYTES, &strCIN7) < 0){
         db_log_error(gContext, "CIN7");
-  		return 0;
+  		goto the_end;
     }
 
 
     // insert
-    if ( dpiStmt_execute(stmt, DPI_MODE_EXEC_DEFAULT, NULL) < 0 ){
+    // https://oracle.github.io/odpi/doc/functions/dpiStmt.html
+    if ( dpiStmt_execute(stmt, DPI_MODE_EXEC_DEFAULT, NULL) == DPI_SUCCESS ){
+        // https://oracle.github.io/odpi/doc/functions/dpiConn.html
+        if ( dpiConn_commit(connection) == DPI_SUCCESS ){
+            retval = 1;
+        }
+        else {
+            db_log_error(gContext, "dpiConn_commit");
+        }
+    }
+    else {
         db_log_error(gContext, "dpiStmt_execute");
-  		return 0;
     }
 
-    // commit changes
-    if ( dpiConn_commit(connection) < 0 ){
-        db_log_error(gContext, "dpiConn_commit");
-  		return 0;
-    }
-
+    the_end:
     dpiStmt_release(stmt);
 
-    return 1;
+    return retval;
 }
 //------------------------------------------------------------------------------
 
