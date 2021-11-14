@@ -775,10 +775,13 @@ int main(int argc, char* argv[])
     // process start/restart/stop command
     command(gPidFilePath, stParams.cmd);
 
-    if( stParams.daemon )
+    if( stParams.daemon ) {
         toDaemon(gPidFilePath); // force programm to daemon
-    else
+    }
+    else {
         signal(SIGINT, INThandler);
+        signal(SIGTERM, INThandler);
+    }
 
     // create pid file
     handle = fopen(gPidFilePath, "w");
