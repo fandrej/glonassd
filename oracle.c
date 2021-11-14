@@ -241,11 +241,9 @@ static int write_data_to_db(dpiConn *connection, dpiContext *gContext, char *msg
 		return 0;
 
     // prepare insert statement for execution
-    if( !stmt ){
-        if ( dpiConn_prepareStmt(connection, 0, sql_insert_point, strlen(sql_insert_point), NULL, 0, &stmt) < 0 ){
-            db_log_error(gContext, "dpiConn_prepareStmt");
-    		return 0;
-        }
+    if ( dpiConn_prepareStmt(connection, 0, sql_insert_point, strlen(sql_insert_point), NULL, 0, &stmt) < 0 ){
+        db_log_error(gContext, "dpiConn_prepareStmt");
+		return 0;
     }
 
 	record = (ST_RECORD *)msg;
@@ -458,6 +456,8 @@ static int write_data_to_db(dpiConn *connection, dpiContext *gContext, char *msg
         db_log_error(gContext, "dpiConn_commit");
   		return 0;
     }
+
+    dpiStmt_release(stmt);
 
     return 1;
 }
@@ -679,6 +679,8 @@ void *timer_function(void *ptr)
         else {
     		logging("timer[%ld]: %s: complete\n", syscall(SYS_gettid), name);
         }
+
+        dpiStmt_release(stmt);
 
 	}	// if( semaphore != SEM_FAILED )
 	else {
