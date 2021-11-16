@@ -99,7 +99,7 @@
 #include "lib.h"
 
 // globals
-#define THREAD_STACK_SIZE_KB	(256)
+#define THREAD_STACK_SIZE_KB	(512)   // DANGEROUS! crash if SOCKET_BUF_SIZE too big!
 
 const char *const gPidFilePath = "/var/run/glonassd.pid";
 int graceful_stop, reconfigure;     // flags
@@ -810,7 +810,9 @@ int main(int argc, char* argv[])
     // initialise thread attributes
     attr_init = (0 == pthread_attr_init(&worker_thread_attr)); // attr_init = 1 if successfull
     if( attr_init ) {
-        // set stack size for threads
+        /* set stack size for threads DANGEROUS!
+        crash if SOCKET_BUF_SIZE too big!
+        */
         if( pthread_attr_setstacksize(&worker_thread_attr, 1024 * THREAD_STACK_SIZE_KB) ) {
             // error, use default stack size
             attr_init = 0;
