@@ -366,7 +366,7 @@ void *worker_thread(void *st_worker)
             bytes_read = 0;
             while( bytes_read < SOCKET_BUF_SIZE && (bytes_write = recv(config->client_socket, &socket_buf[bytes_read], SOCKET_BUF_SIZE-bytes_read, 0)) > 0 ){
                 bytes_read += bytes_write;
-                usleep(25000);
+                usleep(10000);
             }
 
         }
