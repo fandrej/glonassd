@@ -18,17 +18,6 @@
 #include "logger.h"
 
 
-void logg(ST_WORKER *worker, int it_error, char *msg)
-{
-    if( worker && msg ) {
-        if( worker->listener->log_all )
-            logging("terminal_decode[%s:%d]: %s\n", worker->listener->name, worker->listener->port, msg);
-        else if( it_error && worker->listener->log_err )
-            logging("terminal_decode[%s:%d]: %s\n", worker->listener->name, worker->listener->port, msg);
-    }
-}
-
-
 /*
    decode function
    parcel - the raw data from socket
@@ -44,10 +33,14 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 	double dLon, dLat, dAltitude, dHDOP;
 	int iAnswerSize, iTemp, iCurs, iSatellits, iSpeed, iInputs = 0, iOutputs = 0, iReadedRecords = 0;
 
-    logg(worker, 0, parcel);
+    if( worker && worker->listener->log_all ){
+        logging("terminal_decode[%s:%d]: %s:\n%s\n", worker->listener->name, worker->listener->port, answer->lastpoint.imei, parcel);
+    }
 
 	if( !parcel || parcel_size <= 0 || !answer ) {
-        logg(worker, 1, "!parcel || parcel_size <= 0 || !answer => return");
+        if( worker && worker->listener->log_err ){
+            logging("terminal_decode[%s:%d]: %s\n%s\n", worker->listener->name, worker->listener->port, answer->lastpoint.imei, "!parcel || parcel_size <= 0 || !answer => return");
+        }
 		return;
     }
 
@@ -61,13 +54,23 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
             continue;
         }
 
-		switch( cRec[1] ) {
+        switch( cRec[1] ) {
 		case 'L':	// пакет логина: #L#imei;password\r\n
+            // v.1
 			// #L#353451048036030;NA
 			// answer: #AL#1\r\n
 
+            // v.2 http://extapi.wialon.com/hw/cfg/Wialon%20IPS_v_2_0.pdf
+            // 01234567
+            // #L#2.0;868204002602414;NA;8E08^@
+
 			memset(answer->lastpoint.imei, 0, SIZE_TRACKER_FIELD);
-			iTemp = sscanf(cRec, "#L#%[^;];%*s", answer->lastpoint.imei);
+            if( cRec[4] == '.' && cRec[6] == ';' ){
+    			iTemp = sscanf(cRec, "#L#2.0;%[^;];%*s", answer->lastpoint.imei);
+            }
+            else {
+    			iTemp = sscanf(cRec, "#L#%[^;];%*s", answer->lastpoint.imei);
+            }
 
 			if( iTemp == 1 && strlen(answer->lastpoint.imei) ) {
 				iAnswerSize = 8;	// 7 + завершающий 0
@@ -80,6 +83,10 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 
 			iAnswerSize = 7;
 			answer->size += snprintf(&answer->answer[answer->size], iAnswerSize, "#AP#\r\n");
+
+            if( worker && worker->listener->log_all ){
+                logging("terminal_decode[%s:%d]: %s:\n%s\n", worker->listener->name, worker->listener->port, answer->lastpoint.imei, "PING");
+            }
 
 			break;
 		case 'S':	// SD, Сокращённый пакет с данными:
@@ -111,7 +118,10 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 								&iSatellits	// 10
 							  );
 
-			if( iTemp == 10 ) {	// успешно считаны все поля
+            if( iTemp >= 9 ) {
+                if( iTemp == 9 ) {
+                    iSatellits = 10;    // сервер пересылки не присылает спутники
+                }
 
 				if( answer->count < MAX_RECORDS - 1 )
 					answer->count++;
@@ -136,7 +146,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 				// в tm_data обнуляем время
 				tm_data.tm_hour = tm_data.tm_min = tm_data.tm_sec = 0;
 				// получаем дату
-				record->data = timegm(&tm_data) - GMT_diff;	// local struct->local simple & mktime epoch
+				record->data = timegm(&tm_data);	// local struct->local simple & mktime epoch
 
 				iTemp = 0.01 * dLat;
 				record->lat = (dLat - iTemp * 100.0) / 60.0 + iTemp;
@@ -157,12 +167,22 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 					record->valid = 0;
 
 				memcpy(&answer->lastpoint, record, sizeof(ST_RECORD));
+
+                if( worker && worker->listener->log_all ){
+                    logging("terminal_decode[%s:%d]: RECORD S: %s\n", worker->listener->name, worker->listener->port, record->imei);
+                }
 			}	// if( iTemp == 10 )
+            else {
+                if( worker && (worker->listener->log_all || worker->listener->log_err) ){
+                    logging("terminal_decode[%s:%d]: RECORD S: %s error, %d fields\n", worker->listener->name, worker->listener->port, answer->lastpoint.imei, iTemp);
+                }
+            }
 
 			break;                      //   1    2   3    4    5    6     7     8      9     10   11    12      13    14    15     16
 		case 'D':	// пакет с данными: #D#date;time;lat1;lat2;lon1;lon2;speed;course;height;sats;hdop;inputs;outputs;adc;ibutton;params\r\n
 			//      1       2       3     4     5      6  7  8      9    10    11   12    13        14                                        15 16
-			// #D#181215;083214;5525.4081;N;06517.1674;E;13; 65;0.000000;15;0.500000;0;973668352;0.000000,NA,NA,NA,NA,NA,NA,NA,NA,NA,0.000000;NA;gsm_status:1:3,acc_trigger:1:1,can_b0:2:0.000000,valid:1:0,soft:1:229
+			// #D#181215;083214;5525.4081;N;06517.1674;E;13; 65;0.000000;15;0.500000;0 ;973668352;0.000000,NA,NA,NA,NA,NA,NA,NA,NA,NA,0.000000;NA;gsm_status:1:3,acc_trigger:1:1,can_b0:2:0.000000,valid:1:0,soft:1:229
+            // #D#161121;065901;5525.0755;N;06516.7202;E;15;156;74      ;NA;0       ;NA;       NA;0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000;NA;adc0:1:0,pwr_ext:2:13.100000,battery:1:3800,lls_2040_val:2:0.000000,lls_2041_val:2:0.000000,ignition_on:1:1,navitel_altitude_m:1:74,navitel_analog_input_0:1:0,navitel_analog_input_1:1:0,navitel_analog_input_2:1:0
 			// #D#011116;033902;5526.6558;N;06520.9955;E;19;229;      72; 8;     0.9;0;        0;                                            ;NA;tmp:1:30,pwrext:2:13.38,freq1:1:0,freq2:1:0
 			// #D#011116;033802;5526.6604;N;06521.0047;E; 0;  0;      72; 9;     0.9;0;        0;                                            ;NA;lat1:3:N 55 26.6604,lon1:3:E 65 21.0047,course:1:0,sys:3:GPS,gsm:3:home,hw:3:2.0,fw:3:1.7,cnt:1:30559,tmp:1:30,currtmp:1:30,pwrext:2:13.42,freq1:1:0,freq2:1:0,rst:3:unknown,systime:3:0d00h13m36s
 			// answer: #AD#1\r\n
@@ -177,7 +197,6 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 				answer->size += snprintf(&answer->answer[answer->size], iAnswerSize, "#AD#1\r\n");
 			}	// if( !answer->count )
 
-			//                         1     2    3   4  5   6  7  8  9  10  11 12 13  14
 			iTemp = sscanf(cRec, "#D#%[^;];%[^;];%lf;%c;%lf;%c;%d;%d;%lf;%d;%lf;%d;%d;%*s",
 								cDate, // 1
 								cTime, // 2
@@ -194,7 +213,10 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 								&iOutputs // 13
 							  );
 
-            if( iTemp >= 10 ) {
+            if( iTemp >= 9 ) {
+                if( iTemp == 9 ) {
+                    iSatellits = 10;
+                }
 
 				if( answer->count < MAX_RECORDS - 1 )
 					answer->count++;
@@ -208,7 +230,8 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 				// переводим время GMT и текстовом формате в местное
 				memset(&tm_data, 0, sizeof(struct tm));
 				sscanf(cDate, "%2d%2d%2d", &tm_data.tm_mday, &tm_data.tm_mon, &tm_data.tm_year);
-				tm_data.tm_mon--;	// http://www.cplusplus.com/reference/ctime/tm/
+
+        		tm_data.tm_mon--;	// http://www.cplusplus.com/reference/ctime/tm/
 				tm_data.tm_year += 100;
 				sscanf(cTime, "%2d%2d%2d", &tm_data.tm_hour, &tm_data.tm_min, &tm_data.tm_sec);
 
@@ -219,7 +242,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 				// в tm_data обнуляем время
 				tm_data.tm_hour = tm_data.tm_min = tm_data.tm_sec = 0;
 				// получаем дату
-				record->data = timegm(&tm_data) - GMT_diff;	// local struct->local simple & mktime epoch
+				record->data = timegm(&tm_data);	// local struct->local simple & mktime epoch
 
 				iTemp = 0.01 * dLat;
 				record->lat = (dLat - iTemp * 100.0) / 60.0 + iTemp;
@@ -261,8 +284,17 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 				record->outputs = iOutputs;
 			}	// if( iTemp >= 13 )
 
-			if( record )
+			if( record ){
 				memcpy(&answer->lastpoint, record, sizeof(ST_RECORD));
+                if( worker && worker->listener->log_all ){
+                    logging("terminal_decode[%s:%d]: RECORD D: %s\n", worker->listener->name, worker->listener->port, record->imei);
+                }
+            }
+            else {
+                if( worker && (worker->listener->log_all || worker->listener->log_err) ){
+                    logging("terminal_decode[%s:%d]: RECORD D: %s error, %d fields\n", worker->listener->name, worker->listener->port, answer->lastpoint.imei, iTemp);
+                }
+            }
 
 			break;
 		case 'B':	// Пакет с чёрным ящиком
@@ -322,7 +354,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 					// в tm_data обнуляем время
 					tm_data.tm_hour = tm_data.tm_min = tm_data.tm_sec = 0;
 					// получаем дату
-					record->data = timegm(&tm_data) - GMT_diff;	// local struct->local simple & mktime epoch
+					record->data = timegm(&tm_data);	// local struct->local simple & mktime epoch
 
 					iTemp = 0.01 * dLat;
 					record->lat = (dLat - iTemp * 100.0) / 60.0 + iTemp;
@@ -342,7 +374,15 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 					else
 						record->valid = 0;
 
+                    if( worker && worker->listener->log_all ){
+                        logging("terminal_decode[%s:%d]: RECORD B: %s\n", worker->listener->name, worker->listener->port, record->imei);
+                    }
 				}	// if( iTemp >= 10 )
+                else {
+                    if( worker && (worker->listener->log_all || worker->listener->log_err) ){
+                        logging("terminal_decode[%s:%d]: RECORD B: %s error, %d fields\n", worker->listener->name, worker->listener->port, answer->lastpoint.imei, iTemp);
+                    }
+                }
 
 				cRec1 = strtok(NULL, "|");
 			}	// while(cRec1)
