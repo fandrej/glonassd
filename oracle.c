@@ -256,7 +256,7 @@ static int write_data_to_db(dpiConn *connection, dpiContext *gContext, char *msg
     // https://github.com/oracle/odpi/blob/main/src/dpiOracleType.c
     dpiData_setTimestamp(&intDDATA,
                             tm_data.tm_year + 1900, tm_data.tm_mon + 1, tm_data.tm_mday,
-                            0, 0, 0,
+                            tm_data.tm_hour, tm_data.tm_min, tm_data.tm_sec,
                             0, 0, 0);
     if (dpiStmt_bindValueByPos(stmt, 1, DPI_NATIVE_TYPE_TIMESTAMP, &intDDATA) < 0){
         db_log_error(gContext, "DDATA");
