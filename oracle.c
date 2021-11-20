@@ -123,14 +123,25 @@ static int load_file(char *path, char *buf, size_t bufsize)
 void db_log_error(dpiContext *gContext, const char *message)
 {
     dpiErrorInfo info;
-    dpiContext_getError(gContext, &info);
-    if( message ) {
-        logging("database thread[%ld]: %s: %s\n", syscall(SYS_gettid), message, info.message);
+    if( gContext ){
+        dpiContext_getError(gContext, &info);
+        if( message ) {
+            logging("database thread[%ld]: %s: %s\n", syscall(SYS_gettid), message, info.message);
+        }
+        else {
+            logging("database thread[%ld]: %s\n", syscall(SYS_gettid), info.message);
+        }
     }
     else {
-        logging("database thread[%ld]: %s\n", syscall(SYS_gettid), info.message);
+        if( message ) {
+            logging("database thread[%ld]: %s\n", syscall(SYS_gettid), message);
+        }
+        else {
+            logging("database thread[%ld]: db_log_error: gContext is NULL\n", syscall(SYS_gettid));
+        }
     }
-}
+}   // db_log_error
+//------------------------------------------------------------------------------
 
 
 /*
@@ -171,7 +182,7 @@ static int db_connect(int connect, dpiConn **connection, dpiContext **gContext)
                     db_log_error(*gContext, "Unable to create connection");
                     dpiContext_destroy(*gContext);
                     *gContext = NULL;
-                    connection = NULL;
+                    *connection = NULL;
                 }
             }   // if ( !gContext )
 		}   // if( *connection == NULL )
@@ -191,7 +202,7 @@ static int db_connect(int connect, dpiConn **connection, dpiContext **gContext)
 	}
 
 	return(connect ? (*connection != NULL) : 1);
-}
+}   // db_connect
 //------------------------------------------------------------------------------
 
 /*
