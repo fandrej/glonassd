@@ -255,7 +255,7 @@ static int write_data_to_db(dpiConn *connection, dpiContext *gContext, char *msg
     // prepare insert statement for execution
     if ( dpiConn_prepareStmt(connection, 0, sql_insert_point, strlen(sql_insert_point), NULL, 0, &stmt) < 0 ){
         db_log_error(gContext, "dpiConn_prepareStmt");
-		return 0;
+		return -1;
     }
 
 	record = (ST_RECORD *)msg;
@@ -470,6 +470,7 @@ static int write_data_to_db(dpiConn *connection, dpiContext *gContext, char *msg
     }
     else {
         db_log_error(gContext, "dpiStmt_execute");
+        retval = -1;
     }
 
     the_end:
@@ -511,8 +512,12 @@ void *db_thread(void *arg)
 				logging("database thread writing %ld messages\n", queue_attr.mq_curmsgs);
 
 				while( (msg_size = mq_receive(queue_workers, msg_buf, buf_size, NULL)) > 0 ) {
-					if( db_connection )
-						write_data_to_db(db_connection, gContext, msg_buf, sql_insert_point);
+					if( db_connection ){
+						if( write_data_to_db(db_connection, gContext, msg_buf, sql_insert_point) < 0 ){
+                    		db_connect(0, &db_connection, &gContext);
+                            db_connection = NULL;
+						}
+                    }
 					else
 						break;
 				}   // while
@@ -530,7 +535,9 @@ void *db_thread(void *arg)
 		}   // if( queue_workers != -1 )
 
 		// disconnect from database
-		db_connect(0, &db_connection, &gContext);
+        if( db_connection ){
+    		db_connect(0, &db_connection, &gContext);
+        }
 
 		logging("database thread[%ld] destroyed\n", syscall(SYS_gettid));
 	}   // exit_db
@@ -607,13 +614,19 @@ void *db_thread(void *arg)
 
         if( db_connection ) {
 			msg_size = mq_receive(queue_workers, msg_buf, buf_size, NULL);
-			if( msg_size > 0 )
-				write_data_to_db(db_connection, gContext, msg_buf, sql_insert_point);	// write message to database
-		} else {
+			if( msg_size > 0 ){
+				if( write_data_to_db(db_connection, gContext, msg_buf, sql_insert_point) < 0 ){	// write message to database
+            		// disconnect from database
+            		db_connect(0, &db_connection, &gContext);
+                    db_connection = NULL;
+                }
+            }   // if( msg_size > 0 )
+		}   // if( db_connection )
+        else {
 			sleep(3);	// wait
 			if( db_connect(2, &db_connection, &gContext) )	// try again
 				logging("database thread[%ld]: Connect to database %s on host %s:%d.", syscall(SYS_gettid), stConfigServer.db_name, stConfigServer.db_host, stConfigServer.db_port);
-		}
+		}   // else if( db_connection )
 	}	// while( 1 )
 
 	// clear error handler with run it (0 - not run, 1 - run)
