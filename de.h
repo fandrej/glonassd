@@ -25,10 +25,10 @@
 #define BAD_OBJ (-1)
 #endif
 #ifndef SOCKET_BUF_SIZE
-#define SOCKET_BUF_SIZE (16384)
+#define SOCKET_BUF_SIZE (65536) // max 32768 for THREAD_STACK_SIZE_KB = 256
 #endif
 #ifndef MAX_RECORDS
-#define MAX_RECORDS (30)
+#define MAX_RECORDS (50)
 #endif
 
 // decoded data (record/point)

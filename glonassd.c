@@ -99,7 +99,7 @@
 #include "lib.h"
 
 // globals
-#define THREAD_STACK_SIZE_KB	(256)
+#define THREAD_STACK_SIZE_KB	(512)   // DANGEROUS! crash if SOCKET_BUF_SIZE too big!
 
 const char *const gPidFilePath = "/var/run/glonassd.pid";
 int graceful_stop, reconfigure;     // flags
@@ -775,10 +775,13 @@ int main(int argc, char* argv[])
     // process start/restart/stop command
     command(gPidFilePath, stParams.cmd);
 
-    if( stParams.daemon )
+    if( stParams.daemon ) {
         toDaemon(gPidFilePath); // force programm to daemon
-    else
+    }
+    else {
         signal(SIGINT, INThandler);
+        signal(SIGTERM, INThandler);
+    }
 
     // create pid file
     handle = fopen(gPidFilePath, "w");
@@ -807,7 +810,9 @@ int main(int argc, char* argv[])
     // initialise thread attributes
     attr_init = (0 == pthread_attr_init(&worker_thread_attr)); // attr_init = 1 if successfull
     if( attr_init ) {
-        // set stack size for threads
+        /* set stack size for threads DANGEROUS!
+        crash if SOCKET_BUF_SIZE too big!
+        */
         if( pthread_attr_setstacksize(&worker_thread_attr, 1024 * THREAD_STACK_SIZE_KB) ) {
             // error, use default stack size
             attr_init = 0;
@@ -832,7 +837,9 @@ int main(int argc, char* argv[])
             if( setup(stParams.config_path) && listeners_start() ) {
                 timers_start();
                 forwarders_start();
-            } else {
+            }
+            else {
+                graceful_stop = 1;
                 exit_code = EXIT_FAILURE;
                 break;
             }

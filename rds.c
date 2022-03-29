@@ -78,22 +78,22 @@ static int load_file(char *path, char *buf, size_t bufsize)
 
     // check file exists
     if( (fp = open(path, O_RDONLY)) == BAD_OBJ ) {
-        logging("database thread[%ld]: open(%s): error %d: %s\n", syscall(SYS_gettid), path, errno, strerror(errno));
+        logging("thread[%ld]: open(%s): error %d: %s\n", syscall(SYS_gettid), path, errno, strerror(errno));
         return 0;
     }
 
     // check file size
     size = lseek(fp, 0, SEEK_END);
     if( size == -1L || lseek(fp, 0, SEEK_SET) ) {
-        logging("database thread[%ld]: lseek(SEEK_END) error %d: %s\n", syscall(SYS_gettid), errno, strerror(errno));
+        logging("thread[%ld]: lseek(SEEK_END) error %d: %s\n", syscall(SYS_gettid), errno, strerror(errno));
         close(fp);
         return 0;
     } else if( size >= bufsize ) {
-        logging("database thread[%ld]: sql file size %d >= buffer size %d\n", syscall(SYS_gettid), size, bufsize);
+        logging("thread[%ld]: sql file size %d >= buffer size %d\n", syscall(SYS_gettid), size, bufsize);
         close(fp);
         return 0;
     } else if( !size ) {
-        logging("database thread[%ld]: sql file size = %d, is file empty?\n", syscall(SYS_gettid), size);
+        logging("thread[%ld]: sql file size = %d, is file empty?\n", syscall(SYS_gettid), size);
         close(fp);
         return 0;
     }
@@ -101,7 +101,7 @@ static int load_file(char *path, char *buf, size_t bufsize)
     // read file content into buffer
     memset(buf, 0, bufsize);
     if( (readed = read(fp, buf, size)) != size ) {
-        logging("database thread[%ld]: read(%ld)=%ld error %d: %s\n", syscall(SYS_gettid), size, readed, errno, strerror(errno));
+        logging("thread[%ld]: read(%ld)=%ld error %d: %s\n", syscall(SYS_gettid), size, readed, errno, strerror(errno));
         close(fp);
         return 0;
     }
@@ -424,17 +424,21 @@ void *timer_function(void *ptr)
 
     // initialise
     st_timer = (ST_TIMER *)ptr;
-    name = strrchr(st_timer->script_path, '/');
+	name = strrchr(st_timer->script_path, '/') + 1;
+	logging("timer[%ld]: %s: start\n", syscall(SYS_gettid), name);
+
     semaphore = sem_open(name, O_CREAT | O_EXCL, O_RDWR, 0);	// create named semaphore
 
     if( semaphore != SEM_FAILED ) {	// if semaphore not exists, continue
 
         if( !load_file(st_timer->script_path, sql, MAX_SQL_SIZE) || !strlen(sql) ) {
+        	logging("timer[%ld]: %s: script loading error, exit\n", syscall(SYS_gettid), name);
             exit_timerfunc(ptr);
             return NULL;
         }
 
         if( !db_connect(1, &rds_context) ) {
+        	logging("timer[%ld]: %s: failed database connection, exit\n", syscall(SYS_gettid), name);
             exit_timerfunc(ptr);
             return NULL;
         }

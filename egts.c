@@ -23,6 +23,8 @@
 #define MAX_TERMINALS 1000
 #define UTS2010	(1262304000)	// unix timestamp 00:00:00 01.01.2010
 
+#define log_imei ("867793030464509")
+
 /*
    decode function
    parcel - the raw data from socket
@@ -38,6 +40,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 	EGTS_RECORD_HEADER *rec_head, st_rec_header;
 	EGTS_SUBRECORD_HEADER *srd_head;
 	ST_RECORD *record = NULL;
+    uint8_t service, result;
 
 	if( !parcel || parcel_size <= 0 || !answer )
 		return;
@@ -114,14 +117,14 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 		if( !rec_head->RL ) {	// EGTS_PC_INVDATALEN
             if( answer->count || answer->size ) { // успели расшифровать несколько записей
                 // хрен с ней, отправим EGTS_PC_OK, а то шлют бесконечно эту битую запись
-                answer->size += responce_add_teledata_result(answer->answer, answer->size, rec_head->RN, EGTS_PC_OK);
+                answer->size += responce_add_teledata_result(answer->answer, answer->size, EGTS_TELEDATA_SERVICE, rec_head->RN, EGTS_PC_OK);
 
                 if( worker && (worker->listener->log_all || worker->listener->log_err) ) {
                     logging("terminal_decode[%s:%d]: SDR:EGTS_PC_INVDATALEN error, RESPONSE: EGTS_PC_OK\n", worker->listener->name, worker->listener->port);
                 }
             }
             else {
-    			answer->size += responce_add_teledata_result(answer->answer, answer->size, rec_head->RN, EGTS_PC_INVDATALEN);
+    			answer->size += responce_add_teledata_result(answer->answer, answer->size, EGTS_TELEDATA_SERVICE, rec_head->RN, EGTS_PC_INVDATALEN);
                 if( worker && (worker->listener->log_all || worker->listener->log_err) ) {
                     logging("terminal_decode[%s:%d]: SDR:EGTS_PC_INVDATALEN error, RESPONSE: EGTS_PC_INVDATALEN\n", worker->listener->name, worker->listener->port);
                 }
@@ -151,7 +154,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
                     logging("terminal_decode[%s:%d]: SRD:EGTS_PC_INVDATALEN error, RESPONSE: EGTS_PC_INVDATALEN\n", worker->listener->name, worker->listener->port);
                 }
 
-				answer->size += responce_add_teledata_result(answer->answer, answer->size, rec_head->RN, EGTS_PC_INVDATALEN);
+				answer->size += responce_add_teledata_result(answer->answer, answer->size, EGTS_TELEDATA_SERVICE, rec_head->RN, EGTS_PC_INVDATALEN);
 				answer->size += packet_finalize(answer->answer, answer->size, worker);
 				return;
 			}
@@ -165,28 +168,32 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
                 logging("terminal_decode[%s:%d]: SRD %d\n", worker->listener->name, worker->listener->port, srd_count);
             }
 
+    	    service = EGTS_TELEDATA_SERVICE;
+            result = EGTS_PC_OK;
+
 			// разбираем SRD (Subrecord Data) в зависимости от типа записи
 			switch( srd_head->SRT ) {
 			case EGTS_SR_TERM_IDENTITY:	// авторизация
+
+        	    service = EGTS_AUTH_SERVICE;
 
                 if( worker && worker->listener->log_all ) {
                     logging("terminal_decode[%s:%d]: EGTS_SR_TERM_IDENTITY\n", worker->listener->name, worker->listener->port);
                 }
 
-				answer->size += responce_add_record(answer->answer, answer->size, rec_head->RN, EGTS_PC_OK);
-
 				if( !Parse_EGTS_SR_TERM_IDENTITY( (EGTS_SR_TERM_IDENTITY_RECORD *)&parcel[parcel_pointer], answer, worker ) && !st_rec_header.OID ) { // нет ID терминала
 					// формируем ответ пройдите на хуй, пожалуйста
-					answer->size += responce_add_result(answer->answer, answer->size, EGTS_PC_AUTH_DENIED);
-
-                    if( worker && worker->listener->log_all )
+                    result = EGTS_PC_AUTH_DENIED;
+                    if( worker && worker->listener->log_all ){
                         logging("terminal_decode[%s:%d]: RESPONSE ADD EGTS_PC_AUTH_DENIED\n\n", worker->listener->name, worker->listener->port);
+                    }
 				}
                 else {
 					// формируем ответ добро пожаловать
-					answer->size += responce_add_result(answer->answer, answer->size, EGTS_PC_OK);
-                    if( worker && worker->listener->log_all )
+                    result = EGTS_PC_OK;
+                    if( worker && worker->listener->log_all ){
                         logging("terminal_decode[%s:%d]: RESPONSE ADD EGTS_PC_OK\n\n", worker->listener->name, worker->listener->port);
+                    }
 				}
 
                 break;
@@ -203,8 +210,9 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 					memcpy(&answer->lastpoint, record, sizeof(ST_RECORD));
     				if( answer->count < MAX_RECORDS - 1 )
     					answer->count++;
-                    if( worker && worker->listener->log_all )
+                    if( worker && worker->listener->log_all ){
                         logging("terminal_decode[%s:%d]: OK, records=%d\n", worker->listener->name, worker->listener->port, answer->count);
+                    }
 				}
                 else {
                     if( worker && (worker->listener->log_all || worker->listener->log_err) )
@@ -284,14 +292,13 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 			// переходим к следующей подзаписи
 			sdr_readed += srd_head->SRL;
 			parcel_pointer += srd_head->SRL;
-
 		}	// while(sdr_readed < rec_head->RL)
 
         if( worker && worker->listener->log_all ) {
             logging("terminal_decode[%s:%d]: END SUBRECORDS: %d readed\n", worker->listener->name, worker->listener->port, srd_count);
         }
 
-		answer->size += responce_add_teledata_result(answer->answer, answer->size, rec_head->RN, EGTS_PC_OK);
+        answer->size += responce_add_teledata_result(answer->answer, answer->size, service, rec_head->RN, result);
         if( worker && worker->listener->log_all ) {
             logging("terminal_decode[%s:%d]: SDR %d readed, RESPONSE ADD EGTS_PC_OK\n", worker->listener->name, worker->listener->port, rec_head->RN);
         }
@@ -331,13 +338,15 @@ int packet_create(char *buffer, uint8_t pt, ST_WORKER *worker)
 	EGTS_PACKET_HEADER *pak_head = (EGTS_PACKET_HEADER *)buffer;
 	pak_head->PRV = 1;
 	pak_head->SKID = 0;
-	pak_head->PRF = 3;  // приоритет маршрутизации низкий
+	pak_head->PRF = 0;  // приоритет маршрутизации низкий
 	pak_head->HL = sizeof(EGTS_PACKET_HEADER);	// 11
 	pak_head->HE = 0;
 	pak_head->FDL = 0;
 	pak_head->PID = PaketNumber++;
 	pak_head->PT = pt;	// Тип пакета Транспортного Уровня
 	//pak_head->HCS = CRC8((unsigned char *)pak_head, pak_head->HL-1); // see packet_finalize
+
+    //logging("packet_create, PaketNumber=%d, pak_head->PT=%d\n", PaketNumber, pak_head->PT);
 
 	return pak_head->HL;
 }
@@ -353,6 +362,8 @@ int responce_add_header(char *buffer, int pointer, uint16_t pid, uint8_t pr)
 	EGTS_PACKET_HEADER *pak_head = (EGTS_PACKET_HEADER *)buffer;
 	pak_head->FDL = sizeof(EGTS_PT_RESPONSE_HEADER);
 
+    //logging("responce_add_header, pak_head->FDL=%d\n", pak_head->FDL);
+
 	return sizeof(EGTS_PT_RESPONSE_HEADER);
 }
 //------------------------------------------------------------------------------
@@ -361,10 +372,14 @@ int responce_add_header(char *buffer, int pointer, uint16_t pid, uint8_t pr)
 crn - № SDR записи, не порядковый, а присланный, на которую формируется ответ
 rst - результат обработки записи
 */
-int responce_add_teledata_result(char *buffer, int pointer, uint16_t crn, uint8_t rst)
+int responce_add_teledata_result(char *buffer, int pointer, uint8_t service, uint16_t crn, uint8_t rst)
 {
     static int RECNUM = 0;
     int size = 0;
+
+    if( service == EGTS_AUTH_SERVICE ){
+        RECNUM = 1;
+    }
 
     if( sizeof(EGTS_TELEDATA_RESULT_HEADER) +
         sizeof(EGTS_SR_RECORD_RESPONSE_RECORD) +
@@ -374,9 +389,9 @@ int responce_add_teledata_result(char *buffer, int pointer, uint16_t crn, uint8_
         EGTS_TELEDATA_RESULT_HEADER *rh = (EGTS_TELEDATA_RESULT_HEADER *)&buffer[pointer];
         rh->RL = sizeof(EGTS_SUBRECORD_HEADER) + sizeof(EGTS_SR_RECORD_RESPONSE_RECORD);
         rh->RN = RECNUM;   // номер записи от 0 до 65535, цикл
-        rh->RFL = 0;
-        rh->SST = EGTS_TELEDATA_SERVICE;
-        rh->RST = EGTS_TELEDATA_SERVICE;
+        rh->RFL = 64;       // RSOD=1
+        rh->SST = service;
+        rh->RST = service;
         size += sizeof(EGTS_TELEDATA_RESULT_HEADER);
         // заголовок субзаписи
         EGTS_SUBRECORD_HEADER *srh = (EGTS_SUBRECORD_HEADER *)&buffer[pointer + size];
@@ -396,11 +411,11 @@ int responce_add_teledata_result(char *buffer, int pointer, uint16_t crn, uint8_
         if( ++RECNUM > 65535 )
             RECNUM = 0;
 
-        //logging("terminal_decode[%s:%d]: RESPONSE_RECORD %d CRN=%d RST=%d\n", worker->listener->name, worker->listener->port, RECNUM, crn, rst);
+        //logging("RESPONSE_RECORD %d: CRN=%d RST=%d\n", RECNUM, crn, rst);
     }
     else {
         // if(log_err)
-        //logging("terminal_decode[%s:%d]: add RESPONSE_RECORD fail - buffer full\n", worker->listener->name, worker->listener->port);
+        //logging("add RESPONSE_RECORD fail - buffer full\n");
     }
 
     return size;
@@ -418,6 +433,8 @@ int responce_add_record(char *buffer, int pointer, uint16_t crn, uint8_t rst)
 	EGTS_PACKET_HEADER *pak_head = (EGTS_PACKET_HEADER *)buffer;
 	pak_head->FDL += sizeof(EGTS_SR_RECORD_RESPONSE_RECORD);
 
+    //logging("responce_add_record, CRN=%d RST=%d\n", crn, rst);
+
 	return sizeof(EGTS_SR_RECORD_RESPONSE_RECORD);
 }
 //------------------------------------------------------------------------------
@@ -430,6 +447,8 @@ int responce_add_result(char *buffer, int pointer, uint8_t rcd)
 
 	EGTS_PACKET_HEADER *pak_head = (EGTS_PACKET_HEADER *)buffer;
 	pak_head->FDL += sizeof(EGTS_SR_RESULT_CODE_RECORD);
+
+    //logging("responce_add_result, RCD=%d\n", rcd);
 
 	return sizeof(EGTS_SR_RESULT_CODE_RECORD);
 }
@@ -452,6 +471,8 @@ int packet_finalize(char *buffer, int pointer, ST_WORKER *worker)
 
 	// рассчитываем CRC8
 	pak_head->HCS = CRC8EGTS((unsigned char *)pak_head, pak_head->HL - 1);	// последний байт это CRC
+
+    //logging("packet_finalize, pak_head->FDL=%d\n", pak_head->FDL);
 
 	return sizeof(unsigned short);
 }
@@ -497,31 +518,31 @@ int Parse_EGTS_PACKET_HEADER(ST_ANSWER *answer, char *pc, int parcel_size, ST_WO
 	EGTS_PACKET_HEADER *ph = (EGTS_PACKET_HEADER *)pc;
 
 	if( ph->PRV != 1 /*|| (ph->PRF & 192)*/ ) {
-		answer->size += responce_add_teledata_result(answer->answer, answer->size, ph->PID, EGTS_PC_UNS_PROTOCOL);
+		answer->size += responce_add_teledata_result(answer->answer, answer->size, EGTS_TELEDATA_SERVICE, ph->PID, EGTS_PC_UNS_PROTOCOL);
 		retval = 1;
         //log2file("/home/locman/glonassd/logs/UNS_PROTOCOL", pc, parcel_size);
 	}
 
 	if( retval && ph->HL != 11 && ph->HL != 16 ) {
-		answer->size += responce_add_teledata_result(answer->answer, answer->size, ph->PID, EGTS_PC_INC_HEADERFORM);
+		answer->size += responce_add_teledata_result(answer->answer, answer->size, EGTS_TELEDATA_SERVICE, ph->PID, EGTS_PC_INC_HEADERFORM);
 		retval = 2;
         //log2file("/home/locman/glonassd/logs/INC_HEADERFORM", pc, parcel_size);
 	}
 
     if( retval && CRC8EGTS((unsigned char *)ph, ph->HL-1) != ph->HCS ) {
-		answer->size += responce_add_teledata_result(answer->answer, answer->size, ph->PID, EGTS_PC_HEADERCRC_ERROR);
+		answer->size += responce_add_teledata_result(answer->answer, answer->size, EGTS_TELEDATA_SERVICE, ph->PID, EGTS_PC_HEADERCRC_ERROR);
 		retval = 3;
         //log2file("/home/locman/glonassd/logs/HEADERCRC_ERROR", pc, parcel_size);
 	}
 
 	if( retval && (B5 & ph->PRF) ) {
-		answer->size += responce_add_teledata_result(answer->answer, answer->size, ph->PID, EGTS_PC_TTLEXPIRED);
+		answer->size += responce_add_teledata_result(answer->answer, answer->size, EGTS_TELEDATA_SERVICE, ph->PID, EGTS_PC_TTLEXPIRED);
 		retval = 4;
         //log2file("/home/locman/glonassd/logs/TTLEXPIRED", pc, parcel_size);
 	}
 
 	if( retval && !ph->FDL ) {
-		answer->size += responce_add_teledata_result(answer->answer, answer->size, ph->PID, EGTS_PC_OK);
+		answer->size += responce_add_teledata_result(answer->answer, answer->size, EGTS_TELEDATA_SERVICE, ph->PID, EGTS_PC_OK);
 		retval = 5;
         //log2file("/home/locman/glonassd/logs/EGTS_PC_OK", pc, parcel_size);
 	}
@@ -529,21 +550,21 @@ int Parse_EGTS_PACKET_HEADER(ST_ANSWER *answer, char *pc, int parcel_size, ST_WO
 	// проверяем CRC16
 	unsigned short *SFRCS = (unsigned short *)&pc[ph->HL + ph->FDL];
 	if( retval && *SFRCS != CRC16EGTS( (unsigned char *)&pc[ph->HL], ph->FDL) ) {
-		answer->size += responce_add_teledata_result(answer->answer, answer->size, ph->PID, EGTS_PC_DATACRC_ERROR);
+		answer->size += responce_add_teledata_result(answer->answer, answer->size, EGTS_TELEDATA_SERVICE, ph->PID, EGTS_PC_DATACRC_ERROR);
 		retval = 6;
         //log2file("/home/locman/glonassd/logs/DATACRC_ERROR", pc, parcel_size);
 	}
 
 	// проверяем шифрование данных
 	if( retval && (ph->PRF & 24) ) {
-		answer->size += responce_add_teledata_result(answer->answer, answer->size, ph->PID, EGTS_PC_DECRYPT_ERROR);
+		answer->size += responce_add_teledata_result(answer->answer, answer->size, EGTS_TELEDATA_SERVICE, ph->PID, EGTS_PC_DECRYPT_ERROR);
 		retval = 7;
         //log2file("/home/locman/glonassd/logs/DECRYPT_ERROR", pc, parcel_size);
 	}
 
 	// проверяем сжатие данных
 	if( retval && (ph->PRF & B2) ) {
-		answer->size += responce_add_teledata_result(answer->answer, answer->size, ph->PID, EGTS_PC_INC_DATAFORM);
+		answer->size += responce_add_teledata_result(answer->answer, answer->size, EGTS_TELEDATA_SERVICE, ph->PID, EGTS_PC_INC_DATAFORM);
 		retval = 8;
         //log2file("/home/locman/glonassd/logs/INC_DATAFORM", pc, parcel_size);
 	}
@@ -723,7 +744,7 @@ int Parse_EGTS_SR_POS_DATA(EGTS_SR_POS_DATA_RECORD *posdata, ST_RECORD *record, 
 	tm_data.tm_hour = tm_data.tm_min = tm_data.tm_sec = 0;
 	// получаем дату
 	tm_data.tm_year = (tm_data.tm_year + 2010 - 1970);
-	record->data = timegm(&tm_data) - GMT_diff;	// local struct->local simple & mktime epoch
+	record->data = timegm(&tm_data);	// local struct->local simple & mktime epoch
 
 	// координаты
 	record->lat = 90.0 * posdata->LAT / 0xFFFFFFFF;

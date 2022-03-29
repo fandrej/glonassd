@@ -44,6 +44,10 @@ EGTS_PACKET {
 Общая длина пакета Протокола Транспортного Уровня не превышает значения 65535 байт
 АТ - абонентский терминал
 ТП - телематическая платформа
+
+
+См. так же:
+https://github.com/LdDl/go-egts/blob/master/docs_rus/egts.txt
 */
 
 #ifndef __EGTS__
@@ -691,7 +695,7 @@ int packet_finalize(char *buffer, int pointer, ST_WORKER *worker);
 // функции для decode
 int responce_add_header(char *buffer, int pointer, uint16_t pid, uint8_t pr);
 int responce_add_record(char *buffer, int pointer, uint16_t crn, uint8_t rst);
-int responce_add_teledata_result(char *buffer, int pointer, uint16_t crn, uint8_t rst);
+int responce_add_teledata_result(char *buffer, int pointer, uint8_t service, uint16_t crn, uint8_t rst);
 int responce_add_result(char *buffer, int pointer, uint8_t rcd);
 int responce_add_subrecord_EGTS_SR_COMMAND_DATA(char *buffer, int pointer, EGTS_SR_COMMAND_DATA_RECORD *cmdrec);
 unsigned char CRC8EGTS(unsigned char *lpBlock, unsigned char len);
