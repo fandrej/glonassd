@@ -46,15 +46,11 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 
 	answer->size = 0;	// :)
 
-	/*
     cRec = strtok(parcel, "\r\n");
-    АО ГЛОНАСС вопреки спецификации протокола использует только \n (точнее 000A) для разделения строк
-    */
-	cRec = strtok(parcel, "\n");
 	while( cRec ) {
 
         if( strlen(cRec) < 5 ){
-    		cRec = strtok(NULL, "\n");
+    		cRec = strtok(NULL, "\r\n");
             continue;
         }
 
@@ -448,7 +444,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 
 		}	// switch( cRec[1] )
 
-		cRec = strtok(NULL, "\n");
+		cRec = strtok(NULL, "\r\n");
 	}	// while( cRec )
 
 }   // terminal_decode
