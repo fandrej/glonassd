@@ -18,15 +18,23 @@
 #ifndef MILE
 #define MILE 1.852    // коэфф мили/километры
 #endif
+
 #ifndef SIZE_TRACKER_FIELD
 #define SIZE_TRACKER_FIELD (16)
 #endif
+
+#ifndef SIZE_MESSAGE_FIELD
+#define SIZE_MESSAGE_FIELD (150)
+#endif
+
 #ifndef BAD_OBJ
 #define BAD_OBJ (-1)
 #endif
+
 #ifndef SOCKET_BUF_SIZE
 #define SOCKET_BUF_SIZE (65536) // max 32768 for THREAD_STACK_SIZE_KB = 256
 #endif
+
 #ifndef MAX_RECORDS
 #define MAX_RECORDS (50)
 #endif
@@ -61,9 +69,10 @@ typedef struct {
     double vbort;               // car on-board voltage
     double vbatt;               // terminal battery voltage
     double probeg;              // terminal-calculated distance from prev. point
-    unsigned int port;          // TCP/UDP port of receiving terminal data
+    unsigned int port;          // TCP/UDP port of receiving terminal data        sizeof(ST_RECORD)=232
+    char message[SIZE_MESSAGE_FIELD];      // Произвольное сообщение от оборудования
 } ST_RECORD;
-// sizeof(ST_RECORD)=228
+// sizeof(ST_RECORD)=232
 
 /*
    structure for terminal_decode function

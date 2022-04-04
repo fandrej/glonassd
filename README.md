@@ -92,7 +92,9 @@ This daemon is part of navigation service of [locman.org](http://locman.org/map/
 * Added Galileo retranslation protocol
 * Small fixes
 
-
 13.11.2021<br>
 * Added library for working with Oracle database
 * Improved logs in databases libraries
+
+04.04.2022<br>
+* Added processing of CT_MSGTO, CT_MSGFROM EGTS_COMMANDS_SERVICE messages

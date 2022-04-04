@@ -33,7 +33,8 @@ CREATE TABLE tgpsdata (
     nprobeg real,
     nzaj integer,
     nalarm integer,
-    nprobegc real
+    nprobegc real,
+    cmessage varchar(150)
 );
 
 COMMENT ON TABLE tgpsdata IS 'Данные GPS';
@@ -64,5 +65,6 @@ COMMENT ON COLUMN tgpsdata.nprobeg IS 'Пробег, расчитанный те
 COMMENT ON COLUMN tgpsdata.nzaj IS 'Состояние зажигания';
 COMMENT ON COLUMN tgpsdata.nalarm IS 'Состояние кнопки тревоги';
 COMMENT ON COLUMN tgpsdata.nprobegc IS 'Пробег, расчитанный сервером, метры';
+COMMENT ON COLUMN tgpsdata.cmessage IS 'Произвольное сообщение от оборудования';
 
 CREATE INDEX igpsdata ON tgpsdata USING btree (ddata, ntime, cimei, nvalid);

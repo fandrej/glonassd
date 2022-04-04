@@ -68,7 +68,7 @@
 
 // Definitions
 #define MAX_SQL_SIZE 4096
-#define INSERT_PARAMS_COUNT 33
+#define INSERT_PARAMS_COUNT 34
 
 // Locals
 // params for inserting sql
@@ -77,7 +77,7 @@ static __thread char *paramValues[INSERT_PARAMS_COUNT]= {
 	(char*)1,
 	(char*)1,
 	(char*)1,
-	(char*)1,
+	(char*)1,   // 5
 	(char*)1,
 	(char*)1,
 	(char*)1,
@@ -87,7 +87,7 @@ static __thread char *paramValues[INSERT_PARAMS_COUNT]= {
 	(char*)1,
 	(char*)1,
 	(char*)1,
-	(char*)1,
+	(char*)1,   // 15
 	(char*)1,
 	(char*)1,
 	(char*)1,
@@ -97,7 +97,7 @@ static __thread char *paramValues[INSERT_PARAMS_COUNT]= {
 	(char*)1,
 	(char*)1,
 	(char*)1,
-	(char*)1,
+	(char*)1,   // 25
 	(char*)1,
 	(char*)1,
 	(char*)1,
@@ -105,7 +105,8 @@ static __thread char *paramValues[INSERT_PARAMS_COUNT]= {
 	(char*)1,   // 30
 	(char*)1,
 	(char*)1,
-	(char*)1
+	(char*)1,
+	(char*)1    // 34
 };
 
 /*
@@ -272,15 +273,17 @@ static int write_data_to_db(PGconn *connection, char *msg, char *sql_insert_poin
 	snprintf(paramValues[30], SIZE_TRACKER_FIELD, "%04.03lf", record->probeg);     // $31
 	snprintf(paramValues[31], SIZE_TRACKER_FIELD, "%d", record->zaj);
 	snprintf(paramValues[32], SIZE_TRACKER_FIELD, "%d", record->alarm);            // $33
+	snprintf(paramValues[33], SIZE_MESSAGE_FIELD, "%s", record->message);		   // $34
 
 	res = PQexecParams(connection,          // PGconn *conn,
-							 sql_insert_point,      // const char *command,
-							 INSERT_PARAMS_COUNT,   // int nParams,
-							 NULL,                  // const Oid *paramTypes
-							 (const char* const*)paramValues,
-							 NULL,                  // const int *paramLengths,
-							 NULL,                  // const int *paramFormats,
-							 1);                    // int resultFormat: 1-ask for binary results
+                        sql_insert_point,      // const char *command,
+                        INSERT_PARAMS_COUNT,   // int nParams,
+                        NULL,                  // const Oid *paramTypes
+                        (const char* const*)paramValues,
+                        NULL,                  // const int *paramLengths,
+                        NULL,                  // const int *paramFormats,
+                        1);                    // int resultFormat: 1-ask for binary results
+
 	pqstatus = PQresultStatus(res);
 	PQclear(res);
 

@@ -248,14 +248,16 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 				// сформировать подтверждение в виде подзаписи EGTS_SR_COMMAND_DATA сервиса EGTS_COMMAND_SERVICE
 				answer->size += responce_add_record(answer->answer, answer->size, rec_head->RN, EGTS_PC_OK);
 
-				if( Parse_EGTS_SR_COMMAND_DATA(answer, (EGTS_SR_COMMAND_DATA_RECORD *)&parcel[parcel_pointer]) ) {
-					// завершаем пакет
-					answer->size += packet_finalize(answer->answer, answer->size, worker);
+				if( record ) {
+    				if( Parse_EGTS_SR_COMMAND_DATA(record, answer, (EGTS_SR_COMMAND_DATA_RECORD *)&parcel[parcel_pointer], srd_head->SRL, worker) ) {
+    					// завершаем пакет
+    					answer->size += packet_finalize(answer->answer, answer->size, worker);
 
-					// сформировать подзапись EGTS_SR_POS_DATA сервиса EGRS_TELEDATA_SERVICE
-					// создать новый пакет и вернуть его
-					return;
-				}	// if( Parse_EGTS_SR_COMMAND_DATA(
+    					// сформировать подзапись EGTS_SR_POS_DATA сервиса EGRS_TELEDATA_SERVICE
+    					// создать новый пакет и вернуть его
+    					return;
+    				}	// if( Parse_EGTS_SR_COMMAND_DATA(
+				}
 
 				break;
 			case EGTS_SR_AD_SENSORS_DATA:	// 18, датчики
@@ -908,53 +910,120 @@ int Parse_EGTS_SR_STATE_DATA(EGTS_SR_STATE_DATA_RECORD *statedata, ST_RECORD *re
 /* обработка команды и ответ на команду
    D:\Work\Borland\Satellite\egts\EGTS\EGTS 1.6\RUS\protocol_EGTS_services_v.1.6_p1_RUS.pdf
    6.3 EGTS_COMMANDS_SERVICE
+
+   command->SID uint32_t, а используется как char * (например: "aero")
 */
-int Parse_EGTS_SR_COMMAND_DATA(ST_ANSWER *answer, EGTS_SR_COMMAND_DATA_RECORD *record)
+int Parse_EGTS_SR_COMMAND_DATA(ST_RECORD *record, ST_ANSWER *answer, EGTS_SR_COMMAND_DATA_RECORD *command, uint16_t command_len, ST_WORKER *worker)
 {
 	EGTS_SR_COMMAND_DATA_FIELD *CD;
-	uint8_t	*ACL;
+	uint8_t	CT, CCT, *CHS = 0, *ACL = 0, *AC = 0;
+    uint16_t dt_len;    // 65200 max
+    char *dt = 0;
 
-	if( record->CT_CCT & 80 ) {	// CT_COM - команда для выполнения на АТ
+    CT = (command->CT_CCT & 240 /* 11110000 */); // тип команды (CT_DELIV, CT_SUBREQ, CT_DELCOM, CT_COM, CT_MSGTO, CT_MSGFROM...)
+    CCT = (command->CT_CCT & 15 /* 00001111 */); // тип подтверждения (имеет смысл для типов команд CT_COMCONF, CT_MSGCONF, CT_DELIV)
 
-		// calculate address off field CD
-		CD = (EGTS_SR_COMMAND_DATA_FIELD *)(&record->ACFE + sizeof(uint8_t));
+    // calculate address off field CD
+    CD = (EGTS_SR_COMMAND_DATA_FIELD *)((char *)command + sizeof(EGTS_SR_COMMAND_DATA_RECORD));
 
-		if( record->ACFE & 1 )	// поле CHS присутствует в подзаписи
-			CD += sizeof(uint8_t);
-		if( record->ACFE & 2 ) {	// поля ACL и AC присутствуют в подзаписи
-			ACL = (uint8_t *)CD;
-			CD += (sizeof(uint8_t) + (*ACL));
-		}
+    if( command->ACFE & 1 ){	// поле CHS присутствует в подзаписи
+        CHS = (uint8_t *)CD;
+        CD += sizeof(uint8_t);
+    }
 
-		// check field CD
-		if( CD->SZ_ACT & 1 ) {	// запрос значения
-			// http://www.zakonprost.ru/content/base/part/1038461
-			// http://docs.cntd.ru/document/1200119664
+    if( command->ACFE & 2 ) {	// поля ACL и AC присутствуют в подзаписи
+        ACL = (uint8_t *)CD;
+        AC = (uint8_t *)ACL + sizeof(uint8_t);
+        CD += (sizeof(uint8_t) + (*ACL));
+    }
 
-			// сформировать подтверждение в виде подзаписи EGTS_SR_COMMAND_DATA сервиса EGTS_COMMAND_SERVICE
-			answer->size += responce_add_subrecord_EGTS_SR_COMMAND_DATA(answer->answer, answer->size, record);
+    // рассчитать начало и длинну поля dt
+    dt = (char *)CD + sizeof(EGTS_SR_COMMAND_DATA_FIELD) - sizeof(uint8_t);
+    dt_len = (char *)command + command_len - dt;
 
-			switch( CD->CCD ) {	// Запрашиваемый параметр определяется кодом из поля CCD
-			case EGTS_FLEET_GET_DOUT_DATA:	// Команда запроса состояния дискретных выходов
-			case EGTS_FLEET_GET_POS_DATA:	// Команда запроса текущих данных местоположения
-			case EGTS_FLEET_GET_SENSORS_DATA:	// Команда запроса состояния дискретных и аналоговых входов
-			case EGTS_FLEET_GET_LIN_DATA:	// Команда запроса состояния шлейфовых входов
-			case EGTS_FLEET_GET_CIN_DATA:	// Команда запроса состояния счетных входов
-			case EGTS_FLEET_GET_STATE:	// Команда запроса состояния абонентского терминала
-				/* При получении данной команды помимо подтверждения в виде
-				   подзаписи EGTS_SR_COMMAND_DATA сервиса EGTS_COMMAND_SERVICE
-					абонентский терминал отправляет телематическое сообщение, содержащее
-				   подзапись EGTS_SR_POS_DATA сервиса EGRS_TELEDATA_SERVICE
-				*/
-				return 1;
-			}	// switch( CD->CCD )
+    if( worker && worker->listener->log_all ) {
+        logging("terminal_decode[%s:%d]: Parse_EGTS_SR_COMMAND_DATA: EGTS_SR_COMMAND_DATA_RECORD:\n", worker->listener->name, worker->listener->port);
+        logging("terminal_decode[%s:%d]: command_len=%u\n", worker->listener->name, worker->listener->port, command_len);
+        logging("terminal_decode[%s:%d]: command->CT_CCT=%u\n", worker->listener->name, worker->listener->port, command->CT_CCT);
+        logging("terminal_decode[%s:%d]: \tCT=%u\n", worker->listener->name, worker->listener->port, CT);
+        logging("terminal_decode[%s:%d]: \tCCT=%u\n", worker->listener->name, worker->listener->port, CCT);
+        logging("terminal_decode[%s:%d]: command->CID=%u\n", worker->listener->name, worker->listener->port, command->CID);
+        logging("terminal_decode[%s:%d]: command->SID=%u\n", worker->listener->name, worker->listener->port, command->SID);
+        logging("terminal_decode[%s:%d]: command->ACFE=%u\n", worker->listener->name, worker->listener->port, command->ACFE);
+		if( CHS ){	// поле CHS присутствует в подзаписи
+            logging("terminal_decode[%s:%d]: CHS=%u\n", worker->listener->name, worker->listener->port, *CHS);
+        }
+        else {
+            logging("terminal_decode[%s:%d]: CHS no\n", worker->listener->name, worker->listener->port);
+        }
+        if( ACL && AC ){
+            logging("terminal_decode[%s:%d]: ACL=%u\n", worker->listener->name, worker->listener->port, *ACL);
+            //logging("terminal_decode[%s:%d]: AC=%s\n", worker->listener->name, worker->listener->port, AC);
+        }
+        else {
+            logging("terminal_decode[%s:%d]: ACL, AC no\n", worker->listener->name, worker->listener->port);
+        }
+        if( CD ){
+            logging("terminal_decode[%s:%d]: CD->ADR=%u\n", worker->listener->name, worker->listener->port, CD->ADR);
+            logging("terminal_decode[%s:%d]: CD->SZ_ACT=%u\n", worker->listener->name, worker->listener->port, CD->SZ_ACT);
+            logging("terminal_decode[%s:%d]: CD->SZ=%u\n", worker->listener->name, worker->listener->port, (CD->SZ_ACT >> 4));
+            logging("terminal_decode[%s:%d]: CD->ACT=%u\n", worker->listener->name, worker->listener->port, (CD->SZ_ACT & 15));
+            logging("terminal_decode[%s:%d]: CD->CCD=%u\n", worker->listener->name, worker->listener->port, CD->CCD);
+            if( dt_len > 0 ){
+                logging("terminal_decode[%s:%d]: data len=%u\n", worker->listener->name, worker->listener->port, dt_len);
+            }
+        }
+    }   // if( worker && worker->listener->log_all )
 
-		}	// if( CD->SZ_ACT & 1 )
+    switch(CT){
+        case CT_DELIV:  // подтверждение о доставке команды или информационного сообщения
+            break;
+        case CT_SUBREQ:  // дополнительный подзапрос для выполнения (к переданной ранее команде)
+            break;
+        case CT_DELCOM:  // удаление из очереди на выполнение переданной ранее команды
+            break;
+        case CT_COM:  // команда для выполнения на АТ
+    		if( CD->SZ_ACT & 1 ) {	// запрос значения
+    			// http://www.zakonprost.ru/content/base/part/1038461
+    			// http://docs.cntd.ru/document/1200119664
 
-	}	// if( record->CT_CCT & 80 )
+    			// сформировать подтверждение в виде подзаписи EGTS_SR_COMMAND_DATA сервиса EGTS_COMMAND_SERVICE
+    			answer->size += responce_add_subrecord_EGTS_SR_COMMAND_DATA(answer->answer, answer->size, command, CT_COMCONF + CC_OK);
+
+    			switch( CD->CCD ) {	// Запрашиваемый параметр определяется кодом из поля CCD
+    			case EGTS_FLEET_GET_DOUT_DATA:	// Команда запроса состояния дискретных выходов
+    			case EGTS_FLEET_GET_POS_DATA:	// Команда запроса текущих данных местоположения
+    			case EGTS_FLEET_GET_SENSORS_DATA:	// Команда запроса состояния дискретных и аналоговых входов
+    			case EGTS_FLEET_GET_LIN_DATA:	// Команда запроса состояния шлейфовых входов
+    			case EGTS_FLEET_GET_CIN_DATA:	// Команда запроса состояния счетных входов
+    			case EGTS_FLEET_GET_STATE:	// Команда запроса состояния абонентского терминала
+    				/* При получении данной команды помимо подтверждения в виде
+    				   подзаписи EGTS_SR_COMMAND_DATA сервиса EGTS_COMMAND_SERVICE
+    					абонентский терминал отправляет телематическое сообщение, содержащее
+    				   подзапись EGTS_SR_POS_DATA сервиса EGRS_TELEDATA_SERVICE
+    				*/
+    				return 1;
+    			}	// switch( CD->CCD )
+    		}	// if( CD->SZ_ACT & 1 )
+            break;
+        case CT_MSGTO:    // информационное сообщение для вывода на устройство отображения АТ
+        case CT_MSGFROM:  // информационное сообщение от АТ
+            if( dt_len > 0 ){
+    			memset(record->message, 0, SIZE_MESSAGE_FIELD);
+            	snprintf(record->message, min(SIZE_MESSAGE_FIELD, dt_len), "%s", dt);
+                if( worker && worker->listener->log_all ) {
+                    logging("terminal_decode[%s:%d]: record->message=%s\n", worker->listener->name, worker->listener->port, record->message);
+                }
+            }   // if( dt_len > 0 )
+            break;
+        case CT_MSGCONF:  // подтверждение о приёме, отображении и/или обработке информационного сообщения
+            break;
+        case CT_COMCONF:  // подтверждение о приёме, обработке или результат выполнения команды
+            break;
+    }   // switch(command->CT_CCT & 240
 
 	return 0;
-}
+}   // Parse_EGTS_SR_COMMAND_DATA
 //------------------------------------------------------------------------------
 
 
@@ -962,7 +1031,7 @@ int Parse_EGTS_SR_COMMAND_DATA(ST_ANSWER *answer, EGTS_SR_COMMAND_DATA_RECORD *r
    pointer - размер уже сформированного ответа (конец массива байт)
    cmdrec - указатель на пришедшую запись EGTS_SR_COMMAND_DATA_RECORD, на которую отвечаем
 */
-int responce_add_subrecord_EGTS_SR_COMMAND_DATA(char *buffer, int pointer, EGTS_SR_COMMAND_DATA_RECORD *cmdrec)
+int responce_add_subrecord_EGTS_SR_COMMAND_DATA(char *buffer, int pointer, EGTS_SR_COMMAND_DATA_RECORD *cmdrec, uint8_t ct_cct)
 {
 	EGTS_SR_COMMAND_DATA_RECORD *cmdresponse;	// формируемая запись
 	EGTS_SR_COMMAND_DATA_FIELD *CD, *cmdcd;

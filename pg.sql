@@ -1,37 +1,38 @@
 INSERT INTO gps.tgpsdata (
-	ddata ,          --$1
-	ntime ,
-	cimei ,          --$3
-	nstatus ,
-	nlongitude ,     --$5
-	cew ,
-	nlatitude ,      --$7
-	cns ,
-	naltitude ,      --$9
-	nspeed ,
-	nheading ,       --$11
-	nsat ,
-	nvalid ,         --$13
-	nnum ,
-	nvbort ,         --$15
-	nvbat ,
-	ntmp ,           --$17
-	nhdop ,
-	nout ,           --$19
-	ninp ,
-	nin0 ,           --$21
-	nin1 ,
-	nin2 ,           --$23
-	nin3 ,
-	nin4 ,           --$25
-	nin5 ,
-	nin6 ,           --$27
-	nin7 ,
-	nfuel1 ,         --$29
-	nfuel2 ,
-	nprobeg ,        --$31
-	nzaj ,
-	nalarm           --$33
+	ddata,          --$1
+	ntime,
+	cimei,          --$3
+	nstatus,
+	nlongitude,     --$5
+	cew,
+	nlatitude,      --$7
+	cns,
+	naltitude,      --$9
+	nspeed,
+	nheading,       --$11
+	nsat,
+	nvalid,         --$13
+	nnum,
+	nvbort,         --$15
+	nvbat,
+	ntmp,           --$17
+	nhdop,
+	nout,           --$19
+	ninp,
+	nin0,           --$21
+	nin1,
+	nin2,           --$23
+	nin3,
+	nin4,           --$25
+	nin5,
+	nin6,           --$27
+	nin7,
+	nfuel1,         --$29
+	nfuel2,
+	nprobeg,        --$31
+	nzaj,
+	nalarm,         --$33
+    cmessage
 ) VALUES (
 	to_timestamp($1::bigint),
 	$2::integer,
@@ -65,5 +66,6 @@ INSERT INTO gps.tgpsdata (
 	$30::real,
 	$31::real,
 	$32::integer,
-	$33::integer
+	$33::integer,
+	$34::varchar
 );
