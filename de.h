@@ -24,7 +24,7 @@
 #endif
 
 #ifndef SIZE_MESSAGE_FIELD
-#define SIZE_MESSAGE_FIELD (150)
+#define SIZE_MESSAGE_FIELD (1000)
 #endif
 
 #ifndef BAD_OBJ

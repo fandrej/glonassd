@@ -34,7 +34,7 @@ CREATE TABLE tgpsdata (
     nzaj integer,
     nalarm integer,
     nprobegc real,
-    cmessage varchar(150)
+    cmessage varchar(1000)
 );
 
 COMMENT ON TABLE tgpsdata IS 'Данные GPS';
