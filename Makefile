@@ -90,6 +90,12 @@ tqgprs: tqgprs.c de.h logger.h
 	$(CC) -shared -o tqgprs.so tqgprs.o
 	rm tqgprs.o
 
+# shared library for decode/encode GOSAFE
+gosafe: gosafe.c de.h logger.h
+	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) gosafe.c -o gosafe.o
+	$(CC) -shared -o gosafe.so gosafe.o
+	rm gosafe.o
+
 # shared library for test/log protocol
 prototest: prototest.c de.h glonassd.h logger.h
 	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) prototest.c -o prototest.o

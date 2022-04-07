@@ -32,7 +32,7 @@
 #endif
 
 #ifndef SOCKET_BUF_SIZE
-#define SOCKET_BUF_SIZE (65536) // max 32768 for THREAD_STACK_SIZE_KB = 256
+#define SOCKET_BUF_SIZE (65536)
 #endif
 
 #ifndef MAX_RECORDS
@@ -72,7 +72,7 @@ typedef struct {
     unsigned int port;          // TCP/UDP port of receiving terminal data        sizeof(ST_RECORD)=232
     char message[SIZE_MESSAGE_FIELD];      // Произвольное сообщение от оборудования
 } ST_RECORD;
-// sizeof(ST_RECORD)=232
+// sizeof(ST_RECORD)=1232
 
 /*
    structure for terminal_decode function
