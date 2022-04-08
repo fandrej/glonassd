@@ -208,6 +208,46 @@ static void terminal_decode_txt(char *parcel, int parcel_size, ST_ANSWER *answer
                                     record_ok = 0;
                                 }
                             }   // if( strcmp(parameter, "GPS") == 0 )
+                            else if( strcmp(parameter, "STT") == 0 ) {
+                                // 1 2
+                                // 2;0
+                    			iFields = sscanf(cParams, "%d;%d",
+                    								&record->status,  // 1
+                                                    &record->alarm    // 2
+                       							  );
+                                record->zaj = record->status & 256;     // bit 9
+                                record->alarm = record->alarm & 512;    // bit 10
+                                /*
+                                logging("terminal_decode[%s:%d]: record->status=%d", worker->listener->name, worker->listener->port, record->status);
+                                logging("terminal_decode[%s:%d]: record->zaj=%d", worker->listener->name, worker->listener->port, record->zaj);
+                                logging("terminal_decode[%s:%d]: record->alarm=%d", worker->listener->name, worker->listener->port, record->alarm);
+                                */
+                            }   // else if( strcmp(parameter, "STT") == 0 )
+                            else if( strcmp(parameter, "MGR") == 0 ) {
+                                // 1000
+                    			iFields = sscanf(cParams, "%lf",
+                    								&record->probeg   // 1 (meters)
+                       							  );
+                                //logging("terminal_decode[%s:%d]: record->probeg=%lf", worker->listener->name, worker->listener->port, record->probeg);
+                            }   // else if( strcmp(parameter, "MGR") == 0 )
+                            else if( strcmp(parameter, "ADC") == 0 ) {
+                                // 1   2  3   4  5  6
+                                // 0;12.1;1;36.2;2;4.3
+
+                                hdop = 0.0;
+                                //                          1   2   3   4   5   6
+                    			iFields = sscanf(cParams, "%*d;%lf;%*d;%f;%*d;%lf",
+                    								&record->vbort,   // 2
+                                                    &hdop,            // 4
+                                                    &record->vbatt    // 6
+                       							  );
+                                record->temperature = (int)hdop;
+                                /*
+                                logging("terminal_decode[%s:%d]: record->vbort=%lf", worker->listener->name, worker->listener->port, record->vbort);
+                                logging("terminal_decode[%s:%d]: record->vbatt=%lf", worker->listener->name, worker->listener->port, record->vbatt);
+                                logging("terminal_decode[%s:%d]: record->temperature=%d", worker->listener->name, worker->listener->port, record->temperature);
+                                */
+                            }   // else if( strcmp(parameter, "ADC") == 0 )
 
                         }   // else if( param_num == 1 )
                     }   // for(cParams = strtok_r(cPart
@@ -240,6 +280,9 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
     if( !parcel || parcel_size <= 0 || !answer )
         return;
         */
+
+    // стр. 33, Binary format
+    // F802010357852034572894020B15D6023501CC0003252C9603044000000004040000380B050401DC19B806080000000000000000070341077E080402FC4AB0733EB8
 }   //
 
 
