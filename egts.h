@@ -2,33 +2,33 @@
 /*
 Описание типов данных:
 #include <stdint.h> // uint8_t, etc...
-GCC/standard C (stdint.h)																				Borland Builder C++
-uint8_t - 8ми битный целый беззнаковый. 	unsigned char          unsigned __int8
-int8_t - 8ми битный целый знаковый.       char                   __int8
+GCC/standard C (stdint.h)                                        Borland Builder C++
+uint8_t  - 8ми битный целый беззнаковый.  unsigned char          unsigned __int8
+int8_t   - 8ми битный целый знаковый.     char                   __int8
 uint16_t - 16ти битный целый беззнаковый. unsigned short int     unsigned __int16
-int16_t - 16ти битный целый знаковый.     short int              __int16
+int16_t  - 16ти битный целый знаковый.    short int              __int16
 uint32_t - 32х битный целый беззнаковый.  unsigned int           unsigned __int32
-int32_t - 32х битный целый знаковый.      int                    __int32
+int32_t  - 32х битный целый знаковый.     int                    __int32
 
 32-bit data types, sizes, and ranges
 http://cppstudio.com/post/271/
---------------------------------------------------------------------------------
-Type								Size (bits)	Range																Sample applications
---------------------------------------------------------------------------------
-unsigned char						8			0 <= X <= 255													Small numbers and full PC character set
-char										8			-128 <= X <= 127											Very small numbers and ASCII characters
-short int								16		-32,768 <= X <= 32,767								Counting, small numbers, loop control
-unsigned short int			16    0 <= X <= 65 535
-unsigned int						32		0 <= X <= 4,294,967,295								Large numbers and loops
-int											32		-2,147,483,648 <= X <= 2,147,483,647	Counting, small numbers, loop control
-unsigned long						32		0 <= X <= 4,294,967,295								Astronomical distances
-enum										32		-2,147,483,648 <= X <= 2,147,483,647	Ordered sets of values
-long [int]							32		-2,147,483,648 <= X <= 2,147,483,647	Large numbers, populations
-long long int       		64    -9223372036854775808 <= X <= 9223372036854775807
-unsigned long long int	64    0 <= X <= 8446744073709551615
-float										32		1.18  10^-38 < |X| < 3.40  10^38			Scientific (7-digit) precision)
-double									64		2.23  10^-308 < |X| < 1.79  10^308		Scientific (15-digit precision)
-long double							80		3.37  10^-4932 < |X| < 1.18  10^4932	Financial (18-digit precision)
+------------------------------------------------------------------------------------------------------------------------------
+Type                 Size (bits)   Range                                               Sample applications
+------------------------------------------------------------------------------------------------------------------------------
+unsigned char           8          0 <= X <= 255                                       Small numbers and full PC character set
+char                    8          -128 <= X <= 127                                    Very small numbers and ASCII characters
+short int               16         -32,768 <= X <= 32,767                              Counting, small numbers, loop control
+unsigned short int      16         0 <= X <= 65 535
+unsigned int            32         0 <= X <= 4,294,967,295                             Large numbers and loops
+int                     32         -2,147,483,648 <= X <= 2,147,483,647                Counting, small numbers, loop control
+unsigned long           32         0 <= X <= 4,294,967,295                             Astronomical distances
+enum                    32         -2,147,483,648 <= X <= 2,147,483,647                Ordered sets of values
+long [int]              32         -2,147,483,648 <= X <= 2,147,483,647                Large numbers, populations
+long long int           64         -9223372036854775808 <= X <= 9223372036854775807
+unsigned long long int  64         0 <= X <= 8446744073709551615
+float                   32         1.18  10^-38 < |X| < 3.40  10^38                    Scientific (7-digit) precision)
+double                  64         2.23  10^-308 < |X| < 1.79  10^308                  Scientific (15-digit precision)
+long double             80         3.37  10^-4932 < |X| < 1.18  10^4932                Financial (18-digit precision)
 */
 
 /* EGTS:
