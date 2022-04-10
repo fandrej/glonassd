@@ -32,12 +32,12 @@ Gosafe G797
 Help:
 https://github.com/traccar/traccar/blob/master/src/main/java/org/traccar/protocol/GoSafeProtocolDecoder.java
 
+http://cpp.sh/
+
 compile:
-make -B wialonips
+make -B gosafe
 */
 
-#include <string.h> /* memset */
-#include <errno.h>  /* errno */
 #include "glonassd.h"
 #include "worker.h"
 #include "de.h"     // ST_ANSWER
@@ -47,6 +47,7 @@ make -B wialonips
 
 static void terminal_decode_txt(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER *worker);
 static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER *worker);
+
 
 /*
    decode function
@@ -88,6 +89,8 @@ static void terminal_decode_txt(char *parcel, int parcel_size, ST_ANSWER *answer
 
     if( !parcel || parcel_size <= 0 || !answer )
         return;
+
+    logging("terminal_decode[%s:%d]: terminal_decode_txt", worker->listener->name, worker->listener->port);
 
     // TCP hartbeat data
     // *GS02,357852034572894#
@@ -258,9 +261,11 @@ static void terminal_decode_txt(char *parcel, int parcel_size, ST_ANSWER *answer
             if( record_ok > 0 ){
                 memcpy(&answer->lastpoint, record, sizeof(ST_RECORD));
             }
+            else if( answer->count == 1 ){
+                answer->count = 0;
+            }
         }   // if( strlen(cPaket) > 21 )
     }   // for(cPaket = strtok_r(parcel
-
 
     logging("terminal_decode[%s:%d]: %d packets readed, %d records created", worker->listener->name, worker->listener->port, packet_num, answer->count);
 }
@@ -269,21 +274,135 @@ static void terminal_decode_txt(char *parcel, int parcel_size, ST_ANSWER *answer
 
 static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER *worker)
 {
-    return;
-    /*
+    unsigned char *uparcel = (unsigned char *)parcel;
     ST_RECORD *record = NULL;
-    int iTemp;
-    char *cPart;
+    int p_start, p_stop;    // part of parcel (ont record)
+    int record_ok = 1;
+    #pragma pack( push, 1 )
+    typedef struct {
+        uint32_t location_data;
+        uint32_t lat;
+        uint32_t lon;
+        uint16_t speed;
+    } STGPS;
+    #pragma pack( pop )
+    STGPS *gps;
+    /*
     struct tm tm_data;
     time_t ulliTmp;
+    */
 
     if( !parcel || parcel_size <= 0 || !answer )
         return;
-        */
 
     // стр. 33, Binary format
-    // F802010357852034572894020B15D6023501CC0003252C9603044000000004040000380B050401DC19B806080000000000000000070341077E080402FC4AB0733EB8
-}   //
+    // F802010357852034572894020B15D6023501CC0003252C9603044000000004040000380B050401DC19B806080000000000000000070341077E080402FC4AB0733EF8
+
+    logging("terminal_decode[%s:%d]: terminal_decode_bin", worker->listener->name, worker->listener->port);
+    logging("terminal_decode[%s:%d]: parcel_size=%d", worker->listener->name, worker->listener->port, parcel_size);
+
+    answer->count = 0;
+    p_stop = -1;
+    do {
+        // seek packet's start
+        for(p_start = p_stop + 1; p_start < parcel_size; p_start++){
+            if( uparcel[p_start] == 0xf8 && uparcel[p_start + 1] != 0xf8 ){
+                break;
+            }
+        }
+        // seek packet's end
+        for(p_stop = p_start + 1; p_stop < parcel_size; p_stop++){
+            if( uparcel[p_stop] == 0xf8 ){
+                break;
+            }
+        }
+        // test for correct packet
+        if( p_start < p_stop && p_stop < parcel_size ){
+            if( record_ok > 0 && answer->count < MAX_RECORDS - 1 )
+            	answer->count++;
+            record = &answer->records[answer->count - 1];
+        }
+        else {
+            break;
+        }
+
+        logging("terminal_decode[%s:%d]: packet %d, %d-%d", worker->listener->name, worker->listener->port, answer->count, p_start, p_stop);
+
+		snprintf(record->soft, SIZE_TRACKER_FIELD, "%d", uparcel[p_start + 1]);
+
+        logging("terminal_decode[%s:%d]: record->soft=%s", worker->listener->name, worker->listener->port, record->soft);
+        logging("terminal_decode[%s:%d]: packet type=%d", worker->listener->name, worker->listener->port, uparcel[p_start + 2]);
+
+        if( uparcel[p_start + 2] == 0x01 ){ // Data packet type ID
+            // device information
+            p_start += 3;
+            // Device ID, 8 bytes 0357852034572894
+    		snprintf(record->imei, SIZE_TRACKER_FIELD, "%.1X%.2X%.2X%.2X%.2X%.2X%.2X%.2X",
+                                                        uparcel[p_start], uparcel[p_start + 1], uparcel[p_start + 2],
+                                                        uparcel[p_start + 3], uparcel[p_start + 4], uparcel[p_start + 5],
+                                                        uparcel[p_start + 6], uparcel[p_start + 7]);
+
+            logging("terminal_decode[%s:%d]: record->imei=%s", worker->listener->name, worker->listener->port, record->imei);
+
+            p_start += 8;
+            record_ok = 0;
+            /* Device domain data
+            first bute - type
+            second byte - length, start from thrid byte
+                     | record         | record
+            Example: 010E...14bytes...0212...18bytes...
+            */
+            while( p_start < p_stop - 3 /* CRC[2]+F8 */){
+                logging("terminal_decode[%s:%d]: p_start=%d, Device domain data type %d size %d", worker->listener->name, worker->listener->port, p_start, uparcel[p_start], uparcel[p_start + 1]);
+
+                switch( uparcel[p_start] ) {
+                    case 0x01:  // GPS Location Data
+                            logging("terminal_decode[%s:%d]: GPS Location Data", worker->listener->name, worker->listener->port);
+
+                            gps = (STGPS *)&uparcel[p_start + 2];
+
+                            record_ok = 1;
+
+                        break;
+                    case 0x03:  // Device Status (Alarms)
+                        logging("terminal_decode[%s:%d]: Device Status (Alarms)", worker->listener->name, worker->listener->port);
+
+                        record->status = *(uint16_t *)&uparcel[p_start + 2];
+                        record->zaj = record->status & 256;     // bit 9
+
+                        record->alarm = *(uint16_t *)&uparcel[p_start + 4];
+                        record->alarm = record->alarm & 512;    // bit 10
+
+                        logging("terminal_decode[%s:%d]: record->status=%d", worker->listener->name, worker->listener->port, record->status);
+                        logging("terminal_decode[%s:%d]: record->alarm=%d", worker->listener->name, worker->listener->port, record->alarm);
+                        logging("terminal_decode[%s:%d]: record->zaj=%d", worker->listener->name, worker->listener->port, record->zaj);
+
+                        break;
+                    case 0x04:  // Mileage Data (Distance)
+                        logging("terminal_decode[%s:%d]: Mileage Data (Distance)", worker->listener->name, worker->listener->port);
+
+                        record->probeg = (double)hex2dec(&uparcel[p_start + 2], 2, 16);
+                        logging("terminal_decode[%s:%d]: record->probeg=%lf", worker->listener->name, worker->listener->port, record->probeg);
+
+                        break;
+                    case 0x05:  // AD Conversion Data
+                        logging("terminal_decode[%s:%d]: AD Conversion Data", worker->listener->name, worker->listener->port);
+
+                        break;
+                }   // switch( uparcel[p_start] )
+
+                p_start += (2 + uparcel[p_start + 1]);
+            }   // while( p_start < p_stop - 3
+        }   // if( uparcel[p_start + 2] == 1 )
+
+    } while(p_stop < parcel_size);
+
+    if( record_ok == 0 && answer->count == 1 ){
+        answer->count = 0;  // debug only
+    }
+
+    logging("terminal_decode[%s:%d]: %d records created", worker->listener->name, worker->listener->port, answer->count);
+}   // terminal_decode_bin
 
 
 /* encode function
