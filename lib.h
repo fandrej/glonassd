@@ -27,6 +27,5 @@ void cp1251_to_utf8(char *out, const char *in);
 void log2file(char *fname, void *content, size_t content_size);
 void Geo2Geo(int iSourDatum, int iDestDatum, double *pdLon, double *pdLat);
 unsigned long long int seconds(void);
-long long int hex2dec(unsigned char *c, size_t size, int base);
 
 #endif

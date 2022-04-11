@@ -489,18 +489,3 @@ unsigned long long int seconds(void)
 	return( (stm.tm_year * 365 + stm.tm_yday) * 86400 + stm.tm_hour * 3600 + stm.tm_min * 60 + stm.tm_sec );
 }
 //------------------------------------------------------------------------------
-
-/*
-Convert hexadecimal to decimal
-*/
-long long int hex2dec(unsigned char *c, size_t size, int base)
-{
-    unsigned char temp[100];
-    if( size > 99){
-        return 0LL;
-    }
-    memcpy(temp, c, size);
-    temp[size] = 0;
-    return strtoll(temp, NULL, base);
-}   // hex2dec
-//------------------------------------------------------------------------------

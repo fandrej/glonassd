@@ -272,9 +272,30 @@ static void terminal_decode_txt(char *parcel, int parcel_size, ST_ANSWER *answer
 //------------------------------------------------------------------------------
 
 
+/*
+Convert hexadecimal to decimal
+*/
+static long long int hex2dec(char *c, size_t size)
+{
+    long long int retval = 0LL;
+    size_t i, j;
+    char temp[STRLEN];
+
+    if( size < (STRLEN >> 1) ){
+        memset(temp, 0, STRLEN);
+        for(i = 0, j = 0; i < size; i++, j += 2){
+            sprintf(&temp[j], "%.2X", (uint8_t)c[i]);
+        }
+        retval = strtoll(temp, NULL, 16);
+    }
+
+    return retval;
+}   // hex2dec
+
+
 static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER *worker)
 {
-    unsigned char *uparcel = (unsigned char *)parcel;
+    //unsigned char *uparcel = (unsigned char *)parcel;
     ST_RECORD *record = NULL;
     int p_start, p_stop;    // part of parcel (ont record)
     int record_ok = 1;
@@ -306,20 +327,22 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
     do {
         // seek packet's start
         for(p_start = p_stop + 1; p_start < parcel_size; p_start++){
-            if( uparcel[p_start] == 0xf8 && uparcel[p_start + 1] != 0xf8 ){
+            if( (uint8_t)parcel[p_start] == 0xf8 && (uint8_t)parcel[p_start + 1] != 0xf8 ){
                 break;
             }
         }
         // seek packet's end
         for(p_stop = p_start + 1; p_stop < parcel_size; p_stop++){
-            if( uparcel[p_stop] == 0xf8 ){
+            if( (uint8_t)parcel[p_stop] == 0xf8 ){
                 break;
             }
         }
         // test for correct packet
         if( p_start < p_stop && p_stop < parcel_size ){
-            if( record_ok > 0 && answer->count < MAX_RECORDS - 1 )
+            if( record_ok > 0 && answer->count < MAX_RECORDS - 1 ){
             	answer->count++;
+                record_ok = 0;
+            }
             record = &answer->records[answer->count - 1];
         }
         else {
@@ -327,73 +350,55 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
         }
 
         logging("terminal_decode[%s:%d]: packet %d, %d-%d", worker->listener->name, worker->listener->port, answer->count, p_start, p_stop);
+        logging("terminal_decode[%s:%d]: packet type=%d", worker->listener->name, worker->listener->port, parcel[p_start + 2]);
 
-		snprintf(record->soft, SIZE_TRACKER_FIELD, "%d", uparcel[p_start + 1]);
-
+		snprintf(record->soft, SIZE_TRACKER_FIELD, "%d", parcel[p_start + 1]);
+		snprintf(record->imei, SIZE_TRACKER_FIELD, "%lld", hex2dec(&parcel[p_start + 3], 7));
         logging("terminal_decode[%s:%d]: record->soft=%s", worker->listener->name, worker->listener->port, record->soft);
-        logging("terminal_decode[%s:%d]: packet type=%d", worker->listener->name, worker->listener->port, uparcel[p_start + 2]);
+        logging("terminal_decode[%s:%d]: record->imei=%s", worker->listener->name, worker->listener->port, record->imei);
 
-        if( uparcel[p_start + 2] == 0x01 ){ // Data packet type ID
-            // device information
-            p_start += 3;
-            // Device ID, 8 bytes 0357852034572894
-    		snprintf(record->imei, SIZE_TRACKER_FIELD, "%.1X%.2X%.2X%.2X%.2X%.2X%.2X%.2X",
-                                                        uparcel[p_start], uparcel[p_start + 1], uparcel[p_start + 2],
-                                                        uparcel[p_start + 3], uparcel[p_start + 4], uparcel[p_start + 5],
-                                                        uparcel[p_start + 6], uparcel[p_start + 7]);
+        p_start += 10;
+        while( p_start < p_stop - 3 /* CRC[2]+F8 */){
+            logging("terminal_decode[%s:%d]: Data type %.2X, size %d", worker->listener->name, worker->listener->port, (uint8_t)parcel[p_start], (uint8_t)parcel[p_start + 1]);
 
-            logging("terminal_decode[%s:%d]: record->imei=%s", worker->listener->name, worker->listener->port, record->imei);
+            switch( parcel[p_start] ) {
+                case 0x01:  // GPS Location Data
+                    logging("terminal_decode[%s:%d]: GPS Location Data", worker->listener->name, worker->listener->port);
 
-            p_start += 8;
-            record_ok = 0;
-            /* Device domain data
-            first bute - type
-            second byte - length, start from thrid byte
-                     | record         | record
-            Example: 010E...14bytes...0212...18bytes...
-            */
-            while( p_start < p_stop - 3 /* CRC[2]+F8 */){
-                logging("terminal_decode[%s:%d]: p_start=%d, Device domain data type %d size %d", worker->listener->name, worker->listener->port, p_start, uparcel[p_start], uparcel[p_start + 1]);
+                    gps = (STGPS *)&parcel[p_start + 2];
 
-                switch( uparcel[p_start] ) {
-                    case 0x01:  // GPS Location Data
-                            logging("terminal_decode[%s:%d]: GPS Location Data", worker->listener->name, worker->listener->port);
+                    record_ok = 1;
 
-                            gps = (STGPS *)&uparcel[p_start + 2];
+                    break;
+                case 0x03:  // Device Status (Alarms)
+                    logging("terminal_decode[%s:%d]: Device Status (Alarms)", worker->listener->name, worker->listener->port);
 
-                            record_ok = 1;
+                    record->status = *(uint16_t *)&parcel[p_start + 2];
+                    record->zaj = record->status & 256;     // bit 9
 
-                        break;
-                    case 0x03:  // Device Status (Alarms)
-                        logging("terminal_decode[%s:%d]: Device Status (Alarms)", worker->listener->name, worker->listener->port);
+                    record->alarm = *(uint16_t *)&parcel[p_start + 4];
+                    record->alarm = record->alarm & 512;    // bit 10
 
-                        record->status = *(uint16_t *)&uparcel[p_start + 2];
-                        record->zaj = record->status & 256;     // bit 9
+                    logging("terminal_decode[%s:%d]: record->status=%d", worker->listener->name, worker->listener->port, record->status);
+                    logging("terminal_decode[%s:%d]: record->alarm=%d", worker->listener->name, worker->listener->port, record->alarm);
+                    logging("terminal_decode[%s:%d]: record->zaj=%d", worker->listener->name, worker->listener->port, record->zaj);
 
-                        record->alarm = *(uint16_t *)&uparcel[p_start + 4];
-                        record->alarm = record->alarm & 512;    // bit 10
+                    break;
+                case 0x04:  // Mileage Data (Distance)
+                    logging("terminal_decode[%s:%d]: Mileage Data (Distance)", worker->listener->name, worker->listener->port);
 
-                        logging("terminal_decode[%s:%d]: record->status=%d", worker->listener->name, worker->listener->port, record->status);
-                        logging("terminal_decode[%s:%d]: record->alarm=%d", worker->listener->name, worker->listener->port, record->alarm);
-                        logging("terminal_decode[%s:%d]: record->zaj=%d", worker->listener->name, worker->listener->port, record->zaj);
+                    record->probeg = (double)hex2dec(&parcel[p_start + 2], 2);
+                    logging("terminal_decode[%s:%d]: record->probeg=%lf", worker->listener->name, worker->listener->port, record->probeg);
 
-                        break;
-                    case 0x04:  // Mileage Data (Distance)
-                        logging("terminal_decode[%s:%d]: Mileage Data (Distance)", worker->listener->name, worker->listener->port);
+                    break;
+                case 0x05:  // AD Conversion Data
+                    logging("terminal_decode[%s:%d]: AD Conversion Data", worker->listener->name, worker->listener->port);
 
-                        record->probeg = (double)hex2dec(&uparcel[p_start + 2], 2, 16);
-                        logging("terminal_decode[%s:%d]: record->probeg=%lf", worker->listener->name, worker->listener->port, record->probeg);
+                    break;
+            }   // switch( parcel[p_start] )
 
-                        break;
-                    case 0x05:  // AD Conversion Data
-                        logging("terminal_decode[%s:%d]: AD Conversion Data", worker->listener->name, worker->listener->port);
-
-                        break;
-                }   // switch( uparcel[p_start] )
-
-                p_start += (2 + uparcel[p_start + 1]);
-            }   // while( p_start < p_stop - 3
-        }   // if( uparcel[p_start + 2] == 1 )
+            p_start += (2 + parcel[p_start + 1]);
+        }   // while( p_start < p_stop - 3
 
     } while(p_stop < parcel_size);
 
