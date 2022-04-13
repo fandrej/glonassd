@@ -301,30 +301,33 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
     int record_ok = 1;
     #pragma pack( push, 1 )
     typedef struct {
-        uint32_t location_data;
-        uint32_t lat;
-        uint32_t lon;
-        uint16_t speed;
-    } STGPS;
+        uint8_t packet_head;
+        uint8_t proto_version;
+        uint8_t packet_type;
+        char device_id[7];
+        char data_mask[2];
+        uint8_t event_id;
+        char date_time[4];
+    } ST_HEADER;
     #pragma pack( pop )
-    STGPS *gps;
-    /*
+    ST_HEADER *st_header;
+    int data_mask;
+
     struct tm tm_data;
     time_t ulliTmp;
-    */
 
     if( !parcel || parcel_size <= 0 || !answer )
         return;
 
-    // стр. 33, Binary format
-    // F802010357852034572894020B15D6023501CC0003252C9603044000000004040000380B050401DC19B806080000000000000000070341077E080402FC4AB0733EF8
-
     logging("terminal_decode[%s:%d]: terminal_decode_bin", worker->listener->name, worker->listener->port);
     logging("terminal_decode[%s:%d]: parcel_size=%d", worker->listener->name, worker->listener->port, parcel_size);
 
+    // data_mask, биты определяют наличие полей в Data field:
+    //   0    1    2    3    4    5    6    7    8    9
+    // <SYS><GPS><GSM><COT><ADC><DTT><IWD><ETD><OBD><FUL>
     answer->count = 0;
     p_stop = -1;
-    do {
+    while(p_stop < parcel_size) {
         // seek packet's start
         for(p_start = p_stop + 1; p_start < parcel_size; p_start++){
             if( (uint8_t)parcel[p_start] == 0xf8 && (uint8_t)parcel[p_start + 1] != 0xf8 ){
@@ -350,57 +353,51 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
         }
 
         logging("terminal_decode[%s:%d]: packet %d, %d-%d", worker->listener->name, worker->listener->port, answer->count, p_start, p_stop);
-        logging("terminal_decode[%s:%d]: packet type=%d", worker->listener->name, worker->listener->port, parcel[p_start + 2]);
 
-		snprintf(record->soft, SIZE_TRACKER_FIELD, "%d", parcel[p_start + 1]);
-		snprintf(record->imei, SIZE_TRACKER_FIELD, "%lld", hex2dec(&parcel[p_start + 3], 7));
+        st_header = (ST_HEADER *)&parcel[p_start];
+        // ставим указатель на Data field
+        p_start += sizeof(ST_HEADER);
+        logging("terminal_decode[%s:%d]: packet type=%d", worker->listener->name, worker->listener->port, st_header->packet_type);
+
+		snprintf(record->soft, SIZE_TRACKER_FIELD, "%d", st_header->proto_version);
+		snprintf(record->imei, SIZE_TRACKER_FIELD, "%lld", hex2dec(st_header->device_id, 7));
         logging("terminal_decode[%s:%d]: record->soft=%s", worker->listener->name, worker->listener->port, record->soft);
         logging("terminal_decode[%s:%d]: record->imei=%s", worker->listener->name, worker->listener->port, record->imei);
 
-        p_start += 10;
+        if( st_header->packet_type == 0 ){
+            // heaqrtbeat (IMEI only)
+            continue;
+        }
+
+        data_mask = hex2dec(st_header->data_mask, 2);
+        logging("terminal_decode[%s:%d]: data_mask=%d", worker->listener->name, worker->listener->port, data_mask);
+        ulliTmp = hex2dec(st_header->date_time, 4) + GMT_diff;	// UTC ->local simple (timestamp, seconds);
+    	gmtime_r(&ulliTmp, &tm_data);           // local simple->local struct
+    	tm_data.tm_year = (tm_data.tm_year + 2000 - 1970);
+        logging("terminal_decode[%s:%d]: time=%02d.%02d.%02d %02d:%02d:%02d", worker->listener->name, worker->listener->port,
+                                            tm_data.tm_mday, tm_data.tm_mon + 1, tm_data.tm_year + 1900, tm_data.tm_hour, tm_data.tm_min, tm_data.tm_sec);
+
+    	// получаем время как число секунд от начала суток
+    	record->time = 3600 * tm_data.tm_hour + 60 * tm_data.tm_min + tm_data.tm_sec;
+    	// в tm_data обнуляем время
+    	tm_data.tm_hour = tm_data.tm_min = tm_data.tm_sec = 0;
+    	// получаем дату
+    	record->data = timegm(&tm_data);	// local struct->local simple & mktime epoch
+
+
         while( p_start < p_stop - 3 /* CRC[2]+F8 */){
             logging("terminal_decode[%s:%d]: Data type %.2X, size %d", worker->listener->name, worker->listener->port, (uint8_t)parcel[p_start], (uint8_t)parcel[p_start + 1]);
 
             switch( parcel[p_start] ) {
                 case 0x01:  // GPS Location Data
                     logging("terminal_decode[%s:%d]: GPS Location Data", worker->listener->name, worker->listener->port);
-
-                    gps = (STGPS *)&parcel[p_start + 2];
-
-                    record_ok = 1;
-
-                    break;
-                case 0x03:  // Device Status (Alarms)
-                    logging("terminal_decode[%s:%d]: Device Status (Alarms)", worker->listener->name, worker->listener->port);
-
-                    record->status = *(uint16_t *)&parcel[p_start + 2];
-                    record->zaj = record->status & 256;     // bit 9
-
-                    record->alarm = *(uint16_t *)&parcel[p_start + 4];
-                    record->alarm = record->alarm & 512;    // bit 10
-
-                    logging("terminal_decode[%s:%d]: record->status=%d", worker->listener->name, worker->listener->port, record->status);
-                    logging("terminal_decode[%s:%d]: record->alarm=%d", worker->listener->name, worker->listener->port, record->alarm);
-                    logging("terminal_decode[%s:%d]: record->zaj=%d", worker->listener->name, worker->listener->port, record->zaj);
-
-                    break;
-                case 0x04:  // Mileage Data (Distance)
-                    logging("terminal_decode[%s:%d]: Mileage Data (Distance)", worker->listener->name, worker->listener->port);
-
-                    record->probeg = (double)hex2dec(&parcel[p_start + 2], 2);
-                    logging("terminal_decode[%s:%d]: record->probeg=%lf", worker->listener->name, worker->listener->port, record->probeg);
-
-                    break;
-                case 0x05:  // AD Conversion Data
-                    logging("terminal_decode[%s:%d]: AD Conversion Data", worker->listener->name, worker->listener->port);
-
                     break;
             }   // switch( parcel[p_start] )
 
             p_start += (2 + parcel[p_start + 1]);
         }   // while( p_start < p_stop - 3
 
-    } while(p_stop < parcel_size);
+    }
 
     if( record_ok == 0 && answer->count == 1 ){
         answer->count = 0;  // debug only
