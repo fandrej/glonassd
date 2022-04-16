@@ -52,6 +52,7 @@ static int decodeGPS(ST_RECORD *record, char *chank);
 static int decodeGSM(ST_RECORD *record, char *chank);
 static int decodeCOT(ST_RECORD *record, char *chank);
 static int decodeADC(ST_RECORD *record, char *chank);
+static int decodeDTT(ST_RECORD *record, char *chank);
 
 
 /*
@@ -277,7 +278,7 @@ static void terminal_decode_txt(char *parcel, int parcel_size, ST_ANSWER *answer
 //------------------------------------------------------------------------------
 
 
-// G79W Protocol V1.5.pdf, page 15     946674000
+// G79W Protocol V1.5.pdf, page 15
 static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER *worker)
 {
     ST_RECORD *record = NULL;
@@ -387,6 +388,7 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
                     break;
                 case 2: // GPS
                     p_start += decodeGPS(record, &parcel[p_start]);
+                    record_ok = 1;
 
                     if( worker && worker->listener->log_all ) {
                         logging("terminal_decode[%s:%d]: record->satellites=%d", worker->listener->name, worker->listener->port, record->satellites);
@@ -414,8 +416,19 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
                 case 16: // ADC
                     p_start += decodeADC(record, &parcel[p_start]);
 
+                    if( worker && worker->listener->log_all ) {
+                        logging("terminal_decode[%s:%d]: record->vbort=%lf", worker->listener->name, worker->listener->port, record->vbort);
+                        logging("terminal_decode[%s:%d]: record->vbatt=%lf", worker->listener->name, worker->listener->port, record->vbatt);
+                    }
+
                     break;
                 case 32: // DTT
+                    p_start += decodeDTT(record, &parcel[p_start]);
+
+                    if( worker && worker->listener->log_all ) {
+                        logging("terminal_decode[%s:%d]: record->status=%u", worker->listener->name, worker->listener->port, record->status);
+                    }
+
                     break;
                 case 64: // IWD
                     break;
@@ -456,27 +469,64 @@ int terminal_encode(ST_RECORD *records, int reccount, char *buffer, int bufsize)
 //------------------------------------------------------------------------------
 
 
-static int decodeADC(ST_RECORD *record, char *chank){
+// G79W Protocol V1.5.pdf, page 21
+static int decodeDTT(ST_RECORD *record, char *chank){
     int index = 0;
     int chank_length = (int)chank[index++]; // not include first byte (size of chank)
-    uint16_t type_length, type, length;
-    logging("decodeADC, chank[0]=0x%.2X, chank[1]=0x%.2X, chank_length=%d", chank[0], chank[1], chank_length);
+    uint8_t type_length, type, length;
+    //logging("decodeDTT, chank[0]=0x%.2X, chank[1]=0x%.2X, chank_length=%d", chank[0], chank[1], chank_length);
 
     while( index < chank_length ){
-        type_length = (uint16_t)chank[index++];  // “Bit0-bit3”: Sub-data type length; “Bit4-Bit7”: Sub-data type identifier
-        type = (type_length & 0xF000  /* 11110000 00000000 */) >> 12;
-        length = type_length & 0xFFF; // 00001111 11111111
-        logging("decodeADC, type_length=%d, type=%d, length=%d", type_length, type, length);
+        type_length = (uint8_t)chank[index++];  // “Bit4-Bit7” represents sub-data ID, “Bit0-bit3” represents data length
+        type = (type_length & 240   /* 11110000 */) >> 4;
+        length = type_length & 15;  // 00001111
+        //logging("decodeDTT, type_length=%d, type=%d, length=%d", type_length, type, length);
 
         switch( type ){
-            case 0: // External power
-                logging("decodeADC, External power");
+            case 0: // Device status: Refer chapter 4.3.7 “Device status list”, page 11
+                record->status = (unsigned int)hex2dec(&chank[index], length);
                 break;
-            case 1: // Backup battery
-                logging("decodeADC, Backup battery");
+            case 1: //  I/O status: Refer chapter 4.3.7 “I/O status list”, page 12
+                break;
+            case 2: //  Lower 120 Geo-fences status
+            case 3: //  Higher 36 Geo-fences status
+                break;
+            case 4: //  Event status: Refer chapter 9 “Event status” table
+                break;
+            case 5: //  Packet type indicator
+                break;
         }   // swith( type )
 
         index += length;
+    }   // while( index < chank_length )
+
+    return chank_length + 1;    // include first byte (size of chank)
+}   // decodeDTT
+
+
+static int decodeADC(ST_RECORD *record, char *chank){
+    int index = 0;
+    int chank_length = (int)chank[index++]; // not include first byte (size of chank)
+    unsigned int field, type, value;
+    const double AD_MIN = -10.0;
+    const double AD_MAX = 100.0;
+    //logging("decodeADC, chank[0]=0x%.2X, chank[1]=0x%.2X, chank_length=%d", chank[0], chank[1], chank_length);
+
+    while( index < chank_length ){
+        field = (unsigned int)hex2dec(&chank[index], 2);  // “Bit0-bit3”: Sub-data type length; “Bit4-Bit7”: Sub-data type identifier
+        type = (field & 0xF000  /* 11110000 00000000 */) >> 12;
+        value = field & 0xFFF;  // 00001111 11111111
+        //logging("decodeADC, field=%d, type=%d, value=%d", field, type, value);
+
+        switch( type ){
+            case 0: // External power
+                record->vbort = Round((double)value * (AD_MAX - AD_MIN) / 4096.0 + AD_MIN, 1);
+                break;
+            case 1: // Backup battery
+                record->vbatt = Round((double)value * (AD_MAX - AD_MIN) / 4096.0 + AD_MIN, 1);
+        }   // swith( type )
+
+        index += 2;
     }   // while( index < chank_length )
 
     return chank_length + 1;    // include first byte (size of chank)
@@ -492,12 +542,12 @@ static int decodeCOT(ST_RECORD *record, char *chank){
 
     while( index < chank_length ){
         type_length = (uint8_t)chank[index++];  // “Bit0-bit3”: Sub-data type length; “Bit4-Bit7”: Sub-data type identifier
-        type = (type_length & 240 /* 11110000 */) >> 4;
+        type = (type_length & 240   /* 11110000 */) >> 4;
         length = type_length & 15;  // 00001111
 
         switch( type ){
             case 0: // Odometer (meter)
-        		record->probeg = hex2dec(&chank[index], length);
+        		record->probeg = (double)hex2dec(&chank[index], length);
                 break;
             case 1: // Engine hour (Моточасы)
                 tmp = strlen(record->message);
@@ -564,7 +614,7 @@ static int decodeSYS(ST_RECORD *record, char *chank){
 
     while( index < chank_length ){
         type_length = (uint8_t)chank[index++];
-        type = (type_length & 240 /* 11110000 */) >> 4;
+        type = (type_length & 240   /* 11110000 */) >> 4;
         length = type_length & 15;  // 00001111
 
         switch( type ){
