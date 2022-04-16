@@ -44,9 +44,11 @@ make -B gosafe
 #include "lib.h"    // MIN, MAX, BETWEEN, CRC, etc...
 #include "logger.h"
 
-
 static void terminal_decode_txt(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER *worker);
 static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER *worker);
+static long long int hex2dec(char *c, size_t size);
+static int decodeSYS(ST_RECORD *record, char *chank);
+static int decodeGPS(ST_RECORD *record, char *chank);
 
 
 /*
@@ -272,30 +274,9 @@ static void terminal_decode_txt(char *parcel, int parcel_size, ST_ANSWER *answer
 //------------------------------------------------------------------------------
 
 
-/*
-Convert hexadecimal to decimal
-*/
-static long long int hex2dec(char *c, size_t size)
-{
-    long long int retval = 0LL;
-    size_t i, j;
-    char temp[STRLEN];
-
-    if( size < (STRLEN >> 1) ){
-        memset(temp, 0, STRLEN);
-        for(i = 0, j = 0; i < size; i++, j += 2){
-            sprintf(&temp[j], "%.2X", (uint8_t)c[i]);
-        }
-        retval = strtoll(temp, NULL, 16);
-    }
-
-    return retval;
-}   // hex2dec
-
-
+// G79W Protocol V1.5.pdf, page 15     946674000
 static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER *worker)
 {
-    //unsigned char *uparcel = (unsigned char *)parcel;
     ST_RECORD *record = NULL;
     int p_start, p_stop;    // part of parcel (ont record)
     int record_ok = 1;
@@ -308,6 +289,7 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
         char data_mask[2];
         uint8_t event_id;
         char date_time[4];
+        uint16_t dummy; // I dont know what is it
     } ST_HEADER;
     #pragma pack( pop )
     ST_HEADER *st_header;
@@ -322,9 +304,6 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
     logging("terminal_decode[%s:%d]: terminal_decode_bin", worker->listener->name, worker->listener->port);
     logging("terminal_decode[%s:%d]: parcel_size=%d", worker->listener->name, worker->listener->port, parcel_size);
 
-    // data_mask, биты определяют наличие полей в Data field:
-    //   0    1    2    3    4    5    6    7    8    9
-    // <SYS><GPS><GSM><COT><ADC><DTT><IWD><ETD><OBD><FUL>
     answer->count = 0;
     p_stop = -1;
     while(p_stop < parcel_size) {
@@ -355,8 +334,6 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
         logging("terminal_decode[%s:%d]: packet %d, %d-%d", worker->listener->name, worker->listener->port, answer->count, p_start, p_stop);
 
         st_header = (ST_HEADER *)&parcel[p_start];
-        // ставим указатель на Data field
-        p_start += sizeof(ST_HEADER);
         logging("terminal_decode[%s:%d]: packet type=%d", worker->listener->name, worker->listener->port, st_header->packet_type);
 
 		snprintf(record->soft, SIZE_TRACKER_FIELD, "%d", st_header->proto_version);
@@ -369,8 +346,6 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
             continue;
         }
 
-        data_mask = hex2dec(st_header->data_mask, 2);
-        logging("terminal_decode[%s:%d]: data_mask=%d", worker->listener->name, worker->listener->port, data_mask);
         ulliTmp = hex2dec(st_header->date_time, 4) + GMT_diff;	// UTC ->local simple (timestamp, seconds);
     	gmtime_r(&ulliTmp, &tm_data);           // local simple->local struct
     	tm_data.tm_year = (tm_data.tm_year + 2000 - 1970);
@@ -384,20 +359,62 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
     	// получаем дату
     	record->data = timegm(&tm_data);	// local struct->local simple & mktime epoch
 
+        data_mask = hex2dec(st_header->data_mask, 2);
+        logging("terminal_decode[%s:%d]: data_mask=%d", worker->listener->name, worker->listener->port, data_mask);
 
-        while( p_start < p_stop - 3 /* CRC[2]+F8 */){
-            logging("terminal_decode[%s:%d]: Data type %.2X, size %d", worker->listener->name, worker->listener->port, (uint8_t)parcel[p_start], (uint8_t)parcel[p_start + 1]);
+        // ставим указатель на Data field
+        p_start += sizeof(ST_HEADER);
+        // data_mask, биты определяют наличие полей в Data field:
+        //   1    2    3    8    16  32   64   128  256  512
+        //   0    1    2    3    4    5    6    7    8    9
+        // <SYS><GPS><GSM><COT><ADC><DTT><IWD><ETD><OBD><FUL>
+        for(int i = 1; i < 1024; i=(i<<1)){
+            logging("terminal_decode[%s:%d]: i=%d p_start=%d (0x%.2X), parcel[p_start]=0x%.2X", worker->listener->name, worker->listener->port, i, p_start, p_start, parcel[p_start]);
+            switch( i & data_mask ){
+                case 1: // SYS
+                    p_start += decodeSYS(record, &parcel[p_start]);
 
-            switch( parcel[p_start] ) {
-                case 0x01:  // GPS Location Data
-                    logging("terminal_decode[%s:%d]: GPS Location Data", worker->listener->name, worker->listener->port);
+                    if( worker && worker->listener->log_all ) {
+                        logging("terminal_decode[%s:%d]: record->tracker=%s", worker->listener->name, worker->listener->port, record->tracker);
+                        logging("terminal_decode[%s:%d]: record->soft=%s", worker->listener->name, worker->listener->port, record->soft);
+                        logging("terminal_decode[%s:%d]: record->hard=%s", worker->listener->name, worker->listener->port, record->hard);
+                    }
+
                     break;
-            }   // switch( parcel[p_start] )
+                case 2: // GPS
+                    p_start += decodeGPS(record, &parcel[p_start]);
 
-            p_start += (2 + parcel[p_start + 1]);
-        }   // while( p_start < p_stop - 3
+                    if( worker && worker->listener->log_all ) {
+                        logging("terminal_decode[%s:%d]: record->satellites=%d", worker->listener->name, worker->listener->port, record->satellites);
+                        logging("terminal_decode[%s:%d]: record->valid=%d", worker->listener->name, worker->listener->port, record->valid);
+                        logging("terminal_decode[%s:%d]: record->lat=%lf %c", worker->listener->name, worker->listener->port, record->lat, record->clat);
+                        logging("terminal_decode[%s:%d]: record->lon=%lf %c", worker->listener->name, worker->listener->port, record->lon, record->clon);
+                        logging("terminal_decode[%s:%d]: record->speed=%lf", worker->listener->name, worker->listener->port, record->speed);
+                        logging("terminal_decode[%s:%d]: record->curs=%d", worker->listener->name, worker->listener->port, record->curs);
+                        logging("terminal_decode[%s:%d]: record->height=%d", worker->listener->name, worker->listener->port, record->height);
+                        logging("terminal_decode[%s:%d]: record->hdop=%d\n", worker->listener->name, worker->listener->port, record->hdop);
+                    }
 
-    }
+                    break;
+                case 4: // GSM
+                    break;
+                case 8: // COT
+                    break;
+                case 16: // ADC
+                    break;
+                case 32: // DTT
+                    break;
+                case 64: // IWD
+                    break;
+                case 128: // ETD
+                    break;
+                case 256: // OBD
+                    break;
+                case 512: // FUL
+                    break;
+            }   // switch( i & data_mask )
+        }
+    }   // while(p_stop < parcel_size)
 
     if( record_ok == 0 && answer->count == 1 ){
         answer->count = 0;  // debug only
@@ -420,3 +437,89 @@ int terminal_encode(ST_RECORD *records, int reccount, char *buffer, int bufsize)
     return top;
 }
 //------------------------------------------------------------------------------
+
+
+static int decodeGPS(ST_RECORD *record, char *chank){
+    int index = 0;
+    int chank_length = (int)chank[index++]; // not include first byte (size of chank)
+    //logging("decodeGPS, chank[0]=0x%.2X, chank[1]=0x%.2X, chank_length=%d", chank[0], chank[1], chank_length);
+
+    #pragma pack( push, 1 )
+    typedef struct {
+        uint16_t subdata_mask;
+        uint8_t flag;   // Bit0-bit4: Valid satellite number; Bit5-Bit6: GPS fix flag
+        char lat[4];    // =/ 1000000
+        char lon[4];    // =/ 1000000
+        char speed[2];  // km/h
+        char azimuth[2];
+        char altitude[2];   // range is “-9999 to +9999”, unit is “meter”
+        char hdop[2];  // =/ 100
+        char vdop[2];  // =/ 100
+    } ST_GPS;
+    #pragma pack( pop )
+
+    ST_GPS *pGPS = (ST_GPS *)&chank[index];
+
+    record->satellites = pGPS->flag & 31;  // 00011111
+    record->valid = (pGPS->flag & 96       /* 01100000 */) > 0;
+    record->lat = (double)hex2dec(pGPS->lat, 4) / 1000000.0;
+    record->clat = record->lat > 0.0 ? 'N' : 'S';
+    record->lon = (double)hex2dec(pGPS->lon, 4) / 1000000.0;
+    record->clon = record->lon > 0.0 ? 'E' : 'W';
+    record->speed = hex2dec(pGPS->speed, 2);
+    record->curs = hex2dec(pGPS->azimuth, 2);
+    record->height = hex2dec(pGPS->altitude, 2);
+    record->hdop = Round((double)hex2dec(pGPS->hdop, 2) / 100.0, 0);
+
+    return chank_length + 1;    // include first byte (size of chank)
+}   // decodeGPS
+
+
+static int decodeSYS(ST_RECORD *record, char *chank){
+    int index = 0;
+    int chank_length = (int)chank[index++]; // not include first byte (size of chank)
+    uint8_t type_length, type, length;
+    //logging("decodeSYS, chank[0]=0x%.2X, chank[1]=0x%.2X, chank_length=%d", chank[0], chank[1], chank_length);
+
+    while( index < chank_length ){
+        type_length = (uint8_t)chank[index++];
+        type = (type_length & 240 /* 11110000 */) >> 4;
+        length = type_length & 15;  // 00001111
+
+        switch( type ){
+            case 0: // Device name
+        		snprintf(record->tracker, min(length + 1, SIZE_TRACKER_FIELD), "%s", &chank[index]);
+                break;
+            case 1: // Firmware version
+        		snprintf(record->soft, min(length + 1, SIZE_TRACKER_FIELD), "%s", &chank[index]);
+                break;
+            case 2: // Hardware version
+        		snprintf(record->hard, min(length + 1, SIZE_TRACKER_FIELD), "%s", &chank[index]);
+        }   // swith( type )
+
+        index += length;
+    }   // while( index < chank_length )
+
+    return chank_length + 1;    // include first byte (size of chank)
+}   // decodeSYS
+
+
+/*
+Convert hexadecimal to decimal
+*/
+static long long int hex2dec(char *c, size_t size)
+{
+    long long int retval = 0LL;
+    size_t i, j;
+    char temp[STRLEN];
+
+    if( size < (STRLEN >> 1) ){
+        memset(temp, 0, STRLEN);
+        for(i = 0, j = 0; i < size; i++, j += 2){
+            sprintf(&temp[j], "%.2X", (uint8_t)c[i]);
+        }
+        retval = strtoll(temp, NULL, 16);
+    }
+
+    return retval;
+}   // hex2dec

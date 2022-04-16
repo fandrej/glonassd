@@ -17,7 +17,7 @@
 #define BETWEEN(V,X,Y) ((X) <= (V) && (V) <= (Y))
 #define between(V,X,Y) BETWEEN(V,X,Y)
 
-unsigned short CRC16 ( unsigned char *puchMsg, unsigned short usDataLen);
+unsigned short CRC16( unsigned char *puchMsg, unsigned short usDataLen);
 unsigned char CRC8(unsigned char *puchMsg, unsigned short usDataLen);
 size_t base64_encode(unsigned char const* bytes_to_encode, unsigned char *ret, unsigned int retsize);
 size_t base64_decode(unsigned char const *encoded_string, unsigned char *ret, unsigned int retsize);
