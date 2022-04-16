@@ -49,6 +49,9 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
 static long long int hex2dec(char *c, size_t size);
 static int decodeSYS(ST_RECORD *record, char *chank);
 static int decodeGPS(ST_RECORD *record, char *chank);
+static int decodeGSM(ST_RECORD *record, char *chank);
+static int decodeCOT(ST_RECORD *record, char *chank);
+static int decodeADC(ST_RECORD *record, char *chank);
 
 
 /*
@@ -370,6 +373,7 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
         // <SYS><GPS><GSM><COT><ADC><DTT><IWD><ETD><OBD><FUL>
         for(int i = 1; i < 1024; i=(i<<1)){
             logging("terminal_decode[%s:%d]: i=%d p_start=%d (0x%.2X), parcel[p_start]=0x%.2X", worker->listener->name, worker->listener->port, i, p_start, p_start, parcel[p_start]);
+
             switch( i & data_mask ){
                 case 1: // SYS
                     p_start += decodeSYS(record, &parcel[p_start]);
@@ -397,10 +401,19 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
 
                     break;
                 case 4: // GSM
+                    p_start += decodeGSM(record, &parcel[p_start]);
                     break;
                 case 8: // COT
+                    p_start += decodeCOT(record, &parcel[p_start]);
+
+                    if( worker && worker->listener->log_all ) {
+                        logging("terminal_decode[%s:%d]: record->probeg=%lf", worker->listener->name, worker->listener->port, record->probeg);
+                    }
+
                     break;
                 case 16: // ADC
+                    p_start += decodeADC(record, &parcel[p_start]);
+
                     break;
                 case 32: // DTT
                     break;
@@ -413,6 +426,10 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
                 case 512: // FUL
                     break;
             }   // switch( i & data_mask )
+        }   // for(int i = 1; i < 1024; i=(i<<1))
+
+        if( worker && worker->listener->log_all && strlen(record->message) ) {
+            logging("terminal_decode[%s:%d]: record->message=%s\n", worker->listener->name, worker->listener->port, record->message);
         }
     }   // while(p_stop < parcel_size)
 
@@ -437,6 +454,70 @@ int terminal_encode(ST_RECORD *records, int reccount, char *buffer, int bufsize)
     return top;
 }
 //------------------------------------------------------------------------------
+
+
+static int decodeADC(ST_RECORD *record, char *chank){
+    int index = 0;
+    int chank_length = (int)chank[index++]; // not include first byte (size of chank)
+    uint16_t type_length, type, length;
+    logging("decodeADC, chank[0]=0x%.2X, chank[1]=0x%.2X, chank_length=%d", chank[0], chank[1], chank_length);
+
+    while( index < chank_length ){
+        type_length = (uint16_t)chank[index++];  // “Bit0-bit3”: Sub-data type length; “Bit4-Bit7”: Sub-data type identifier
+        type = (type_length & 0xF000  /* 11110000 00000000 */) >> 12;
+        length = type_length & 0xFFF; // 00001111 11111111
+        logging("decodeADC, type_length=%d, type=%d, length=%d", type_length, type, length);
+
+        switch( type ){
+            case 0: // External power
+                logging("decodeADC, External power");
+                break;
+            case 1: // Backup battery
+                logging("decodeADC, Backup battery");
+        }   // swith( type )
+
+        index += length;
+    }   // while( index < chank_length )
+
+    return chank_length + 1;    // include first byte (size of chank)
+}   // decodeADC
+
+
+static int decodeCOT(ST_RECORD *record, char *chank){
+    int index = 0;
+    int chank_length = (int)chank[index++]; // not include first byte (size of chank)
+    uint8_t type_length, type, length;
+    size_t tmp;
+    logging("decodeCOT, chank[0]=0x%.2X, chank[1]=0x%.2X, chank_length=%d", chank[0], chank[1], chank_length);
+
+    while( index < chank_length ){
+        type_length = (uint8_t)chank[index++];  // “Bit0-bit3”: Sub-data type length; “Bit4-Bit7”: Sub-data type identifier
+        type = (type_length & 240 /* 11110000 */) >> 4;
+        length = type_length & 15;  // 00001111
+
+        switch( type ){
+            case 0: // Odometer (meter)
+        		record->probeg = hex2dec(&chank[index], length);
+                break;
+            case 1: // Engine hour (Моточасы)
+                tmp = strlen(record->message);
+        		snprintf(&record->message[tmp], SIZE_MESSAGE_FIELD - tmp, "Моточасы: %d (сек.); ", (int)hex2dec(&chank[index], length));
+        }   // swith( type )
+
+        index += length;
+    }   // while( index < chank_length )
+
+    return chank_length + 1;    // include first byte (size of chank)
+}   // decodeCOT
+
+
+static int decodeGSM(ST_RECORD *record, char *chank){
+    int index = 0;
+    int chank_length = (int)chank[index++]; // not include first byte (size of chank)
+    logging("decodeGSM, chank[0]=0x%.2X, chank[1]=0x%.2X, chank_length=%d", chank[0], chank[1], chank_length);
+
+    return chank_length + 1;    // include first byte (size of chank)
+}   // decodeGSM
 
 
 static int decodeGPS(ST_RECORD *record, char *chank){
