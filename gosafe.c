@@ -368,19 +368,19 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
             continue;
         }
 
-        ulliTmp = hex2dec(st_header->date_time, 4) + GMT_diff;	// UTC ->local simple (timestamp, seconds);
+        ulliTmp = hex2dec(st_header->date_time, 4) + GMT_diff; // UTC ->local simple (timestamp, seconds);
     	gmtime_r(&ulliTmp, &tm_data);           // local simple->local struct
     	tm_data.tm_year = (tm_data.tm_year + 2000 - 1970);
-        /*
-        logging("terminal_decode[%s:%d]: time=%02d.%02d.%02d %02d:%02d:%02d", worker->listener->name, worker->listener->port,
+        if( worker && worker->listener->log_all ) {
+            logging("terminal_decode[%s:%d]: time=%02d.%02d.%02d %02d:%02d:%02d", worker->listener->name, worker->listener->port,
                                             tm_data.tm_mday, tm_data.tm_mon + 1, tm_data.tm_year + 1900, tm_data.tm_hour, tm_data.tm_min, tm_data.tm_sec);
-        */
+        }
     	// получаем время как число секунд от начала суток
     	record->time = 3600 * tm_data.tm_hour + 60 * tm_data.tm_min + tm_data.tm_sec;
     	// в tm_data обнуляем время
     	tm_data.tm_hour = tm_data.tm_min = tm_data.tm_sec = 0;
     	// получаем дату
-    	record->data = timegm(&tm_data);	// local struct->local simple & mktime epoch
+    	record->data = timegm(&tm_data) - GMT_diff;	// local struct->local simple & mktime epoch
 
         data_mask = hex2dec(st_header->data_mask, 2);
 
