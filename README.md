@@ -97,4 +97,7 @@ This daemon is part of navigation service of [locman.org](http://locman.org/map/
 * Improved logs in databases libraries
 
 04.04.2022<br>
-* Added processing of CT_MSGTO, CT_MSGFROM EGTS_COMMANDS_SERVICE messages
+* Added processing of CT_MSGTO, CT_MSGFROM EGTS_COMMANDS_SERVICE messages of the EGTS protocol
+
+17.04.2022<br>
+* Added GoSafe protocol (Gosafe G*/Proma Sat G* devices)

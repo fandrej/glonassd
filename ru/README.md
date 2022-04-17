@@ -96,4 +96,7 @@ glonassd это открытое ПО под лицензией [MIT](http://lic
 * Добавлены логи в библиотеках баз данных
 
 04.04.2022<br>
-* Добавлена обработка сообщений CT_MSGTO, CT_MSGFROM EGTS_COMMANDS_SERVICE
+* Добавлена обработка сообщений CT_MSGTO, CT_MSGFROM EGTS_COMMANDS_SERVICE протокола ЕГТС
+
+17.04.2022<br>
+* Добавлен протокол GoSafe (устройства Gosafe G*/Proma Sat G*)
