@@ -53,6 +53,10 @@ static int decodeGSM(ST_RECORD *record, char *chank);
 static int decodeCOT(ST_RECORD *record, char *chank);
 static int decodeADC(ST_RECORD *record, char *chank);
 static int decodeDTT(ST_RECORD *record, char *chank);
+static int decodeIWD(ST_RECORD *record, char *chank);
+static int decodeETD(ST_RECORD *record, char *chank);
+static int decodeOBD(ST_RECORD *record, char *chank);
+static int decodeFUL(ST_RECORD *record, char *chank);
 
 
 /*
@@ -96,7 +100,9 @@ static void terminal_decode_txt(char *parcel, int parcel_size, ST_ANSWER *answer
     if( !parcel || parcel_size <= 0 || !answer )
         return;
 
-    logging("terminal_decode[%s:%d]: terminal_decode_txt", worker->listener->name, worker->listener->port);
+    if( worker && worker->listener->log_all ) {
+        logging("terminal_decode[%s:%d]: terminal_decode_txt", worker->listener->name, worker->listener->port);
+    }
 
     // TCP hartbeat data
     // *GS02,357852034572894#
@@ -107,7 +113,7 @@ static void terminal_decode_txt(char *parcel, int parcel_size, ST_ANSWER *answer
     answer->count = 0;
     saveptr1 = NULL;
     for(packet_num = 1, cPaket = strtok_r(parcel, delim_packet, &saveptr1); cPaket; packet_num++, cPaket = strtok_r(NULL, delim_packet, &saveptr1)) {
-        logging("terminal_decode[%s:%d]: cPaket=%s", worker->listener->name, worker->listener->port, cPaket);
+        //logging("terminal_decode[%s:%d]: cPaket=%s", worker->listener->name, worker->listener->port, cPaket);
 
         if( strlen(cPaket) > 21 ) {
             // it's data
@@ -117,7 +123,7 @@ static void terminal_decode_txt(char *parcel, int parcel_size, ST_ANSWER *answer
 
             saveptr2 = NULL;
             for(part_num = 0, cPart = strtok_r(cPaket, delim_part, &saveptr2); cPart; part_num++, cPart = strtok_r(NULL, delim_part, &saveptr2)) {
-                logging("terminal_decode[%s:%d]: cPart(%d)=%s", worker->listener->name, worker->listener->port, part_num, cPart);
+                //logging("terminal_decode[%s:%d]: cPart(%d)=%s", worker->listener->name, worker->listener->port, part_num, cPart);
 
                 if( part_num == 0 ){
                     // *GS02
@@ -135,7 +141,7 @@ static void terminal_decode_txt(char *parcel, int parcel_size, ST_ANSWER *answer
             				snprintf(parameter, 4, "%s", cParams);
                         }
                         else if( param_num == 1 ) {
-                            logging("terminal_decode[%s:%d]: parameter=%s values=%s", worker->listener->name, worker->listener->port, parameter, cParams);
+                            //logging("terminal_decode[%s:%d]: parameter=%s values=%s", worker->listener->name, worker->listener->port, parameter, cParams);
 
                             if( strcmp(parameter, "GPS") == 0 ) {
                 				memset(&tm_data, 0, sizeof(struct tm));
@@ -185,17 +191,18 @@ static void terminal_decode_txt(char *parcel, int parcel_size, ST_ANSWER *answer
                                     record->hdop = (int)hdop;
                                     record->valid = gps_dimension > 2 && record->lat > 0.0;
                                 }
-                                /*
-                                logging("terminal_decode[%s:%d]: iFields=%d", worker->listener->name, worker->listener->port, iFields);
-                                logging("terminal_decode[%s:%d]: tm_data.tm_hour=%d, tm_data.tm_min=%d, tm_data.tm_sec=%d", worker->listener->name, worker->listener->port, tm_data.tm_hour, tm_data.tm_min, tm_data.tm_sec);
-                                logging("terminal_decode[%s:%d]: record->clat=%c", worker->listener->name, worker->listener->port, record->clat);
-                                logging("terminal_decode[%s:%d]: record->lat=%lf", worker->listener->name, worker->listener->port, record->lat);
-                                logging("terminal_decode[%s:%d]: record->clon=%c", worker->listener->name, worker->listener->port, record->clon);
-                                logging("terminal_decode[%s:%d]: record->lon=%lf", worker->listener->name, worker->listener->port, record->lon);
-                                logging("terminal_decode[%s:%d]: record->speed=%lf", worker->listener->name, worker->listener->port, record->speed);
-                                logging("terminal_decode[%s:%d]: record->curs=%lf", worker->listener->name, worker->listener->port, record->curs);
-                                logging("terminal_decode[%s:%d]: tm_data.tm_mday=%d, tm_data.tm_mon=%d, tm_data.tm_year=%d", worker->listener->name, worker->listener->port, tm_data.tm_mday, tm_data.tm_mon, tm_data.tm_year);
-                                */
+
+                                if( worker && worker->listener->log_all ) {
+                                    logging("terminal_decode[%s:%d]: iFields=%d", worker->listener->name, worker->listener->port, iFields);
+                                    logging("terminal_decode[%s:%d]: tm_data.tm_hour=%d, tm_data.tm_min=%d, tm_data.tm_sec=%d", worker->listener->name, worker->listener->port, tm_data.tm_hour, tm_data.tm_min, tm_data.tm_sec);
+                                    logging("terminal_decode[%s:%d]: record->clat=%c", worker->listener->name, worker->listener->port, record->clat);
+                                    logging("terminal_decode[%s:%d]: record->lat=%lf", worker->listener->name, worker->listener->port, record->lat);
+                                    logging("terminal_decode[%s:%d]: record->clon=%c", worker->listener->name, worker->listener->port, record->clon);
+                                    logging("terminal_decode[%s:%d]: record->lon=%lf", worker->listener->name, worker->listener->port, record->lon);
+                                    logging("terminal_decode[%s:%d]: record->speed=%lf", worker->listener->name, worker->listener->port, record->speed);
+                                    logging("terminal_decode[%s:%d]: record->curs=%lf", worker->listener->name, worker->listener->port, record->curs);
+                                    logging("terminal_decode[%s:%d]: tm_data.tm_mday=%d, tm_data.tm_mon=%d, tm_data.tm_year=%d", worker->listener->name, worker->listener->port, tm_data.tm_mday, tm_data.tm_mon, tm_data.tm_year);
+                                }
 
                                 if( iFields >= 13 ){
                     				// переводим время GMT и текстовом формате в местное
@@ -226,18 +233,22 @@ static void terminal_decode_txt(char *parcel, int parcel_size, ST_ANSWER *answer
                        							  );
                                 record->zaj = record->status & 256;     // bit 9
                                 record->alarm = record->alarm & 512;    // bit 10
-                                /*
-                                logging("terminal_decode[%s:%d]: record->status=%d", worker->listener->name, worker->listener->port, record->status);
-                                logging("terminal_decode[%s:%d]: record->zaj=%d", worker->listener->name, worker->listener->port, record->zaj);
-                                logging("terminal_decode[%s:%d]: record->alarm=%d", worker->listener->name, worker->listener->port, record->alarm);
-                                */
+
+                                if( worker && worker->listener->log_all ) {
+                                    logging("terminal_decode[%s:%d]: record->status=%d", worker->listener->name, worker->listener->port, record->status);
+                                    logging("terminal_decode[%s:%d]: record->zaj=%d", worker->listener->name, worker->listener->port, record->zaj);
+                                    logging("terminal_decode[%s:%d]: record->alarm=%d", worker->listener->name, worker->listener->port, record->alarm);
+                                }
                             }   // else if( strcmp(parameter, "STT") == 0 )
                             else if( strcmp(parameter, "MGR") == 0 ) {
                                 // 1000
                     			iFields = sscanf(cParams, "%lf",
                     								&record->probeg   // 1 (meters)
                        							  );
-                                //logging("terminal_decode[%s:%d]: record->probeg=%lf", worker->listener->name, worker->listener->port, record->probeg);
+
+                                if( worker && worker->listener->log_all ) {
+                                    logging("terminal_decode[%s:%d]: record->probeg=%lf", worker->listener->name, worker->listener->port, record->probeg);
+                                }
                             }   // else if( strcmp(parameter, "MGR") == 0 )
                             else if( strcmp(parameter, "ADC") == 0 ) {
                                 // 1   2  3   4  5  6
@@ -251,11 +262,12 @@ static void terminal_decode_txt(char *parcel, int parcel_size, ST_ANSWER *answer
                                                     &record->vbatt    // 6
                        							  );
                                 record->temperature = (int)hdop;
-                                /*
-                                logging("terminal_decode[%s:%d]: record->vbort=%lf", worker->listener->name, worker->listener->port, record->vbort);
-                                logging("terminal_decode[%s:%d]: record->vbatt=%lf", worker->listener->name, worker->listener->port, record->vbatt);
-                                logging("terminal_decode[%s:%d]: record->temperature=%d", worker->listener->name, worker->listener->port, record->temperature);
-                                */
+
+                                if( worker && worker->listener->log_all ) {
+                                    logging("terminal_decode[%s:%d]: record->vbort=%lf", worker->listener->name, worker->listener->port, record->vbort);
+                                    logging("terminal_decode[%s:%d]: record->vbatt=%lf", worker->listener->name, worker->listener->port, record->vbatt);
+                                    logging("terminal_decode[%s:%d]: record->temperature=%d", worker->listener->name, worker->listener->port, record->temperature);
+                                }
                             }   // else if( strcmp(parameter, "ADC") == 0 )
 
                         }   // else if( param_num == 1 )
@@ -273,7 +285,9 @@ static void terminal_decode_txt(char *parcel, int parcel_size, ST_ANSWER *answer
         }   // if( strlen(cPaket) > 21 )
     }   // for(cPaket = strtok_r(parcel
 
-    logging("terminal_decode[%s:%d]: %d packets readed, %d records created", worker->listener->name, worker->listener->port, packet_num, answer->count);
+    if( worker && worker->listener->log_all ) {
+        logging("terminal_decode[%s:%d]: %d packets readed, %d records created", worker->listener->name, worker->listener->port, packet_num, answer->count);
+    }
 }
 //------------------------------------------------------------------------------
 
@@ -284,20 +298,26 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
     ST_RECORD *record = NULL;
     int p_start, p_stop;    // part of parcel (ont record)
     int record_ok = 1;
+    /*
+    Документация не совпадает с посылками:
+        в заголовке поля data_mask, event_id, date_time идут в обратном порядке, присутствуют 2 байта неизвестного назначения
+        в общем, это больше реверс-инженеринг, чем создание парсера по документации
+    */
     #pragma pack( push, 1 )
     typedef struct {
         uint8_t packet_head;
         uint8_t proto_version;
         uint8_t packet_type;
         char device_id[7];
-        char data_mask[2];
+        char dummy[2];      // I dont know what is it
         uint8_t event_id;
         char date_time[4];
-        uint16_t dummy; // I dont know what is it
+        char data_mask[2];
     } ST_HEADER;
     #pragma pack( pop )
     ST_HEADER *st_header;
     int data_mask;
+    const uint8_t bit6 = 0x40; /* 0100 0000 */
 
     struct tm tm_data;
     time_t ulliTmp;
@@ -305,8 +325,10 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
     if( !parcel || parcel_size <= 0 || !answer )
         return;
 
-    logging("terminal_decode[%s:%d]: terminal_decode_bin", worker->listener->name, worker->listener->port);
-    logging("terminal_decode[%s:%d]: parcel_size=%d", worker->listener->name, worker->listener->port, parcel_size);
+    if( worker && worker->listener->log_all ) {
+        logging("terminal_decode[%s:%d]: terminal_decode_bin", worker->listener->name, worker->listener->port);
+        logging("terminal_decode[%s:%d]: parcel_size=%d", worker->listener->name, worker->listener->port, parcel_size);
+    }
 
     answer->count = 0;
     p_stop = -1;
@@ -335,15 +357,19 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
             break;
         }
 
-        logging("terminal_decode[%s:%d]: packet %d, %d-%d", worker->listener->name, worker->listener->port, answer->count, p_start, p_stop);
 
         st_header = (ST_HEADER *)&parcel[p_start];
-        logging("terminal_decode[%s:%d]: packet type=%d", worker->listener->name, worker->listener->port, st_header->packet_type);
 
 		snprintf(record->soft, SIZE_TRACKER_FIELD, "%d", st_header->proto_version);
 		snprintf(record->imei, SIZE_TRACKER_FIELD, "%lld", hex2dec(st_header->device_id, 7));
-        logging("terminal_decode[%s:%d]: record->soft=%s", worker->listener->name, worker->listener->port, record->soft);
-        logging("terminal_decode[%s:%d]: record->imei=%s", worker->listener->name, worker->listener->port, record->imei);
+
+        if( worker && worker->listener->log_all ) {
+            logging("terminal_decode[%s:%d]: packet %d, %d-%d", worker->listener->name, worker->listener->port, answer->count, p_start, p_stop);
+            logging("terminal_decode[%s:%d]: protocol=%s", worker->listener->name, worker->listener->port, record->soft);
+            logging("terminal_decode[%s:%d]: packet type=%d", worker->listener->name, worker->listener->port, st_header->packet_type);
+            logging("terminal_decode[%s:%d]: event id=%d", worker->listener->name, worker->listener->port, st_header->event_id);
+            logging("terminal_decode[%s:%d]: record->imei=%s", worker->listener->name, worker->listener->port, record->imei);
+        }
 
         if( st_header->packet_type == 0 ){
             // heaqrtbeat (IMEI only)
@@ -353,9 +379,10 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
         ulliTmp = hex2dec(st_header->date_time, 4) + GMT_diff;	// UTC ->local simple (timestamp, seconds);
     	gmtime_r(&ulliTmp, &tm_data);           // local simple->local struct
     	tm_data.tm_year = (tm_data.tm_year + 2000 - 1970);
+        /*
         logging("terminal_decode[%s:%d]: time=%02d.%02d.%02d %02d:%02d:%02d", worker->listener->name, worker->listener->port,
                                             tm_data.tm_mday, tm_data.tm_mon + 1, tm_data.tm_year + 1900, tm_data.tm_hour, tm_data.tm_min, tm_data.tm_sec);
-
+        */
     	// получаем время как число секунд от начала суток
     	record->time = 3600 * tm_data.tm_hour + 60 * tm_data.tm_min + tm_data.tm_sec;
     	// в tm_data обнуляем время
@@ -364,16 +391,24 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
     	record->data = timegm(&tm_data);	// local struct->local simple & mktime epoch
 
         data_mask = hex2dec(st_header->data_mask, 2);
-        logging("terminal_decode[%s:%d]: data_mask=%d", worker->listener->name, worker->listener->port, data_mask);
+
+        if( worker && worker->listener->log_all ) {
+            logging("terminal_decode[%s:%d]: data_mask=%d", worker->listener->name, worker->listener->port, data_mask);
+        }
 
         // ставим указатель на Data field
         p_start += sizeof(ST_HEADER);
+
         // data_mask, биты определяют наличие полей в Data field:
         //   1    2    3    8    16  32   64   128  256  512
+        // Event packet format (st_header->packet_type Bit6 = 1):
         //   0    1    2    3    4    5    6    7    8    9
         // <SYS><GPS><GSM><COT><ADC><DTT><IWD><ETD><OBD><FUL>
+        // Non-event packet format (st_header->packet_type Bit6 = 0):
+        //   0    1    2    3    4    5    6    7    8
+        // <SYS><GPS><GSM><COT><ADC><DTT><IWD><OBD><FUL>
         for(int i = 1; i < 1024; i=(i<<1)){
-            logging("terminal_decode[%s:%d]: i=%d p_start=%d (0x%.2X), parcel[p_start]=0x%.2X", worker->listener->name, worker->listener->port, i, p_start, p_start, parcel[p_start]);
+            //logging("terminal_decode[%s:%d]: i=%d p_start=%d (0x%.2X), parcel[p_start]=0x%.2X", worker->listener->name, worker->listener->port, i, p_start, p_start, (uint8_t)parcel[p_start]);
 
             switch( i & data_mask ){
                 case 1: // SYS
@@ -388,7 +423,7 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
                     break;
                 case 2: // GPS
                     p_start += decodeGPS(record, &parcel[p_start]);
-                    record_ok = 1;
+                    record_ok = (0.0 <= record->lat && record->lat < 90.0) && (-180.0 < record->lon && record->lon < 180.0);
 
                     if( worker && worker->listener->log_all ) {
                         logging("terminal_decode[%s:%d]: record->satellites=%d", worker->listener->name, worker->listener->port, record->satellites);
@@ -422,7 +457,7 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
                     }
 
                     break;
-                case 32: // DTT
+                case 32: // DTT, page 20
                     p_start += decodeDTT(record, &parcel[p_start]);
 
                     if( worker && worker->listener->log_all ) {
@@ -430,15 +465,38 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
                     }
 
                     break;
-                case 64: // IWD
+                case 64: // IWD, Reserved
+                    p_start += decodeIWD(record, &parcel[p_start]);
+
                     break;
-                case 128: // ETD
+                case 128: // ETD, page 21; or OBD, page 25
+                    // page 15
+                    if( st_header->packet_type & bit6 ){
+                        /* packet_type Bit6: “1” event packet, exists field <ETD> */
+                        p_start += decodeETD(record, &parcel[p_start]);
+                    }
+                    else {
+                        /* packet_type Bit6: “0" non-event packet, no field <ETD> */
+                        p_start += decodeOBD(record, &parcel[p_start]);
+                    }
+
                     break;
-                case 256: // OBD
+                case 256: // OBD or FUL, page 25
+                    if( st_header->packet_type & bit6 ){
+                        p_start += decodeOBD(record, &parcel[p_start]);
+                    }
+                    else {
+                        p_start += decodeFUL(record, &parcel[p_start]);
+                    }
+
                     break;
                 case 512: // FUL
-                    break;
+                    p_start += decodeFUL(record, &parcel[p_start]);
             }   // switch( i & data_mask )
+
+            if( p_start >= p_stop - 2) {    // CRC, 2 byte
+                break;
+            }
         }   // for(int i = 1; i < 1024; i=(i<<1))
 
         if( worker && worker->listener->log_all && strlen(record->message) ) {
@@ -450,7 +508,9 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
         answer->count = 0;  // debug only
     }
 
-    logging("terminal_decode[%s:%d]: %d records created", worker->listener->name, worker->listener->port, answer->count);
+    if( worker && worker->listener->log_all ) {
+        logging("terminal_decode[%s:%d]: %d records created", worker->listener->name, worker->listener->port, answer->count);
+    }
 }   // terminal_decode_bin
 
 
@@ -469,12 +529,80 @@ int terminal_encode(ST_RECORD *records, int reccount, char *buffer, int bufsize)
 //------------------------------------------------------------------------------
 
 
+static int decodeFUL(ST_RECORD *record, char *chank){
+    int index = 0;
+    int chank_length = (int)chank[index++]; // not include first byte (size of chank)
+    uint8_t type_length, type, length;
+    //logging("decodeFUL, chank[0]=0x%.2X, chank[1]=0x%.2X, chank_length=%d", (uint8_t)chank[0], (uint8_t)chank[1], chank_length);
+
+    while( index < chank_length ){
+        type_length = (uint8_t)chank[index++];  // “Bit4-Bit7” represents sub-data ID, “Bit0-bit3” represents data length
+        type = (type_length & 240   /* 11110000 */) >> 4;   // Fuel identifier,
+        length = type_length & 15;  // 00001111
+        //logging("decodeFUL, type_length=%d, type=%d, length=%d", type_length, type, length);
+
+        type = type;
+
+        if( record->fuel[0] > 0 ){
+            record->fuel[1] = (int)hex2dec(&chank[index], length);
+            /*
+            E.g. if Octane 90 gasoline is used, it should be calculated as:
+            47226696 (g) = 47226.696(kg) / 0.722kg/L=65410.94 liters
+            */
+            record->fuel[1] = (int)Round((double)record->fuel[1] / 1000.0 / 0.722, 0);
+        }
+        else {
+            record->fuel[0] = (int)hex2dec(&chank[index], length);
+            record->fuel[0] = (int)Round((double)record->fuel[0] / 1000.0 / 0.722, 0);
+        }
+        // Unit is g, Convert to gallon or liter by density of fuel type
+
+        index += length;
+    }   // while( index < chank_length )
+
+    return chank_length + 1;    // include first byte (size of chank)
+}   // decodeFUL
+
+
+// G79W Protocol V1.5.pdf, page 25
+static int decodeOBD(ST_RECORD *record, char *chank){
+    int index = 0;
+    int chank_length = (int)chank[index++]; // not include first byte (size of chank)
+
+    //logging("decodeOBD, chank[0]=0x%.2X, chank[1]=0x%.2X, chank_length=%d", (uint8_t)chank[0], (uint8_t)chank[1], chank_length);
+
+    return chank_length + 1;    // include first byte (size of chank)
+}   // decodeOBD
+
+
+// G79W Protocol V1.5.pdf, page 21
+static int decodeETD(ST_RECORD *record, char *chank){
+    int index = 0;
+    int chank_length = (int)chank[index++]; // not include first byte (size of chank)
+
+    //logging("decodeETD, chank[0]=0x%.2X, chank[1]=0x%.2X, chank_length=%d", (uint8_t)chank[0], (uint8_t)chank[1], chank_length);
+
+    return chank_length + 1;    // include first byte (size of chank)
+}   // decodeETD
+
+
+// G79W Protocol V1.5.pdf, page 21
+static int decodeIWD(ST_RECORD *record, char *chank){
+    int index = 0;
+    int chank_length = (uint8_t)chank[index++]; // not include first byte (size of chank)
+
+    //logging("decodeIWD, chank[0]=0x%.2X, chank[1]=0x%.2X, chank_length=%d", (uint8_t)chank[0], (uint8_t)chank[1], chank_length);
+
+    return chank_length + 1;    // include first byte (size of chank)
+}   // decodeIWD
+
+
 // G79W Protocol V1.5.pdf, page 21
 static int decodeDTT(ST_RECORD *record, char *chank){
     int index = 0;
     int chank_length = (int)chank[index++]; // not include first byte (size of chank)
     uint8_t type_length, type, length;
-    //logging("decodeDTT, chank[0]=0x%.2X, chank[1]=0x%.2X, chank_length=%d", chank[0], chank[1], chank_length);
+    //logging("decodeDTT, chank[0]=0x%.2X, chank[1]=0x%.2X, chank_length=%d", (uint8_t)chank[0], (uint8_t)chank[1], chank_length);
 
     while( index < chank_length ){
         type_length = (uint8_t)chank[index++];  // “Bit4-Bit7” represents sub-data ID, “Bit0-bit3” represents data length
@@ -491,7 +619,7 @@ static int decodeDTT(ST_RECORD *record, char *chank){
             case 2: //  Lower 120 Geo-fences status
             case 3: //  Higher 36 Geo-fences status
                 break;
-            case 4: //  Event status: Refer chapter 9 “Event status” table
+            case 4: //  Event status: Refer chapter 9 “Event status” table, page 97
                 break;
             case 5: //  Packet type indicator
                 break;
@@ -510,7 +638,7 @@ static int decodeADC(ST_RECORD *record, char *chank){
     unsigned int field, type, value;
     const double AD_MIN = -10.0;
     const double AD_MAX = 100.0;
-    //logging("decodeADC, chank[0]=0x%.2X, chank[1]=0x%.2X, chank_length=%d", chank[0], chank[1], chank_length);
+    //logging("decodeADC, chank[0]=0x%.2X, chank[1]=0x%.2X, chank_length=%d", (uint8_t)chank[0], (uint8_t)chank[1], chank_length);
 
     while( index < chank_length ){
         field = (unsigned int)hex2dec(&chank[index], 2);  // “Bit0-bit3”: Sub-data type length; “Bit4-Bit7”: Sub-data type identifier
@@ -533,17 +661,18 @@ static int decodeADC(ST_RECORD *record, char *chank){
 }   // decodeADC
 
 
-static int decodeCOT(ST_RECORD *record, char *chank){
+static int decodeCOT(ST_RECORD *record, char *chank) {
     int index = 0;
     int chank_length = (int)chank[index++]; // not include first byte (size of chank)
     uint8_t type_length, type, length;
     size_t tmp;
-    logging("decodeCOT, chank[0]=0x%.2X, chank[1]=0x%.2X, chank_length=%d", chank[0], chank[1], chank_length);
+    //logging("decodeCOT, chank[0]=0x%.2X, chank[1]=0x%.2X, chank_length=%d", (uint8_t)chank[0], (uint8_t)chank[1], chank_length);
 
     while( index < chank_length ){
         type_length = (uint8_t)chank[index++];  // “Bit0-bit3”: Sub-data type length; “Bit4-Bit7”: Sub-data type identifier
         type = (type_length & 240   /* 11110000 */) >> 4;
         length = type_length & 15;  // 00001111
+        //logging("decodeCOT, type_length=%d, type=%d, length=%d", type_length, type, length);
 
         switch( type ){
             case 0: // Odometer (meter)
@@ -564,7 +693,7 @@ static int decodeCOT(ST_RECORD *record, char *chank){
 static int decodeGSM(ST_RECORD *record, char *chank){
     int index = 0;
     int chank_length = (int)chank[index++]; // not include first byte (size of chank)
-    logging("decodeGSM, chank[0]=0x%.2X, chank[1]=0x%.2X, chank_length=%d", chank[0], chank[1], chank_length);
+    //logging("decodeGSM, chank[0]=0x%.2X, chank[1]=0x%.2X, chank_length=%d", (uint8_t)chank[0], (uint8_t)chank[1], chank_length);
 
     return chank_length + 1;    // include first byte (size of chank)
 }   // decodeGSM
@@ -573,7 +702,7 @@ static int decodeGSM(ST_RECORD *record, char *chank){
 static int decodeGPS(ST_RECORD *record, char *chank){
     int index = 0;
     int chank_length = (int)chank[index++]; // not include first byte (size of chank)
-    //logging("decodeGPS, chank[0]=0x%.2X, chank[1]=0x%.2X, chank_length=%d", chank[0], chank[1], chank_length);
+    //logging("decodeGPS, chank[0]=0x%.2X, chank[1]=0x%.2X, chank_length=%d", (uint8_t)chank[0], (uint8_t)chank[1], chank_length);
 
     #pragma pack( push, 1 )
     typedef struct {
@@ -610,12 +739,13 @@ static int decodeSYS(ST_RECORD *record, char *chank){
     int index = 0;
     int chank_length = (int)chank[index++]; // not include first byte (size of chank)
     uint8_t type_length, type, length;
-    //logging("decodeSYS, chank[0]=0x%.2X, chank[1]=0x%.2X, chank_length=%d", chank[0], chank[1], chank_length);
+    //logging("decodeSYS, chank[0]=0x%.2X, chank[1]=0x%.2X, chank_length=%d", (uint8_t)chank[0], (uint8_t)chank[1], chank_length);
 
     while( index < chank_length ){
         type_length = (uint8_t)chank[index++];
         type = (type_length & 240   /* 11110000 */) >> 4;
         length = type_length & 15;  // 00001111
+        //logging("decodeSYS, type_length=%d, type=%d, length=%d", type_length, type, length);
 
         switch( type ){
             case 0: // Device name
