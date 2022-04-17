@@ -1,6 +1,6 @@
 /*
 gosafe.c
-shared library for decode/encode gps/glonass terminal with GOSAFE Product Protocol V2.13
+shared library for decode/encode gps/glonass terminal with GOSAFE Product Protocol
 
 sudo service glonassd stop
 sudo ./glonassd start -c /opt/glonassd/glonassd.conf
@@ -28,11 +28,6 @@ Gosafe G737
 Gosafe G777
 Gosafe G79
 Gosafe G797
-
-Help:
-https://github.com/traccar/traccar/blob/master/src/main/java/org/traccar/protocol/GoSafeProtocolDecoder.java
-
-http://cpp.sh/
 
 compile:
 make -B gosafe
@@ -67,11 +62,8 @@ static int decodeFUL(ST_RECORD *record, char *chank);
 */
 void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER *worker)
 {
-
 	if( !parcel || parcel_size <= 0 || !answer )
 		return;
-
-	//log2file("/var/www/locman.org/tmp/gcc/satlite_", parcel, parcel_size);
 
 	if( parcel[0] == '*' && parcel[1] == 'G' && parcel[2] == 'S' ) {
 		terminal_decode_txt(parcel, parcel_size, answer, worker);
