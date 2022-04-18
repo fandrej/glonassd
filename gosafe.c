@@ -416,7 +416,10 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
                 case 2: // GPS
                     p_start += decodeGPS(record, &parcel[p_start]);
                     // jump filter:
-                    record_ok = (0.0 <= record->lat && record->lat < 90.0) && (-180.0 < record->lon && record->lon < 180.0) && record->speed < 200.0;
+                    record_ok = (0.0 <= record->lat && record->lat < 90.0)
+                                && (-180.0 < record->lon && record->lon < 180.0)
+                                && record->speed < 200.0
+                                && (0 <= record->curs && record->curs < 360);
 
                     if( worker && worker->listener->log_all ) {
                         logging("terminal_decode[%s:%d]: record->satellites=%d", worker->listener->name, worker->listener->port, record->satellites);
