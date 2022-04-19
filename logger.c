@@ -110,10 +110,16 @@ void *log_thread_func(void *arg)
 
 	// get limit to queue size in bytes
 	// calc Max. # of messages on queue
-	if( !getrlimit(RLIMIT_MSGQUEUE, &rlim) )
-	    queue_attr.mq_maxmsg = (long) min(rlim.rlim_cur, rlim.rlim_max) / queue_attr.mq_msgsize / 10;
-    else
-	    queue_attr.mq_maxmsg = (long) 819200 / queue_attr.mq_msgsize / 10;
+	if( !getrlimit(RLIMIT_MSGQUEUE, &rlim) ){
+	    /*
+        attr->mq_maxmsg must be less than or equal to the msg_max limit,
+        attr->mq_msgsize must be less than or equal to the msgsize_max limit
+        */
+	    queue_attr.mq_maxmsg = (long) min(rlim.rlim_cur, rlim.rlim_max) / queue_attr.mq_msgsize / 1000;
+    }
+    else {
+	    queue_attr.mq_maxmsg = (long) 819200 / queue_attr.mq_msgsize;
+    }
 
 	// create messages queue
 	//mq_unlink(QUEUE_LOGGER);
