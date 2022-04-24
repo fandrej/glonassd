@@ -268,14 +268,15 @@ static void terminal_decode_txt(char *parcel, int parcel_size, ST_ANSWER *answer
                 }   // else
             }   // for(cPaket = strtok_r(parcel
 
-            if( record_ok > 0 ){
-                memcpy(&answer->lastpoint, record, sizeof(ST_RECORD));
-            }
-            else if( answer->count == 1 ){
-                answer->count = 0;
+            if( record_ok == 0 && answer->count == 1 ){
+                answer->count = 0;  // receive only one record in parcel & it is bad
             }
         }   // if( strlen(cPaket) > 21 )
     }   // for(cPaket = strtok_r(parcel
+
+    if( answer->count > 0 ){
+        memcpy(&answer->lastpoint, &answer->records[answer->count - 1], sizeof(ST_RECORD));
+    }
 
     if( worker && worker->listener->log_all ) {
         logging("terminal_decode[%s:%d]: %d packets readed, %d records created", worker->listener->name, worker->listener->port, packet_num, answer->count);
@@ -289,7 +290,7 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
 {
     ST_RECORD *record = NULL;
     int p_start, p_stop;    // part of parcel (ont record)
-    int record_ok = 1;
+    int record_ok = 1;  // for create first record
     /*
     Документация не совпадает с посылками:
         в заголовке поля data_mask, event_id, date_time идут в обратном порядке, присутствуют 2 байта неизвестного назначения
@@ -501,7 +502,11 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
     }   // while(p_stop < parcel_size)
 
     if( record_ok == 0 && answer->count == 1 ){
-        answer->count = 0;  // debug only
+        answer->count = 0;  // receive only one record in parcel & it is bad
+    }
+
+    if( answer->count > 0 ){
+        memcpy(&answer->lastpoint, &answer->records[answer->count - 1], sizeof(ST_RECORD));
     }
 
     if( worker && worker->listener->log_all ) {
