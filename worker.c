@@ -405,23 +405,23 @@ void *worker_thread(void *st_worker)
 
         /* log error: parcel without decoded records */
         if( config->listener->log_err && bytes_read > 16 && answer.count == 0 ){
-            snprintf(l2fname, FILENAME_MAX, "%.4040s/logs/%.20s_len_%zu_norecords", stParams.start_path, config->listener->name, bytes_read);
+            snprintf(l2fname, FILENAME_MAX, "%s/logs/%s_len_%zu_norecords", stParams.start_path, config->listener->name, bytes_read);
             log2file(l2fname, socket_buf, bytes_read);
         }
 
         // logging all
         if( config->listener->log_all ) {
             if( answer.lastpoint.imei[0] )
-                snprintf(l2fname, FILENAME_MAX, "%.4040s/logs/%.20s_%.15s", stParams.start_path, config->listener->name, answer.lastpoint.imei);
+                snprintf(l2fname, FILENAME_MAX, "%s/logs/%s_%s", stParams.start_path, config->listener->name, answer.lastpoint.imei);
             else
-                snprintf(l2fname, FILENAME_MAX, "%.4040s/logs/%.20s", stParams.start_path, config->listener->name);
+                snprintf(l2fname, FILENAME_MAX, "%s/logs/%s_noimei", stParams.start_path, config->listener->name);
 
             log2file(l2fname, socket_buf, bytes_read);
         }    // if( config->listener->log_all )
         else if( stConfigServer.log_imei[0] && stConfigServer.log_imei[0] == answer.lastpoint.imei[0] ){
             // log terminal message
             if( !strcmp(stConfigServer.log_imei, answer.lastpoint.imei) ){
-                snprintf(l2fname, FILENAME_MAX, "%.4040s/logs/%.15s_prcl", stParams.start_path, answer.lastpoint.imei);
+                snprintf(l2fname, FILENAME_MAX, "%s/logs/%s_parcel", stParams.start_path, answer.lastpoint.imei);
                 log2file(l2fname, socket_buf, bytes_read);
             }
         }
@@ -478,7 +478,7 @@ void *worker_thread(void *st_worker)
             // log answer to terminal
             if( stConfigServer.log_imei[0] && stConfigServer.log_imei[0] == answer.lastpoint.imei[0] ){
                 if( !strcmp(stConfigServer.log_imei, answer.lastpoint.imei) ){
-                    snprintf(l2fname, FILENAME_MAX, "%.4040s/logs/%.15s_answ", stParams.start_path, answer.lastpoint.imei);
+                    snprintf(l2fname, FILENAME_MAX, "%s/logs/%s_answer", stParams.start_path, answer.lastpoint.imei);
                     log2file(l2fname, answer.answer, answer.size);
                 }
             }

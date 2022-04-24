@@ -115,7 +115,7 @@ static int data_save(ST_FORWARDER *config, char *imei, ssize_t content_size)
 
 	if( config->buffers[OUT_WRBUF] && content_size ) {
 		time(&t);
-		snprintf(fName, FILENAME_MAX, "%.4040s/%.20s_%llu.bin",
+		snprintf(fName, FILENAME_MAX, "%s/%s_%llu.bin",
 				 stConfigServer.forward_files,
 				 config->name,
 				 (unsigned long long)t);
@@ -312,7 +312,7 @@ static void process_terminal(ST_FORWARDER *config, char *bufer, ssize_t size)
 				// log terminal message to remote server
 				if( stConfigServer.log_imei[0] && stConfigServer.log_imei[0] == msg->imei[0] ){
 					if( !strcmp(stConfigServer.log_imei, msg->imei) ){
-						snprintf(l2fname, FILENAME_MAX, "%.4040s/logs/.15%s_%.20s_prcl", stParams.start_path, msg->imei, config->name);
+						snprintf(l2fname, FILENAME_MAX, "%s/logs/%s_%s_parcel", stParams.start_path, msg->imei, config->name);
 						log2file(l2fname, config->buffers[OUT_WRBUF], data_len);
 						// flag for log remote server answer to file,
 						// if forwarder protocol EGTS, then flag = EGTS_RECORD_HEADER.RN (record number)
@@ -361,7 +361,7 @@ static int set_listen_socket(ST_FORWARDER *config)
 	// bind socket
 	memset(&config->addr_un, 0, sizeof(struct sockaddr_un));
 	config->addr_un.sun_family = AF_UNIX;
-	snprintf(config->addr_un.sun_path, 108, "/%.106s", config->name);	// http://man7.org/linux/man-pages/man7/unix.7.html
+	snprintf(config->addr_un.sun_path, 108, "/%s", config->name);	// http://man7.org/linux/man-pages/man7/unix.7.html
 	unlink(config->addr_un.sun_path);	// if exists because crash
 	if( bind(config->sockets[IN_SOCKET], (struct sockaddr *)&config->addr_un, sizeof(struct sockaddr_un)) < 0 ) {
 		logging("forwarder[%s][%ld]: bind(%s) error %d: %s\n", config->name, syscall(SYS_gettid), config->addr_un.sun_path, errno, strerror(errno));
@@ -503,7 +503,7 @@ void *forwarder_thread(void *st_forwarder)
 							&& strstr(result->d_name, ".bin") ) {
 
 						// generate full file name
-						snprintf(fName, FILENAME_MAX, "%.4040s/%.40s", stConfigServer.forward_files, result->d_name);
+						snprintf(fName, FILENAME_MAX, "%s/%s", stConfigServer.forward_files, result->d_name);
 
                         /*
                         if( config->debug ){
@@ -623,14 +623,14 @@ void *forwarder_thread(void *st_forwarder)
 								if( *(uint16_t*)&config->buffers[OUT_RDBUF][14] == log_server_answer ){	// EGTS_SR_RECORD_RESPONSE.CRN
 									log_server_answer = 0;	// and reset log flag
 
-									snprintf(fName, FILENAME_MAX, "%.4040s/logs/%.20s_answ", stParams.start_path, config->name);
+									snprintf(fName, FILENAME_MAX, "%s/logs/%s_answer", stParams.start_path, config->name);
 									log2file(fName, config->buffers[OUT_RDBUF], bytes_read);
 								}
 							}
 							else {
 								log_server_answer = 0;	// and reset log flag
 
-								snprintf(fName, FILENAME_MAX, "%.4040s/logs/%.20s_answ", stParams.start_path, config->name);
+								snprintf(fName, FILENAME_MAX, "%s/logs/%s_answer", stParams.start_path, config->name);
 								log2file(fName, config->buffers[OUT_RDBUF], bytes_read);
 							}
 						}	// if( log_server_answer )
