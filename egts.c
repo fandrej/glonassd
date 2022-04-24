@@ -1111,6 +1111,17 @@ int terminal_encode(ST_RECORD *records, int reccount, char *buffer, int bufsize)
 		record_header = (EGTS_RECORD_HEADER *)&buffer[top];
 		top = packet_add_record_header(buffer, top, EGTS_TELEDATA_SERVICE, EGTS_TELEDATA_SERVICE);
 
+        /* 25.04.22 проба
+        если используется протокол "без авторизации", вставлять imei сюда?
+        */
+        // add subrecord header (SRD) EGTS_SR_TERM_IDENTITY
+		subrecord_header = (EGTS_SUBRECORD_HEADER *)&buffer[top];
+		top = packet_add_subrecord_header(buffer, top, record_header, EGTS_SR_TERM_IDENTITY);
+
+		// add subrecord (SRD) EGTS_SR_TERM_IDENTITY
+		top = packet_add_subrecord_EGTS_SR_TERM_IDENTITY(buffer, top, record_header, subrecord_header, records[i].imei);
+        /* конец проба */
+
 		// navigation data
 		// add subrecord header (SRD) EGTS_SR_POS_DATA
 		subrecord_header = (EGTS_SUBRECORD_HEADER *)&buffer[top];
