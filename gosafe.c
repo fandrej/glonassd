@@ -33,6 +33,7 @@ compile:
 make -B gosafe
 */
 
+#include <string.h>
 #include "glonassd.h"
 #include "worker.h"
 #include "de.h"     // ST_ANSWER
@@ -42,16 +43,16 @@ make -B gosafe
 static void terminal_decode_txt(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER *worker);
 static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER *worker);
 static long long int hex2dec(char *c, size_t size);
-static int decodeSYS(ST_RECORD *record, char *chank);
-static int decodeGPS(ST_RECORD *record, char *chank);
-static int decodeGSM(ST_RECORD *record, char *chank);
-static int decodeCOT(ST_RECORD *record, char *chank);
-static int decodeADC(ST_RECORD *record, char *chank);
-static int decodeDTT(ST_RECORD *record, char *chank);
-static int decodeIWD(ST_RECORD *record, char *chank);
-static int decodeETD(ST_RECORD *record, char *chank);
-static int decodeOBD(ST_RECORD *record, char *chank);
-static int decodeFUL(ST_RECORD *record, char *chank);
+static uint8_t decodeSYS(ST_RECORD *record, char *chank);
+static uint8_t decodeGPS(ST_RECORD *record, char *chank);
+static uint8_t decodeGSM(ST_RECORD *record, char *chank);
+static uint8_t decodeCOT(ST_RECORD *record, char *chank);
+static uint8_t decodeADC(ST_RECORD *record, char *chank);
+static uint8_t decodeDTT(ST_RECORD *record, char *chank);
+static uint8_t decodeIWD(ST_RECORD *record, char *chank);
+static uint8_t decodeETD(ST_RECORD *record, char *chank);
+static uint8_t decodeOBD(ST_RECORD *record, char *chank);
+static uint8_t decodeFUL(ST_RECORD *record, char *chank);
 
 
 /*
@@ -312,8 +313,9 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
     int data_mask;
     const uint8_t bit6 = 0x40; /* 0100 0000 */
 
-    struct tm tm_data;
-    time_t ulliTmp;
+    struct tm tm_data, tm_cur_data;
+    time_t ulliTmp, cur_time;
+    char *p_sys;
 
     if( !parcel || parcel_size <= 0 || !answer )
         return;
@@ -355,6 +357,7 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
 
 		snprintf(record->soft, SIZE_TRACKER_FIELD, "%d", st_header->proto_version);
 		snprintf(record->imei, SIZE_TRACKER_FIELD, "%lld", hex2dec(st_header->device_id, 7));
+		snprintf(answer->lastpoint.imei, SIZE_TRACKER_FIELD, "%s", record->imei);
 
         if( worker && worker->listener->log_all ) {
             logging("terminal_decode[%s:%d]: packet %d, %d-%d", worker->listener->name, worker->listener->port, answer->count, p_start, p_stop);
@@ -366,16 +369,41 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
 
         if( st_header->packet_type == 0 ){
             // heaqrtbeat (IMEI only)
+            if( worker && worker->listener->log_all ) {
+                logging("terminal_decode[%s:%d]: heaqrtbeat\n", worker->listener->name, worker->listener->port);
+            }
             continue;
         }
 
+        // get current time
+        cur_time = time(NULL) + GMT_diff;
+        gmtime_r(&cur_time, &tm_cur_data);
+
+        // get parcel data time
         ulliTmp = hex2dec(st_header->date_time, 4) + GMT_diff; // UTC ->local simple (timestamp, seconds);
     	gmtime_r(&ulliTmp, &tm_data);           // local simple->local struct
+
     	tm_data.tm_year = (tm_data.tm_year + 2000 - 1970);
+
+        if( tm_data.tm_year != tm_cur_data.tm_year ){
+            // дата странная, см. комментарий ниже
+            if( worker && worker->listener->log_all ) {
+                logging("terminal_decode[%s:%d]: DateTime corrected (%02d.%02d.%02d)", worker->listener->name,
+                                                                                        worker->listener->port,
+                                                                                        tm_data.tm_mday,
+                                                                                        tm_data.tm_mon + 1,
+                                                                                        tm_data.tm_year + 1900);
+            }
+            // меняем дату на текущую
+            gmtime_r(&cur_time, &tm_data);
+        }
+
         if( worker && worker->listener->log_all ) {
             logging("terminal_decode[%s:%d]: time=%02d.%02d.%02d %02d:%02d:%02d", worker->listener->name, worker->listener->port,
-                                            tm_data.tm_mday, tm_data.tm_mon + 1, tm_data.tm_year + 1900, tm_data.tm_hour, tm_data.tm_min, tm_data.tm_sec);
+                                            tm_data.tm_mday, tm_data.tm_mon + 1, tm_data.tm_year + 1900,
+                                            tm_data.tm_hour, tm_data.tm_min, tm_data.tm_sec);
         }
+
     	// получаем время как число секунд от начала суток
     	record->time = 3600 * tm_data.tm_hour + 60 * tm_data.tm_min + tm_data.tm_sec;
     	// в tm_data обнуляем время
@@ -391,6 +419,30 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
 
         // ставим указатель на Data field
         p_start += sizeof(ST_HEADER);
+
+        /*
+        Закономерность появления лишних байт (то 1, то 2 байта) в заголовке после поля data_mask (ST_HEADER)
+        (перед Data field) не выявил, либо у меня плохая документация, либо это не моего ума протокол.
+        Поэтому, начало поля SYS ищем по вхождению строки. Если поля SYS не будет в посылке - даже не знаю, как быть.
+
+        В добавок к этому, если есть эти лишние байты в посылке, то и дата в посылке указана неправильная (на пол-года меньше),
+        т.е. надо её не барть из посылки, а брать текущую (по гринвичу).
+        */
+        p_sys = strstr(&parcel[p_start], "Proma");
+        if( !p_sys ){
+            p_sys = strstr(&parcel[p_start], "Gosafe");
+        }
+        if( p_sys ){
+            // есть поле SYS
+            p_start = (int)(p_sys - parcel - 2);
+            if( !(1 & data_mask) ){
+                // нет бита, определяющего наличие поля SYS
+                data_mask += 1;
+                if( worker && worker->listener->log_all ) {
+                    logging("terminal_decode[%s:%d]: data_mask corrected (SYS bit inserted)", worker->listener->name, worker->listener->port);
+                }
+            }
+        }
 
         // data_mask, биты определяют наличие полей в Data field:
         //   1    2    3    8    16  32   64   128  256  512
@@ -430,7 +482,7 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
                         logging("terminal_decode[%s:%d]: record->speed=%lf", worker->listener->name, worker->listener->port, record->speed);
                         logging("terminal_decode[%s:%d]: record->curs=%d", worker->listener->name, worker->listener->port, record->curs);
                         logging("terminal_decode[%s:%d]: record->height=%d", worker->listener->name, worker->listener->port, record->height);
-                        logging("terminal_decode[%s:%d]: record->hdop=%d\n", worker->listener->name, worker->listener->port, record->hdop);
+                        logging("terminal_decode[%s:%d]: record->hdop=%d", worker->listener->name, worker->listener->port, record->hdop);
                     }
 
                     break;
@@ -484,11 +536,19 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
                     }
                     else {
                         p_start += decodeFUL(record, &parcel[p_start]);
+                        if( worker && worker->listener->log_all ) {
+                            logging("terminal_decode[%s:%d]: record->fuel[0]=%d", worker->listener->name, worker->listener->port, record->fuel[0]);
+                            logging("terminal_decode[%s:%d]: record->fuel[1]=%d", worker->listener->name, worker->listener->port, record->fuel[1]);
+                        }
                     }
 
                     break;
                 case 512: // FUL
                     p_start += decodeFUL(record, &parcel[p_start]);
+                    if( worker && worker->listener->log_all ) {
+                        logging("terminal_decode[%s:%d]: record->fuel[0]=%d", worker->listener->name, worker->listener->port, record->fuel[0]);
+                        logging("terminal_decode[%s:%d]: record->fuel[1]=%d", worker->listener->name, worker->listener->port, record->fuel[1]);
+                    }
             }   // switch( i & data_mask )
 
             if( p_start >= p_stop - 2) {    // CRC, 2 byte
@@ -497,7 +557,7 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
         }   // for(int i = 1; i < 1024; i=(i<<1))
 
         if( worker && worker->listener->log_all && strlen(record->message) ) {
-            logging("terminal_decode[%s:%d]: record->message=%s\n", worker->listener->name, worker->listener->port, record->message);
+            logging("terminal_decode[%s:%d]: record->message=%s", worker->listener->name, worker->listener->port, record->message);
         }
     }   // while(p_stop < parcel_size)
 
@@ -510,7 +570,7 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
     }
 
     if( worker && worker->listener->log_all ) {
-        logging("terminal_decode[%s:%d]: %d records created", worker->listener->name, worker->listener->port, answer->count);
+        logging("terminal_decode[%s:%d]: %d records created\n", worker->listener->name, worker->listener->port, answer->count);
     }
 }   // terminal_decode_bin
 
@@ -530,11 +590,11 @@ int terminal_encode(ST_RECORD *records, int reccount, char *buffer, int bufsize)
 //------------------------------------------------------------------------------
 
 
-static int decodeFUL(ST_RECORD *record, char *chank){
-    int index = 0;
-    int chank_length = (int)chank[index++]; // not include first byte (size of chank)
+static uint8_t decodeFUL(ST_RECORD *record, char *chank){
+    uint8_t index = 0;
+    uint8_t chank_length = (uint8_t)chank[index++]; // not include first byte (size of chank)
     uint8_t type_length, type, length;
-    //logging("decodeFUL, chank[0]=0x%.2X, chank[1]=0x%.2X, chank_length=%d", (uint8_t)chank[0], (uint8_t)chank[1], chank_length);
+    //logging("decodeFUL, chank[0]=0x%.2X, chank[1]=0x%.2X, chank_length=%u", (uint8_t)chank[0], (uint8_t)chank[1], chank_length);
 
     while( index < chank_length ){
         type_length = (uint8_t)chank[index++];  // “Bit4-Bit7” represents sub-data ID, “Bit0-bit3” represents data length
@@ -566,9 +626,9 @@ static int decodeFUL(ST_RECORD *record, char *chank){
 
 
 // G79W Protocol V1.5.pdf, page 25
-static int decodeOBD(ST_RECORD *record, char *chank){
-    int index = 0;
-    int chank_length = (int)chank[index++]; // not include first byte (size of chank)
+static uint8_t decodeOBD(ST_RECORD *record, char *chank){
+    uint8_t index = 0;
+    uint8_t chank_length = (uint8_t)chank[index++]; // not include first byte (size of chank)
 
     //logging("decodeOBD, chank[0]=0x%.2X, chank[1]=0x%.2X, chank_length=%d", (uint8_t)chank[0], (uint8_t)chank[1], chank_length);
 
@@ -577,9 +637,9 @@ static int decodeOBD(ST_RECORD *record, char *chank){
 
 
 // G79W Protocol V1.5.pdf, page 21
-static int decodeETD(ST_RECORD *record, char *chank){
-    int index = 0;
-    int chank_length = (int)chank[index++]; // not include first byte (size of chank)
+static uint8_t decodeETD(ST_RECORD *record, char *chank){
+    uint8_t index = 0;
+    uint8_t chank_length = (uint8_t)chank[index++]; // not include first byte (size of chank)
 
     //logging("decodeETD, chank[0]=0x%.2X, chank[1]=0x%.2X, chank_length=%d", (uint8_t)chank[0], (uint8_t)chank[1], chank_length);
 
@@ -588,8 +648,8 @@ static int decodeETD(ST_RECORD *record, char *chank){
 
 
 // G79W Protocol V1.5.pdf, page 21
-static int decodeIWD(ST_RECORD *record, char *chank){
-    int index = 0;
+static uint8_t decodeIWD(ST_RECORD *record, char *chank){
+    uint8_t index = 0;
     int chank_length = (uint8_t)chank[index++]; // not include first byte (size of chank)
 
     //logging("decodeIWD, chank[0]=0x%.2X, chank[1]=0x%.2X, chank_length=%d", (uint8_t)chank[0], (uint8_t)chank[1], chank_length);
@@ -599,9 +659,9 @@ static int decodeIWD(ST_RECORD *record, char *chank){
 
 
 // G79W Protocol V1.5.pdf, page 21
-static int decodeDTT(ST_RECORD *record, char *chank){
-    int index = 0;
-    int chank_length = (int)chank[index++]; // not include first byte (size of chank)
+static uint8_t decodeDTT(ST_RECORD *record, char *chank){
+    uint8_t index = 0;
+    uint8_t chank_length = (uint8_t)chank[index++]; // not include first byte (size of chank)
     uint8_t type_length, type, length;
     //logging("decodeDTT, chank[0]=0x%.2X, chank[1]=0x%.2X, chank_length=%d", (uint8_t)chank[0], (uint8_t)chank[1], chank_length);
 
@@ -633,9 +693,9 @@ static int decodeDTT(ST_RECORD *record, char *chank){
 }   // decodeDTT
 
 
-static int decodeADC(ST_RECORD *record, char *chank){
-    int index = 0;
-    int chank_length = (int)chank[index++]; // not include first byte (size of chank)
+static uint8_t decodeADC(ST_RECORD *record, char *chank){
+    uint8_t index = 0;
+    uint8_t chank_length = (uint8_t)chank[index++]; // not include first byte (size of chank)
     unsigned int field, type, value;
     const double AD_MIN = -10.0;
     const double AD_MAX = 100.0;
@@ -662,9 +722,9 @@ static int decodeADC(ST_RECORD *record, char *chank){
 }   // decodeADC
 
 
-static int decodeCOT(ST_RECORD *record, char *chank) {
-    int index = 0;
-    int chank_length = (int)chank[index++]; // not include first byte (size of chank)
+static uint8_t decodeCOT(ST_RECORD *record, char *chank) {
+    uint8_t index = 0;
+    uint8_t chank_length = (uint8_t)chank[index++]; // not include first byte (size of chank)
     uint8_t type_length, type, length;
     size_t tmp;
     //logging("decodeCOT, chank[0]=0x%.2X, chank[1]=0x%.2X, chank_length=%d", (uint8_t)chank[0], (uint8_t)chank[1], chank_length);
@@ -691,19 +751,19 @@ static int decodeCOT(ST_RECORD *record, char *chank) {
 }   // decodeCOT
 
 
-static int decodeGSM(ST_RECORD *record, char *chank){
-    int index = 0;
-    int chank_length = (int)chank[index++]; // not include first byte (size of chank)
+static uint8_t decodeGSM(ST_RECORD *record, char *chank){
+    uint8_t index = 0;
+    uint8_t chank_length = (uint8_t)chank[index++]; // not include first byte (size of chank)
     //logging("decodeGSM, chank[0]=0x%.2X, chank[1]=0x%.2X, chank_length=%d", (uint8_t)chank[0], (uint8_t)chank[1], chank_length);
 
     return chank_length + 1;    // include first byte (size of chank)
 }   // decodeGSM
 
 
-static int decodeGPS(ST_RECORD *record, char *chank){
-    int index = 0;
-    int chank_length = (int)chank[index++]; // not include first byte (size of chank)
-    //logging("decodeGPS, chank[0]=0x%.2X, chank[1]=0x%.2X, chank_length=%d", (uint8_t)chank[0], (uint8_t)chank[1], chank_length);
+static uint8_t decodeGPS(ST_RECORD *record, char *chank){
+    uint8_t index = 0;
+    uint8_t chank_length = (uint8_t)chank[index++]; // not include first byte (size of chank)
+    //logging("decodeGPS, chank[0]=0x%.2X, chank[1]=0x%.2X, chank_length=%u", (uint8_t)chank[0], (uint8_t)chank[1], chank_length);
 
     #pragma pack( push, 1 )
     typedef struct {
@@ -736,11 +796,11 @@ static int decodeGPS(ST_RECORD *record, char *chank){
 }   // decodeGPS
 
 
-static int decodeSYS(ST_RECORD *record, char *chank){
-    int index = 0;
-    int chank_length = (int)chank[index++]; // not include first byte (size of chank)
+static uint8_t decodeSYS(ST_RECORD *record, char *chank){
+    uint8_t index = 0;
+    uint8_t chank_length = (uint8_t)chank[index++]; // not include first byte (size of chank)
     uint8_t type_length, type, length;
-    //logging("decodeSYS, chank[0]=0x%.2X, chank[1]=0x%.2X, chank_length=%d", (uint8_t)chank[0], (uint8_t)chank[1], chank_length);
+    //logging("decodeSYS, chank[0]=0x%.2X, chank[1]=0x%.2X, chank_length=%u", (uint8_t)chank[0], (uint8_t)chank[1], chank_length);
 
     while( index < chank_length ){
         type_length = (uint8_t)chank[index++];
