@@ -1077,9 +1077,7 @@ int terminal_encode(ST_RECORD *records, int reccount, char *buffer, int bufsize)
 	// create egts packet header
 	top = packet_create(buffer, EGTS_PT_APPDATA, NULL);
 
-	/*
-	   test for imei logging on the remote server
-	*/
+    // for the "egts with authorization" protocol option
 	if( reccount < 0 ) {	// not logged to remote server
 		// EGTS_AUTH_SERVICE
 		// add record (SDR) EGTS_RECORD_HEADER
@@ -1100,6 +1098,7 @@ int terminal_encode(ST_RECORD *records, int reccount, char *buffer, int bufsize)
 		return top;
 		// !!! считаем терминал залогиненым на сервер, не дожидаясь ответа сервера
 	}	// if( reccount < 0 )
+    // end: for the "egts with authorization" protocol option
 
 	// here we logged to remote server,
 	// create naviagtion data records (EGTS_SR_POS_DATA_RECORD, EGTS_SR_EXT_POS_DATA_RECORD, EGTS_SR_LIQUID_LEVEL_SENSOR_RECORD)
@@ -1111,16 +1110,14 @@ int terminal_encode(ST_RECORD *records, int reccount, char *buffer, int bufsize)
 		record_header = (EGTS_RECORD_HEADER *)&buffer[top];
 		top = packet_add_record_header(buffer, top, EGTS_TELEDATA_SERVICE, EGTS_TELEDATA_SERVICE);
 
-        /* 25.04.22 проба
-        если используется протокол "без авторизации", вставлять imei сюда?
-        */
+        // for the "egts without authorization" protocol option
         // add subrecord header (SRD) EGTS_SR_TERM_IDENTITY
 		subrecord_header = (EGTS_SUBRECORD_HEADER *)&buffer[top];
 		top = packet_add_subrecord_header(buffer, top, record_header, EGTS_SR_TERM_IDENTITY);
 
 		// add subrecord (SRD) EGTS_SR_TERM_IDENTITY
 		top = packet_add_subrecord_EGTS_SR_TERM_IDENTITY(buffer, top, record_header, subrecord_header, records[i].imei);
-        /* конец проба */
+        // end: for the "egts without authorization" protocol option
 
 		// navigation data
 		// add subrecord header (SRD) EGTS_SR_POS_DATA
