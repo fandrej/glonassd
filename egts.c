@@ -1079,6 +1079,8 @@ int terminal_encode(ST_RECORD *records, int reccount, char *buffer, int bufsize)
 
     // for the "egts with authorization" protocol option
 	if( reccount < 0 ) {	// not logged to remote server
+        reccount *= -1;
+        /* 29.04.22 отключим авторизацию, будем в режиме "без авторизации"
 		// EGTS_AUTH_SERVICE
 		// add record (SDR) EGTS_RECORD_HEADER
 		record_header = (EGTS_RECORD_HEADER *)&buffer[top];
@@ -1097,6 +1099,7 @@ int terminal_encode(ST_RECORD *records, int reccount, char *buffer, int bufsize)
 		// authentificate complete, return
 		return top;
 		// !!! считаем терминал залогиненым на сервер, не дожидаясь ответа сервера
+        */
 	}	// if( reccount < 0 )
     // end: for the "egts with authorization" protocol option
 
