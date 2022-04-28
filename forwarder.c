@@ -54,8 +54,8 @@ static __thread int files_saved = 0;					    // count of saved (not passed) parc
 */
 
 /*
-reset logged flag to "no" for all terminals
-called when socket to remote server disconnect
+reset the registered flag to "no" for all terminals
+called when disconnecting a socket from a remote server
 */
 static void terimal_reset_logged(char *forward_name)
 {
@@ -74,8 +74,8 @@ static void terimal_reset_logged(char *forward_name)
 //------------------------------------------------------------------------------
 
 /*
-test: logged terminal on remote server or not
-always set logged flag to "yes"
+test: is the terminal registered on the remote server or not
+always set the registered flag to "yes"
 */
 static int terimal_logged(char *imei, char *forward_name)
 {
@@ -100,7 +100,7 @@ static int terimal_logged(char *imei, char *forward_name)
 //------------------------------------------------------------------------------
 
 /*
-    save forwarding data to file (!!! data encoded to required protocol !!!)
+    save the forwarding data to a file (!!! data encoded according to the required protocol !!!)
     config - config of the forwarder
     imei - IMEI saved terminal
     content_size - size of data
