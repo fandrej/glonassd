@@ -746,7 +746,7 @@ int Parse_EGTS_SR_POS_DATA(EGTS_SR_POS_DATA_RECORD *posdata, ST_RECORD *record, 
 	tm_data.tm_hour = tm_data.tm_min = tm_data.tm_sec = 0;
 	// получаем дату
 	tm_data.tm_year = (tm_data.tm_year + 2010 - 1970);
-	record->data = timegm(&tm_data);	// local struct->local simple & mktime epoch
+	record->data = timegm(&tm_data) - GMT_diff;	// local struct->local simple & mktime epoch
 
 	// координаты
 	record->lat = 90.0 * posdata->LAT / 0xFFFFFFFF;
