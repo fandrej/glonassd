@@ -20,6 +20,7 @@ typedef struct {
 	pthread_t thread;	// thread ID
 	int client_socket;	// client (gps/glonass terminal) socket
 	struct sockaddr_in client_addr;
+	char ip[SIZE_TRACKER_FIELD];	// IP-address of terminal
 	char imei[SIZE_TRACKER_FIELD];	// may be volatile!!!
 	ST_LISTENER *listener;	// pointer to listener structure
 	mqd_t db_queue;		// Posix IPC queue, created in database module (e.g. pg.c for PostgreSQL)

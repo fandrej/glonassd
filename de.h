@@ -69,10 +69,11 @@ typedef struct {
     double vbort;               // car on-board voltage
     double vbatt;               // terminal battery voltage
     double probeg;              // terminal-calculated distance from prev. point
-    unsigned int port;          // TCP/UDP port of receiving terminal data        sizeof(ST_RECORD)=232
-    char message[SIZE_MESSAGE_FIELD];      // Произвольное сообщение от оборудования
+    unsigned int port;          // TCP/UDP порт, на котором принимаются данные          sizeof(ST_RECORD)=232
+    char ip[SIZE_TRACKER_FIELD];// IP-адрес, с которого приходят данные                 sizeof(ST_RECORD)=248
+    char message[SIZE_MESSAGE_FIELD];      // Произвольное сообщение от оборудования    sizeof(ST_RECORD)=1248
 } ST_RECORD;
-// sizeof(ST_RECORD)=1232
+// sizeof(ST_RECORD)=1248
 
 /*
    structure for terminal_decode function

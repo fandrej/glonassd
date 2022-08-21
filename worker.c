@@ -202,8 +202,10 @@ static void send_data_to_db(ST_WORKER *config, ST_RECORD *records, unsigned int 
     for(r = 0; r < count; r++) {    // for all decoded records
 
         if( records[r].imei[0] ) {    // if IMEI decoded
-            // write port number to record
+            // write listener port number to record
             records[r].port = config->listener->port;
+            // write IP-address of terminal to record
+            strncpy(records[r].ip, config->ip, SIZE_TRACKER_FIELD);
 
             // send message into database queue
             if( mq_send(config->db_queue, (const char *)&records[r], sizeof(ST_RECORD), 0) < 0 ) {
@@ -240,7 +242,6 @@ void *worker_thread(void *st_worker)
     static __thread fd_set rfds;
     static __thread struct timeval tv;
     static __thread char l2fname[FILENAME_MAX];        // terminal log file name
-    //static __thread char *client_ip = inet_ntoa(config->client_addr.sin_addr);
 
     // error handler:
     void exit_worker(void * arg) {
@@ -385,7 +386,7 @@ void *worker_thread(void *st_worker)
         }
 
         if( stConfigServer.log_enable > 1 && config->listener->log_all )
-            logging("%s[%d:%ld]: socket read %zd bytes\n", config->listener->name, config->listener->port, syscall(SYS_gettid), bytes_read);
+            logging("%s[%d:%ld]: socket read %zd bytes from %s\n", config->listener->name, config->listener->port, syscall(SYS_gettid), bytes_read, config->ip);
 
         // decode terminal message
         pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);    // do not disturb :)

@@ -891,6 +891,7 @@ int main(int argc, char* argv[])
                             } else {
                                 // set settings for worker
                                 worker_config->listener = &stListeners.listener[j];
+                                strncpy(worker_config->ip, inet_ntoa(worker_config->client_addr.sin_addr), SIZE_TRACKER_FIELD);
 
                                 // start worker thread
                                 if( attr_init )
