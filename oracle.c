@@ -6,24 +6,22 @@
     3. create messages queue
     5. wait message from workers, where message contain decoded gps/glonass terminal data (coordinates, etc)
     7. write message data to database (into special table)
-    13. goto 5.
-    todo:
+    8. goto 5.
+
+    TODO:
     9. get command from database to gps terminal
-    11. put commant into worker
+    10. put commant into worker
 
     b) timer_function:
     run from timers,
     connect to database, load sql script and run it
 
-    caution:
-    1. For set up system limits, daemon user must have appropriate rights
-    2. PostgreSQL functions, such as PQconnectdb, used *alloc* functions internally,
-    which leads to leakage of the memory, if they called from threads, used shared library modules.
-    This is evident, for example, on a timers routines.
-
     note:
     see table structure at the end of this file
     see SQL-script for insert record to table at the end of this file
+
+    Install required Oracle libraries:
+    https://github.com/fandrej/glonassd/wiki/Compilation
 
     help:
     Oracle Database Programming Interface for C (ODPI-C):
@@ -729,7 +727,7 @@ void *timer_function(void *ptr)
 /*
 Table for store gps/glonass terminals data (tgpsdata):
 
-CREATE TABLE DISPATCHER.TGPSDATA
+CREATE TABLE TGPSDATA
 (
     DSYSDATA    DATE         DEFAULT SYSDATE NOT NULL,
     DDATA       DATE         NOT NULL,
@@ -778,7 +776,7 @@ CREATE TABLE DISPATCHER.TGPSDATA
 /*
 SQL-script for insert record to table
 
-INSERT INTO DISPATCHER.TGPSDATA (
+INSERT INTO TGPSDATA (
     DDATA,
     NTIME,
     CID,
