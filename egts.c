@@ -20,10 +20,7 @@
 #include "logger.h"
 
 // for encode
-#define MAX_TERMINALS 1000
 #define UTS2010	(1262304000)	// unix timestamp 00:00:00 01.01.2010
-
-#define log_imei ("867793030464509")
 
 /*
    decode function
