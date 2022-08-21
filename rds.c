@@ -196,7 +196,7 @@ static int write_data_to_db(char *msg, redisContext *rds_context)
     without json-c library
     */
     sprintf(json, "{ \"imei\": \"%s\", \"datetime\": %lld, \"lon\": %03.07lf, \"lat\": %03.07lf, "
-                    "\"speed\": %03.01lf, \"curs\": %d, \"port\": %d, \"satellites\": %d, "
+                    "\"speed\": %03.01lf, \"curs\": %d, \"satellites\": %d, "
                     "\"height\": %d, \"valid\": %d, \"vbort\": %02.01lf, \"vbatt\": %02.01lf, "
                     "\"temperature\": %d, \"hdop\": %d, \"outputs\": %d, \"inputs\": %d, "
                     "\"fuel0\": %d, \"fuel1\": %d, \"probeg\": %04.03lf, \"zaj\": %d, \"alarm\": %d, "
@@ -207,7 +207,6 @@ static int write_data_to_db(char *msg, redisContext *rds_context)
                 record->lat,
                 record->speed,
                 record->curs,
-                record->port,
                 record->satellites,
                 record->height,
                 record->valid,
