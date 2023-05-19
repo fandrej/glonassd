@@ -258,16 +258,16 @@ static int write_data_to_db(PGconn *connection, char *msg, char *sql_insert_poin
 	snprintf(paramValues[15], SIZE_TRACKER_FIELD, "%02.01lf", record->vbatt);
 	snprintf(paramValues[16], SIZE_TRACKER_FIELD, "%d", record->temperature);      // $17
 	snprintf(paramValues[17], SIZE_TRACKER_FIELD, "%d", record->hdop);
-	snprintf(paramValues[18], SIZE_TRACKER_FIELD, "%d", record->outputs);          // $19
-	snprintf(paramValues[19], SIZE_TRACKER_FIELD, "%d", record->inputs);
-	snprintf(paramValues[20], SIZE_TRACKER_FIELD, "%d", record->ainputs[0]);       // $21
-	snprintf(paramValues[21], SIZE_TRACKER_FIELD, "%d", record->ainputs[1]);
-	snprintf(paramValues[22], SIZE_TRACKER_FIELD, "%d", record->ainputs[2]);       // $23
-	snprintf(paramValues[23], SIZE_TRACKER_FIELD, "%d", record->ainputs[3]);
-	snprintf(paramValues[24], SIZE_TRACKER_FIELD, "%d", record->ainputs[4]);       // $25
-	snprintf(paramValues[25], SIZE_TRACKER_FIELD, "%d", record->ainputs[5]);
-	snprintf(paramValues[26], SIZE_TRACKER_FIELD, "%d", record->ainputs[6]);       // $27
-	snprintf(paramValues[27], SIZE_TRACKER_FIELD, "%d", record->ainputs[7]);
+	snprintf(paramValues[18], SIZE_TRACKER_FIELD, "%u", record->outputs);          // $19
+	snprintf(paramValues[19], SIZE_TRACKER_FIELD, "%u", record->inputs);
+	snprintf(paramValues[20], SIZE_TRACKER_FIELD, "%u", record->ainputs[0]);       // $21
+	snprintf(paramValues[21], SIZE_TRACKER_FIELD, "%u", record->ainputs[1]);
+	snprintf(paramValues[22], SIZE_TRACKER_FIELD, "%u", record->ainputs[2]);       // $23
+	snprintf(paramValues[23], SIZE_TRACKER_FIELD, "%u", record->ainputs[3]);
+	snprintf(paramValues[24], SIZE_TRACKER_FIELD, "%u", record->ainputs[4]);       // $25
+	snprintf(paramValues[25], SIZE_TRACKER_FIELD, "%u", record->ainputs[5]);
+	snprintf(paramValues[26], SIZE_TRACKER_FIELD, "%u", record->ainputs[6]);       // $27
+	snprintf(paramValues[27], SIZE_TRACKER_FIELD, "%u", record->ainputs[7]);
 	snprintf(paramValues[28], SIZE_TRACKER_FIELD, "%d", record->fuel[0]);          // $29
 	snprintf(paramValues[29], SIZE_TRACKER_FIELD, "%d", record->fuel[1]);
 	snprintf(paramValues[30], SIZE_TRACKER_FIELD, "%04.03lf", record->probeg);     // $31

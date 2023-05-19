@@ -58,7 +58,7 @@ typedef struct {
     unsigned int hdop;          // HDOP
     unsigned int outputs;       // outputs status, bits field
     unsigned int inputs;        // inputs status, bits field
-    int ainputs[8];             // analog inputs values (8 ports max)
+    unsigned int ainputs[8];    // analog inputs values (8 ports max)
     int fuel[2];                // fuel input values (2 max)
     int temperature;            // temp into teminal
     int zaj;                    // датчик зажигания (ignition sensor) 0/1

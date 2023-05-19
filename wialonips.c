@@ -31,7 +31,8 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 	struct tm tm_data;
 	time_t ulliTmp;
 	double dLon, dLat, dAltitude, dHDOP;
-	int iAnswerSize, iFields, iTemp, iCurs, iSatellits, iSpeed, iInputs = 0, iOutputs = 0, iReadedRecords = 0;
+	int iAnswerSize, iFields, iTemp, iCurs, iSatellits, iSpeed, iReadedRecords = 0;
+	unsigned int iInputs = 0, iOutputs = 0;
 
     if( worker && worker->listener->log_all ){
         logging("terminal_decode[%s:%d]: %s:\n%s\n", worker->listener->name, worker->listener->port, answer->lastpoint.imei, parcel);
@@ -206,7 +207,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 				answer->size += snprintf(&answer->answer[answer->size], iAnswerSize, "#AD#1\r\n");
 			}	// if( !answer->count )
 
-			iFields = sscanf(cRec, "#D#%[^;];%[^;];%lf;%c;%lf;%c;%d;%d;%lf;%d;%lf;%d;%d;%*s",
+			iFields = sscanf(cRec, "#D#%[^;];%[^;];%lf;%c;%lf;%c;%d;%d;%lf;%d;%lf;%u;%u;%*s",
 								cDate, // 1
 								cTime, // 2
 								&dLat, // 3
@@ -286,6 +287,11 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 				record->ainputs[1] = (iInputs & 2); // зажигание
 				record->ainputs[2] = (iInputs & 4); // кнопка запрос связи
 				record->ainputs[3] = (iInputs & 8); // двери
+				record->ainputs[4] = (iInputs & 16); // reserve
+				record->ainputs[5] = (iInputs & 32); // reserve
+				record->ainputs[6] = (iInputs & 64); // reserve
+				record->ainputs[7] = (iInputs & 128); // reserve
+
 
 				record->zaj = record->ainputs[1];
 				record->alarm = record->ainputs[0];
