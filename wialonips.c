@@ -284,13 +284,13 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 				record->inputs = iInputs;
 
 				record->ainputs[0] = (iInputs & 1); // кнопка SOS
-				record->ainputs[1] = (iInputs & 2) << 1; // зажигание
-				record->ainputs[2] = (iInputs & 4) << 2; // кнопка запрос связи
-				record->ainputs[3] = (iInputs & 8) << 3; // двери
-				record->ainputs[4] = (iInputs & 16) << 4; // reserve
-				record->ainputs[5] = (iInputs & 32) << 5; // reserve
-				record->ainputs[6] = (iInputs & 64) << 6; // reserve
-				record->ainputs[7] = (iInputs & 128) << 7; // reserve
+				record->ainputs[1] = (iInputs & 2) >> 1; // зажигание
+				record->ainputs[2] = (iInputs & 4) >> 2; // кнопка запрос связи
+				record->ainputs[3] = (iInputs & 8) >> 3; // двери
+				record->ainputs[4] = (iInputs & 16) >> 4; // reserve
+				record->ainputs[5] = (iInputs & 32) >> 5; // reserve
+				record->ainputs[6] = (iInputs & 64) >> 6; // reserve
+				record->ainputs[7] = (iInputs & 128) >> 7; // reserve
 
 
 				record->zaj = record->ainputs[1];
