@@ -27,7 +27,7 @@
 void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER *worker)
 {
 	ST_RECORD *record = NULL;
-	char cTime[10], cDate[10], cLon, cLat, *cRec, *cRec1;
+	char cTime[10], cDate[10], cLon, cLat, *cRec, *cRec1, *cRecAny;
 	struct tm tm_data;
 	time_t ulliTmp;
 	double dLon, dLat, dAltitude, dHDOP;
@@ -220,9 +220,10 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 								&iSatellits, // 10
 								&dHDOP, // 11
 								&iInputs, // 12
-								&iOutputs // 13
+								&iOutputs, // 13
+								cRecAny
 							  );
-
+			logging("terminal_decode[%s:%d]: any: %s\n", worker->listener->name, worker->listener->port, cRecAny);
             if( iFields >= 8 ) {
 				if( answer->count < MAX_RECORDS - 1 )
 					answer->count++;
