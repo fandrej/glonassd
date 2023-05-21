@@ -17,6 +17,113 @@
 #include "lib.h"    // MIN, MAX, BETWEEN, CRC, etc...
 #include "logger.h"
 
+const int MAX_PAR = 128;
+
+struct DataS
+{
+	char str[1024];
+};
+
+struct params
+{
+	char   name[256];
+	int    type;
+	int    int_value;
+	double d_value;
+	char   txt_value[256];
+};
+
+
+int stringsplit(char *str, char delim, struct DataS *lst)
+{
+	char buf[1024];
+	memset(buf,0,sizeof(buf));
+	int j = 0;
+
+	int ok=0;
+	int parId = 0;
+	for (unsigned int i = 0; i<strlen(str); i++)
+	{
+		if (str[i]!=delim) { buf[j] = str[i]; j++; }
+		else 
+		{
+			ok=1;
+			j = 0;
+			strcpy(&lst[parId].str, buf);
+			parId++;
+			memset(buf,0,sizeof(buf));
+		}
+		if (i + 1 == strlen(str))
+		{
+			if (ok==1) {
+				strcpy(&lst[parId].str, buf);
+				parId++;
+			}
+			memset(buf,0,sizeof(buf));
+			j = 0;
+		}
+	}
+	return parId;
+}
+
+
+struct params getParams(char *str)
+{
+	struct params p;
+	char buf[256];
+	memset(buf,0,sizeof(buf));
+	int j = 0;
+	int ok=0;
+	int parId = 0;
+	for (unsigned int i = 0; i<strlen(str); i++)
+	{
+		if (str[i]!=':') { buf[j] = str[i]; j++; }
+		else 
+		{
+			j = 0;
+			ok=1;
+			if (parId == 0)
+				strcpy(p.name, buf);
+			else if (parId == 1)
+				sscanf(buf, "%d", &p.type);
+			else if (parId == 2)
+			{
+				if (p.type == 0) 
+					sscanf(buf, "%d", &p.int_value);
+				else if (p.type == 1)
+					sscanf(buf, "%f", &p.d_value);
+				else if (p.type == 2)
+					sscanf(buf, "%s", &p.txt_value);
+			}
+			parId++;
+			memset(buf,0,sizeof(buf));
+		}
+		if (i + 1 == strlen(str))
+		{
+			if (ok==1) {
+				if (parId == 0)
+					strcpy(p.name, buf);
+				else if (parId == 1)
+					sscanf(buf, "%d", &p.type);
+				else if (parId == 2)
+				{
+					if (p.type == 1) 
+						sscanf(buf, "%d", &p.int_value);
+					else if (p.type == 2)
+						sscanf(buf, "%f", &p.d_value);
+					else if (p.type == 3)
+						sscanf(buf, "%s", &p.txt_value);
+				}
+				parId++;
+			}
+			memset(buf,0,sizeof(buf));
+			j = 0;
+		}
+	}
+	return p;
+}
+
+
 
 /*
    decode function
@@ -27,12 +134,13 @@
 void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER *worker)
 {
 	ST_RECORD *record = NULL;
-	char cTime[10], cDate[10], cLon, cLat, *cRec, *cRec1, *cRecAny;
+	char cTime[10], cDate[10], cLon, cLat, *cRec, *cRec1, adc[2048], any[2048];
 	struct tm tm_data;
 	time_t ulliTmp;
 	double dLon, dLat, dAltitude, dHDOP;
-	int iAnswerSize, iFields, iTemp, iCurs, iSatellits, iSpeed, iReadedRecords = 0;
+	int iAnswerSize, iFields, iTemp, iCurs, iSatellits, iSpeed, iReadedRecords = 0, iBut = 0;
 	unsigned int iInputs = 0, iOutputs = 0;
+	memset(any,0,sizeof(any));
 
     if( worker && worker->listener->log_all ){
         logging("terminal_decode[%s:%d]: %s:\n%s\n", worker->listener->name, worker->listener->port, answer->lastpoint.imei, parcel);
@@ -207,7 +315,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 				answer->size += snprintf(&answer->answer[answer->size], iAnswerSize, "#AD#1\r\n");
 			}	// if( !answer->count )
 
-			iFields = sscanf(cRec, "#D#%[^;];%[^;];%lf;%c;%lf;%c;%d;%d;%lf;%d;%lf;%u;%u;%*s",
+			iFields = sscanf(cRec, "#D#%[^;];%[^;];%lf;%c;%lf;%c;%d;%d;%lf;%d;%lf;%u;%u;%s",
 								cDate, // 1
 								cTime, // 2
 								&dLat, // 3
@@ -221,9 +329,52 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 								&dHDOP, // 11
 								&iInputs, // 12
 								&iOutputs, // 13
-								cRecAny
+								any 
 							  );
-			logging("terminal_decode[%s:%d]: any: %s\n", worker->listener->name, worker->listener->port, cRecAny);
+			if (strlen(any) != 0)
+			{
+				printf("any:%s, %d\n", any, strlen(any));
+				struct DataS ReadData[MAX_PAR];
+				struct DataS ReadParams[MAX_PAR];
+
+				int cnt_par = stringsplit(any, ';', &ReadData);
+				for (int i = 0; i < cnt_par; i++)
+				{
+					printf("cnt:%d %s\n", i, ReadData[i].str);
+					switch (i)
+					{
+						case 0: 
+						{
+							strncpy(adc, ReadData[i].str, sizeof(adc));
+							printf("ADC %s\n", adc);
+							break;
+						}
+						case 1:
+						{
+							if (strcmp(ReadData[i].str,"NA")) sscanf(ReadData[i].str, "%d", &iBut);
+							printf("iButton %d\n", iBut);
+							break;
+						}
+						default:
+						{
+							struct DataS ReadParams[32];
+							int cntPar = stringsplit(ReadData[i].str, ',', &ReadParams);
+							for (int j = 0; j < cntPar; j++)
+							{
+								struct params p = getParams(ReadParams[j].str);
+								printf("name: %s\n", p.name);
+								printf("type: %d\n", p.type);
+								if (p.type == 1) printf("value: %d\n", p.int_value);
+								else if (p.type == 2) printf("value: %f\n", p.d_value);
+								else if (p.type == 3) printf("value: %s\n", p.txt_value);
+							}
+							break;
+						}
+					}
+				}
+			}
+
+			
             if( iFields >= 8 ) {
 				if( answer->count < MAX_RECORDS - 1 )
 					answer->count++;
