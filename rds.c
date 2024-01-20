@@ -63,7 +63,7 @@ extern ST_CONFIG_SERVER stConfigServer;	// main config
 // Definitions
 #define MAX_SQL_SIZE 4096
 #define MAX_JSON_SIZE (512) // max size of json string one record (511 bytes)
-#define MAX_ARRAY_SIZE (MAX_JSON_SIZE * 100 + 99 + 2 + 1) // 100 jsons + 99 ',' + '['']' + 0
+#define MAX_ARRAY_SIZE (MAX_JSON_SIZE * 50 + 99 + 2 + 1) // 100 jsons + 99 ',' + '['']' + 0
 
 // Locals
 /*
@@ -168,8 +168,8 @@ static int write_data_to_db(char *msg, redisContext *rds_context)
     redisReply *rds_reply;
     ST_RECORD *record;
     char json[MAX_JSON_SIZE];
-    char array[MAX_ARRAY_SIZE];
-    size_t array_size;
+    char json_array[MAX_ARRAY_SIZE];
+    size_t array_size, json_size;
     char key[25];
     int result = 0;
 
@@ -203,7 +203,7 @@ static int write_data_to_db(char *msg, redisContext *rds_context)
     /*
     without json-c library
     */
-    sprintf(json, "{ \"imei\": \"%s\", \"datetime\": %lld, \"lon\": %03.07lf, \"lat\": %03.07lf, "
+    snprintf(json, MAX_JSON_SIZE, "{\"imei\": \"%s\", \"datetime\": %lld, \"lon\": %03.07lf, \"lat\": %03.07lf, "
                     "\"speed\": %03.01lf, \"curs\": %d, \"port\": %d, \"satellites\": %d, "
                     "\"height\": %d, \"valid\": %d, \"vbort\": %02.01lf, \"vbatt\": %02.01lf, "
                     "\"temperature\": %d, \"hdop\": %d, \"outputs\": %d, \"inputs\": %d, "
@@ -232,38 +232,38 @@ static int write_data_to_db(char *msg, redisContext *rds_context)
                 record->alarm,
                 record->recnum,
                 record->status);
+    json_size = strlen(json);
     if( !strcmp(stConfigServer.log_imei, record->imei) ) {
         logging("write_data_to_db: %s", json);
     }
 
     sprintf(key, "gd__%s", record->imei);
+
     // get exists data
     rds_reply = redisCommand(rds_context, "GET %s", key);
 
     if( rds_reply->str && rds_reply->str[0] == '[' ){
         // add to existing array
         array_size = strlen(rds_reply->str);
-        if( array_size < MAX_ARRAY_SIZE - (MAX_JSON_SIZE + 2) ) {
+        if( array_size > 0 && MAX_ARRAY_SIZE - array_size > json_size + 3 ) {
             // add
-            strncpy(array, rds_reply->str, MAX_ARRAY_SIZE);
-            snprintf(&array[array_size - 1], MAX_JSON_SIZE + 2, ",%s]", json);
+            strncpy(json_array, rds_reply->str, MAX_ARRAY_SIZE);
+            snprintf(&json_array[array_size - 1], json_size + 3, ",%s]", json);
         }
         else {
             // create new array
-            snprintf(array, MAX_ARRAY_SIZE, "[%s]", json);
+            snprintf(json_array, json_size + 3, "[%s]", json);
         }
     }
     else {
         // create new array
-        snprintf(array, MAX_ARRAY_SIZE, "[%s]", json);
+        snprintf(json_array, json_size + 3, "[%s]", json);
     }
     freeReplyObject(rds_reply);
 
-    /*
-    Set a REDIS key
-    https://redis.io/commands/set
-    */
-    rds_reply = redisCommand(rds_context, "SET %s %s", key, array);
+    // Set a REDIS key
+    // https://redis.io/commands/set
+    rds_reply = redisCommand(rds_context, "SET %s %s", key, json_array);
     result = rds_reply ? rds_reply->type != REDIS_REPLY_ERROR : 0;
 
     if( result ){
