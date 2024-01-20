@@ -1,5 +1,5 @@
 /*
-   rd.c
+   rds.c
    REDIS library:
    a) writer (db_thread):
    1. connect to REDIS
@@ -18,6 +18,9 @@
     which leads to leakage of the memory, if they called from threads, used shared library modules.
     This is evident, for example, on a timers routines.
 
+   compile:
+   make -B rds
+
    note:
    See comments in the end of this file
 
@@ -34,7 +37,7 @@
 
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
-#endif // _GNU_SOURCE
+#endif
 #include <sys/syscall.h>	/* syscall */
 #include <stdio.h>			/* FILENAME_MAX */
 #include <stdlib.h>
@@ -55,8 +58,12 @@
 #include "de.h"
 #include "logger.h"
 
+extern ST_CONFIG_SERVER stConfigServer;	// main config
+
 // Definitions
 #define MAX_SQL_SIZE 4096
+#define MAX_JSON_SIZE (512) // max size of json string one record (511 bytes)
+#define MAX_ARRAY_SIZE (MAX_JSON_SIZE * 100 + 99 + 2 + 1) // 100 jsons + 99 ',' + '['']' + 0
 
 // Locals
 /*
@@ -160,7 +167,10 @@ static int write_data_to_db(char *msg, redisContext *rds_context)
 {
     redisReply *rds_reply;
     ST_RECORD *record;
-    char json[MAX_SQL_SIZE];
+    char json[MAX_JSON_SIZE];
+    char array[MAX_ARRAY_SIZE];
+    size_t array_size;
+    char key[25];
     int result = 0;
 
     if( !rds_context )
@@ -198,7 +208,7 @@ static int write_data_to_db(char *msg, redisContext *rds_context)
                     "\"height\": %d, \"valid\": %d, \"vbort\": %02.01lf, \"vbatt\": %02.01lf, "
                     "\"temperature\": %d, \"hdop\": %d, \"outputs\": %d, \"inputs\": %d, "
                     "\"fuel0\": %d, \"fuel1\": %d, \"probeg\": %04.03lf, \"zaj\": %d, \"alarm\": %d, "
-                    "\"port\": %d, \"recnum\": %d, \"status\": %d}",
+                    "\"recnum\": %d, \"status\": %d}",
                 record->imei,
                 (long long)record->data + record->time,
                 record->lon,
@@ -220,21 +230,46 @@ static int write_data_to_db(char *msg, redisContext *rds_context)
                 record->probeg,
                 record->zaj,
                 record->alarm,
-                record->port,
                 record->recnum,
                 record->status);
-    //logging("write_data_to_db: %s", json);
+    if( !strcmp(stConfigServer.log_imei, record->imei) ) {
+        logging("write_data_to_db: %s", json);
+    }
+
+    sprintf(key, "gd__%s", record->imei);
+    // get exists data
+    rds_reply = redisCommand(rds_context, "GET %s", key);
+
+    if( rds_reply->str && rds_reply->str[0] == '[' ){
+        // add to existing array
+        array_size = strlen(rds_reply->str);
+        if( array_size < MAX_ARRAY_SIZE - (MAX_JSON_SIZE + 2) ) {
+            // add
+            strncpy(array, rds_reply->str, MAX_ARRAY_SIZE);
+            snprintf(&array[array_size - 1], MAX_JSON_SIZE + 2, ",%s]", json);
+        }
+        else {
+            // create new array
+            snprintf(array, MAX_ARRAY_SIZE, "[%s]", json);
+        }
+    }
+    else {
+        // create new array
+        snprintf(array, MAX_ARRAY_SIZE, "[%s]", json);
+    }
+    freeReplyObject(rds_reply);
 
     /*
     Set a REDIS key
     https://redis.io/commands/set
     */
-    rds_reply = redisCommand(rds_context, "SET gd__%s %s", record->imei, json);
+    rds_reply = redisCommand(rds_context, "SET %s %s", key, array);
     result = rds_reply ? rds_reply->type != REDIS_REPLY_ERROR : 0;
 
     if( result ){
+        freeReplyObject(rds_reply);
         // https://redis.io/commands/sadd
-        rds_reply = redisCommand(rds_context, "SADD gd_port__%d gd__%s", record->port, record->imei);
+        rds_reply = redisCommand(rds_context, "SADD gd_port__%d %s", record->port, key);
         result = result && rds_reply ? rds_reply->type != REDIS_REPLY_ERROR : 0;
     }
 
