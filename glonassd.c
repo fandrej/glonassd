@@ -99,7 +99,7 @@
 #include "lib.h"
 
 // globals
-#define THREAD_STACK_SIZE_KB	(256)
+#define THREAD_STACK_SIZE_KB	(512)
 
 const char *const gPidFilePath = "/var/run/glonassd.pid";
 int graceful_stop, reconfigure;     // flags
