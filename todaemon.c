@@ -297,6 +297,7 @@ void ErrorHandler(int sig, siginfo_t *si, void *ptr)
 	Trace[1] = ErrorAddr;
 
 	// log stack trace
+    // https://habr.com/ru/company/ispsystem/blog/144198/
 	Messages = backtrace_symbols(Trace, TraceSize);
 	if (Messages) {
 		syslog(LOG_ALERT, "== Backtrace ==\n");

@@ -372,7 +372,12 @@ void *db_thread(void *arg)
 	/* test system limit of the length of messages queue RLIMIT_MSGQUEUE
 	   by default 819200 bytes
 	   setup RLIMIT_MSGQUEUE size in /etc/security/limits.conf as:
-		hard	msgqueue	1342177280
+       ---
+       root       soft    msgqueue        1342177280
+       root       hard    msgqueue        1342177280
+       *       soft    msgqueue        1342177280
+       *       hard    msgqueue        1342177280
+       ---
 	   and reboot;
 	   see limits as:
 	   ulimit -a

@@ -1069,7 +1069,7 @@ int terminal_encode(ST_RECORD *records, int reccount, char *buffer, int bufsize)
 {
 	EGTS_RECORD_HEADER *record_header = NULL;
 	EGTS_SUBRECORD_HEADER *subrecord_header = NULL;
-	int i, top = 0;
+	int i, top = 0, recsize = 0;
 
 	// create egts packet header
 	top = packet_create(buffer, EGTS_PT_APPDATA, NULL);
@@ -1104,7 +1104,8 @@ int terminal_encode(ST_RECORD *records, int reccount, char *buffer, int bufsize)
 	// create naviagtion data records (EGTS_SR_POS_DATA_RECORD, EGTS_SR_EXT_POS_DATA_RECORD, EGTS_SR_LIQUID_LEVEL_SENSOR_RECORD)
 	// EGTS_TELEDATA_SERVICE
 
-	for(i = 0; i < reccount; i++) {
+    // while records exists and buffer has space for next record + 3 bytes for packet end
+    for(i = 0; i < reccount && bufsize - top > recsize + 3; i++) {
 
 		// add record (SDR) EGTS_RECORD_HEADER
 		record_header = (EGTS_RECORD_HEADER *)&buffer[top];
@@ -1143,7 +1144,10 @@ int terminal_encode(ST_RECORD *records, int reccount, char *buffer, int bufsize)
 		// add subrecord (SRD) EGTS_SR_LIQUID_LEVEL_SENSOR
 		top = packet_add_subrecord_EGTS_SR_LIQUID_LEVEL_SENSOR_RECORD(buffer, top, record_header, subrecord_header, &records[i]);
 
-	}	// for(i = 0; i < reccount; i++)
+        if( i == 0 ) {  // first record
+            recsize = top - sizeof(EGTS_PACKET_HEADER); // record len
+        }
+    }	// for(i = 0; i < reccount; i++)
 
 	// add CRC
 	top += packet_finalize(buffer, top, NULL);

@@ -52,6 +52,19 @@ Comment or uncomment terminals sections for used terminals and edit listeners po
 For forwarding terminals data to remote server see comments in **forward** section of the **glonassd.conf** file.<br>
 For schedule database tasks see comments about **timer** parameter in **server** section of the **glonassd.conf** file.
 
+### Check the POSIX message queue size limits
+Test the system message queue length limit using `ulimit -q` or `ulimit -a` and check the value of the 'POSIX message queue'.
+By default, it is 819200 bytes. Increase this value at least to 81920000.
+To do this, add the following lines to the /etc/security/limits.conf file:
+```
+root       soft    msgqueue        81920000
+root       hard    msgqueue        81920000
+*       soft    msgqueue        81920000
+*       hard    msgqueue        81920000
+```
+and reboot the system.
+If the message "mq_send(config->db_queue) message queue is already full" appears in the log file during operation, then the queue size must be increased further.
+
 ### Run
 From daemon folder use **./glonassd start** command for start in console mode, CTRL+C for stop.<br>
 Use -d parameter for start in daemon mode.<br>
