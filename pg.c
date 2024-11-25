@@ -400,6 +400,7 @@ void *db_thread(void *arg)
 	// calculate buffer size for messages
 	buf_size = queue_attr.mq_msgsize + 1;
 
+    // queue files located in: /dev/mqueue
 	queue_workers = mq_open(QUEUE_WORKER, O_RDONLY | O_CREAT, S_IRUSR | S_IWUSR, &queue_attr);
 	if( queue_workers < 0 ) {
 		logging("database thread[%ld]: mq_open() error %d: %s\n", syscall(SYS_gettid), errno, strerror(errno));

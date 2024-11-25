@@ -360,9 +360,12 @@ void *db_thread(void *arg)
 
     /* Max. message size (bytes) */
     queue_attr.mq_msgsize = sizeof(ST_RECORD);
+    //logging("database thread[%ld]: sizeof(ST_RECORD)= %ld\n", syscall(SYS_gettid), (long)sizeof(ST_RECORD));
 
     // get RLIMIT_MSGQUEUE and calculate actual size of queue
     if( getrlimit(RLIMIT_MSGQUEUE, &rlim) == 0 ) {
+        logging("database thread[%ld]: rlim.rlim_cur= %lld, rlim.rlim_max= %lld\n", syscall(SYS_gettid), rlim.rlim_cur, rlim.rlim_max);
+
         if( rlim.rlim_cur != rlim.rlim_max ) {	// increase RLIMIT_MSGQUEUE error
             rlim.rlim_cur = rlim.rlim_max;
             // calculate actual size of queue
@@ -380,13 +383,10 @@ void *db_thread(void *arg)
     // calculate buffer size for messages
     buf_size = queue_attr.mq_msgsize + 1;
 
+    // queue files located in: /dev/mqueue
     queue_workers = mq_open(QUEUE_WORKER, O_RDONLY | O_CREAT, S_IRUSR | S_IWUSR, &queue_attr);
     if( queue_workers < 0 ) {
-        logging("database thread[%ld]: mq_open() error %d: %s\n", syscall(SYS_gettid), errno, strerror(errno));
-        logging("Try this:\n");
-        logging("Setup 'POSIX message queues' size in /etc/security/limits.conf as:\n");
-        logging("*\thard\tmsgqueue\t%ld", (long)(65536 * queue_attr.mq_msgsize * 10));
-        logging("See 'POSIX message queues' size as: ulimit -a");
+        logging("database thread[%ld]: mq_open() error %d: %s\nTry this:\nSetup 'POSIX message queues' size in /etc/security/limits.conf as:\n*\thard\tmsgqueue\t%ld\nSee 'POSIX message queues' size as: ulimit -a", syscall(SYS_gettid), errno, strerror(errno), (long)(65536 * queue_attr.mq_msgsize * 10));
         exit_db(arg);
         return NULL;
     }

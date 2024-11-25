@@ -117,6 +117,7 @@ void *log_thread_func(void *arg)
 
 	// create messages queue
 	//mq_unlink(QUEUE_LOGGER);
+    // queue files located in: /dev/mqueue
 	queue_log = mq_open(QUEUE_LOGGER, O_RDONLY | O_CREAT, S_IWGRP | S_IWUSR, &queue_attr);
 	if( queue_log < 0 ) {
 		syslog(LOG_NOTICE, "logger[%ld]: mq_open(%s) error %d: %s\n", syscall(SYS_gettid), QUEUE_LOGGER, errno, strerror(errno));

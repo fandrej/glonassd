@@ -63,7 +63,7 @@ typedef struct {
 	double probeg;  // terminal-calculated distance from prev. point
 	unsigned int port;	// TCP/UDP port of receiving terminal data
 } ST_RECORD;
-// sizeof(ST_RECORD)=228
+// sizeof(ST_RECORD)=232
 
 /*
    structure for terminal_decode function
