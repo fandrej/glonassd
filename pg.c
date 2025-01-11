@@ -194,7 +194,7 @@ static int db_connect(int connect, PGconn **connection)
 
 		if( PQstatus(*connection) == CONNECTION_OK ) {
 
-			if(stConfigServer.db_schema && strlen(stConfigServer.db_schema) ) {
+			if( strlen(stConfigServer.db_schema) ) {
 
 				snprintf(conninfo, FILENAME_MAX, "set search_path to %s;", stConfigServer.db_schema);
 

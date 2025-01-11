@@ -26,8 +26,26 @@ Oracle<br>
 * Возможность добавления протоколов терминалов или баз данных подключаемыми библиотеками без перекомпиляции демона.
 * Запуск в режиме демона или простого приложения
 
+
+### Установка
+#### Подготовка
+```
+apt install build-essential libpq-dev
+```
+
+#### Git версия
+Предполагается установка в папку /opt/glonassd
+```
+cd /opt
+git clone https://github.com/fandrej/glonassd.git
+cd glonassd
+make min
+```
+
+
 ### Компиляция
-**make all** компиляция демона + библиотеки БД + библиотеки терминалов<br>
+**make all** компиляция демона + библиотек БД (Postgresql + Redis + Oracle) + библиотек терминалов<br>
+**make min** компиляция демона + библиотеки БД Postgresql + библиотек терминалов<br>
 **make glonassd** компиляция только демона без библиотек<br>
 **make pg** компиляция библиотеки базы данных (PostgreSQL)<br>
 **make name** компиляция библиотеки протокола терминала **name**<br>
@@ -35,12 +53,9 @@ Oracle<br>
 [Дополнительная информация о сторонних библиотеках](https://github.com/fandrej/glonassd/wiki/Compilation)
 
 
-### Установка
-Создать папку для демона и скопировать в неё файлы **glonassd, *.so, *.sql**, или использовать папку сборки демона.<br>
-В базе данных PostgreSQL создать таблицу "tgpsdata" (см. скрипт tgpsdata.sql).<br>
-Если работает фаерволл, разрешить входящие подключения на портах демона (см. файл glonassd.conf).
-
 ### Настройка
+Создать папки forward & logs: `mkdir -p forward logs`
+
 В файле **glonassd.conf** в секции **server** изменить значения параметров:<br>
 **listen** - IP адрес входящих подключений<br>
 **transmit** - IP адрес с которого производится ретрансляция<br>
@@ -56,8 +71,8 @@ Oracle<br>
 По умолчанию оно равно 819200 байтам. Увеличьте это значение как минимум до 81920000.
 Для этого добавьте в файл /etc/security/limits.conf следующие строки:
 ```
-root       soft    msgqueue        81920000
-root       hard    msgqueue        81920000
+root    soft    msgqueue        81920000
+root    hard    msgqueue        81920000
 *       soft    msgqueue        81920000
 *       hard    msgqueue        81920000
 ```
@@ -65,18 +80,27 @@ root       hard    msgqueue        81920000
 Если в процессе работы в лог-файле появится сообщение "mq_send(config->db_queue) message queue is already full", то размер очереди надо увеличить ещё.
 
 ### Запуск
-Командой **./glonassd start** из папки с демоном, в консольном режиме, CTRL+C остановки.<br>
+Командой **sudo ./glonassd start** из папки с демоном, в консольном режиме, CTRL+C остановки.<br>
 Параметр -d используется для запуска в режиме демона.<br>
 Параметр -c path/to/config/file используется для указания файла настроек, находящегося в другой папке.<br>
 Если демон уже настроен для автоматического старта, команды **service glonassd start** и **service glonassd stop** запускают и останавливают сервис.
 
 ### Автозапуск при старте системы
+#### Как демон
 Отредактировать значение переменной **DAEMON** в файле **glonassd.sh**, указав полный путь к файлу **glonassd**.<br>
 Cкопировать файл **glonassd.sh** в папку **/etc/init.d**.<br>
 Сделать этот файл исполняемым командой **chmod 0755 /etc/init.d/glonassd.sh**.<br>
 Командами **systemctl daemon-reload** и **update-rc.d glonassd.sh defaults** разрешить автоматический запуск демона.<br>
 Командой **update-rc.d -f glonassd.sh remove** запретить автоматический запуск демона без удаления файла glonassd.sh.<br>
 Удалить файл /etc/init.d/glonassd.sh и командой **systemctl daemon-reload** очистить информацию о демоне в системе.
+#### Через supervisor
+```
+sudo apt install supervisor
+sudo ln -s $(pwd)/glonassd.supervisor.conf /etc/supervisor/conf.d/glonassd.supervisor.conf
+sudo supervisorctl reread
+sudo supervisorctl update glonassd
+sudo supervisorctl status
+```
 
 ### Лицензия
 glonassd это открытое ПО под лицензией [MIT](http://licenseit.ru/wiki/index.php/MIT_License).

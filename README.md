@@ -28,18 +28,29 @@ Databases can be added using plug libraries.
 * Extensibility through plug libraries without recompilation daemon.
 * Run in daemon or simple application mode
 
+### Installation
+#### Preparation
+```
+sudo apt update & sudo apt upgrade
+sudo apt install build-essential libpq-dev
+```
+
+It is supposed to be installed in the /opt/glonassd folder
+```
+cd /opt
+git clone https://github.com/fandrej/glonassd.git
+cd glonassd
+make min
+```
+
 ### Compilation
-**make all** for compile daemon + database library + terminals libraries<br>
+**make all** for compile daemon + databases library (Postgresql + Redis + Oracle) + terminals libraries<br>
+**make min** for compile daemon + database library Postgresql + terminals libraries<br>
 **make glonassd** for compile daemon only<br>
 **make pg** for compile database (PostgreSQL) library<br>
 **make name** for compile terminal **name** library<br>
 
 [Additional information about threed party libraries](https://github.com/fandrej/glonassd/wiki/Compilation)
-
-### Installation
-Create folder for daemon an copy in it files **glonassd, *.so, *.sql**, or use folder where project compiled.<br>
-In you PostgreSQL database create table "tgpsdata" (see script tgpsdata.sql).<br>
-If you use firewall, enable ports for incoming terminal connections.
 
 ### Configuration
 In **glonassd.conf** file in **server** section edit values for:<br>
@@ -57,8 +68,8 @@ Test the system message queue length limit using `ulimit -q` or `ulimit -a` and 
 By default, it is 819200 bytes. Increase this value at least to 81920000.
 To do this, add the following lines to the /etc/security/limits.conf file:
 ```
-root       soft    msgqueue        81920000
-root       hard    msgqueue        81920000
+root    soft    msgqueue        81920000
+root    hard    msgqueue        81920000
 *       soft    msgqueue        81920000
 *       hard    msgqueue        81920000
 ```
@@ -66,18 +77,28 @@ and reboot the system.
 If the message "mq_send(config->db_queue) message queue is already full" appears in the log file during operation, then the queue size must be increased further.
 
 ### Run
-From daemon folder use **./glonassd start** command for start in console mode, CTRL+C for stop.<br>
+Create directories forward & logs: `mkdir -p forward logs`
+From daemon folder use **sudo ./glonassd start** command for start in console mode, CTRL+C for stop.<br>
 Use -d parameter for start in daemon mode.<br>
 Use -c path/to/config/file parameter for config file not in daemon folder.<br>
 If daemon configured as automatically startup, use **service glonassd start** and **service glonassd stop** for start/stop if needded.
 
 ### Autostart configure
+#### As daemon
 Edit **DAEMON** variable in **glonassd.sh** file for correct path to daemon folder.<br>
 Copy **glonassd.sh** file in **/etc/init.d** folder.<br>
 Use **chmod 0755 /etc/init.d/glonassd.sh** for make it executable.<br>
 Use **systemctl daemon-reload** and **update-rc.d glonassd.sh defaults** for enable autostart daemon.<br>
 Use **update-rc.d -f glonassd.sh remove** for diasble autostart without delete glonassd.sh file.<br>
 Delete /etc/init.d/glonassd.sh file and use **systemctl daemon-reload** for fully cleanup daemon info.
+#### Through the supervisor
+```
+sudo apt install supervisor
+sudo ln -s $(pwd)/glonassd.supervisor.conf /etc/supervisor/conf.d/glonassd.supervisor.conf
+sudo supervisorctl reread
+sudo supervisorctl update glonassd
+sudo supervisorctl status
+```
 
 ### License
 The glonassd is open-sourced software licensed under the [MIT license](http://opensource.org/licenses/MIT).

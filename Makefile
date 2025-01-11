@@ -123,5 +123,8 @@ oracle: oracle.c glonassd.h de.h logger.h
 # all
 all: $(PROJECT) galileo satlite wialonips gps103 soap egts arnavi arnavi5 favw fava tqgprs prototest pg rds oracle
 
+# min
+min: $(PROJECT) galileo satlite wialonips gps103 soap egts arnavi arnavi5 fava tqgprs prototest pg
+
 clean:
 	rm -f *.o
