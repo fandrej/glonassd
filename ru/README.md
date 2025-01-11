@@ -42,7 +42,6 @@ cd glonassd
 make min
 ```
 
-
 ### Компиляция
 **make all** компиляция демона + библиотек БД (Postgresql + Redis + Oracle) + библиотек терминалов<br>
 **make min** компиляция демона + библиотеки БД Postgresql + библиотек терминалов<br>
@@ -54,8 +53,7 @@ make min
 
 
 ### Настройка
-Создать папки forward & logs: `mkdir -p forward logs`
-
+Создать папки forward & logs: `mkdir -p forward logs`.<br>
 В файле **glonassd.conf** в секции **server** изменить значения параметров:<br>
 **listen** - IP адрес входящих подключений<br>
 **transmit** - IP адрес с которого производится ретрансляция<br>

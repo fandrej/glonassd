@@ -53,6 +53,7 @@ make min
 [Additional information about threed party libraries](https://github.com/fandrej/glonassd/wiki/Compilation)
 
 ### Configuration
+Create directories forward & logs: `mkdir -p forward logs`.<br>
 In **glonassd.conf** file in **server** section edit values for:<br>
 **listen** - IP addres listen trackers interface<br>
 **transmit** - IP addres retranslation to remote server interface<br>
@@ -77,7 +78,6 @@ and reboot the system.
 If the message "mq_send(config->db_queue) message queue is already full" appears in the log file during operation, then the queue size must be increased further.
 
 ### Run
-Create directories forward & logs: `mkdir -p forward logs`
 From daemon folder use **sudo ./glonassd start** command for start in console mode, CTRL+C for stop.<br>
 Use -d parameter for start in daemon mode.<br>
 Use -c path/to/config/file parameter for config file not in daemon folder.<br>
