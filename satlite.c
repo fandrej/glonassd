@@ -253,7 +253,7 @@ static void satlite_decode_txt(char *parcel, int parcel_size, ST_ANSWER *answer)
 			// в tm_data обнуляем время
 			tm_data.tm_hour = tm_data.tm_min = tm_data.tm_sec = 0;
 			// получаем дату
-			record->data = timegm(&tm_data) - GMT_diff;	// local struct->local simple & mktime epoch
+        	record->data = timegm(&tm_data);
 
 			if( cXCOORD[0] ) {
 				sscanf(cXCOORD, "%lf%c", &dTemp, &record->clat);
@@ -620,7 +620,7 @@ static void satlite_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer)
 		// в tm_data обнуляем время
 		tm_data.tm_hour = tm_data.tm_min = tm_data.tm_sec = 0;
 		// получаем дату
-		record->data = timegm(&tm_data) - GMT_diff;	// local struct->local simple & mktime epoch
+    	record->data = timegm(&tm_data);
 
 		// координаты
 		// Если равно 0xffffffff - значит нет фиксации валидных координат

@@ -92,7 +92,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 				snprintf(record->soft, SIZE_TRACKER_FIELD, "%d", 1);
 				snprintf(record->imei, SIZE_TRACKER_FIELD, "%s", cImei);
 
-				// ïåðåâîäèì âðåìÿ GMT è òåêñòîâîì ôîðìàòå â ìåñòíîå
+				// Ð¿ÐµÑ€ÐµÐ²Ð¾Ð´Ð¸Ð¼ Ð²Ñ€ÐµÐ¼Ñ GMT Ð¸ Ñ‚ÐµÐºÑÑ‚Ð¾Ð²Ð¾Ð¼ Ñ„Ð¾Ñ€Ð¼Ð°Ñ‚Ðµ Ð² Ð¼ÐµÑÑ‚Ð½Ð¾Ðµ
 				memset(&tm_data, 0, sizeof(struct tm));
 				sscanf(cDate, "%2d%2d%2d", &tm_data.tm_mday, &tm_data.tm_mon, &tm_data.tm_year);
 				tm_data.tm_mon--;	// http://www.cplusplus.com/reference/ctime/tm/
@@ -101,12 +101,12 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 
 				ulliTmp = timegm(&tm_data) + GMT_diff;	// UTC struct->local simple
 				gmtime_r(&ulliTmp, &tm_data);           // local simple->local struct
-				// ïîëó÷àåì âðåìÿ êàê ÷èñëî ñåêóíä îò íà÷àëà ñóòîê
+				// Ð¿Ð¾Ð»ÑƒÑ‡Ð°ÐµÐ¼ Ð²Ñ€ÐµÐ¼Ñ ÐºÐ°Ðº Ñ‡Ð¸ÑÐ»Ð¾ ÑÐµÐºÑƒÐ½Ð´ Ð¾Ñ‚ Ð½Ð°Ñ‡Ð°Ð»Ð° ÑÑƒÑ‚Ð¾Ðº
 				record->time = 3600 * tm_data.tm_hour + 60 * tm_data.tm_min + tm_data.tm_sec;
-				// â tm_data îáíóëÿåì âðåìÿ
+				// Ð² tm_data Ð¾Ð±Ð½ÑƒÐ»ÑÐµÐ¼ Ð²Ñ€ÐµÐ¼Ñ
 				tm_data.tm_hour = tm_data.tm_min = tm_data.tm_sec = 0;
-				// ïîëó÷àåì äàòó
-				record->data = timegm(&tm_data) - GMT_diff;	// local struct->local simple & mktime epoch
+				// Ð¿Ð¾Ð»ÑƒÑ‡Ð°ÐµÐ¼ Ð´Ð°Ñ‚Ñƒ
+            	record->data = timegm(&tm_data);
 
                 iTemp = dLat / 100.0;
                 record->lat = (dLat - iTemp * 100) / 60.0 + iTemp;

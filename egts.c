@@ -736,14 +736,14 @@ int Parse_EGTS_SR_POS_DATA(EGTS_SR_POS_DATA_RECORD *posdata, ST_RECORD *record, 
 	memset(record, 0, sizeof(ST_RECORD));
 
 	ulliTmp = posdata->NTM + GMT_diff;	// UTC ->local
-	gmtime_r(&ulliTmp, &tm_data);           // local simple->local struct
+	gmtime_r(&ulliTmp, &tm_data);       // local simple->local struct
 	// получаем время как число секунд от начала суток
 	record->time = 3600 * tm_data.tm_hour + 60 * tm_data.tm_min + tm_data.tm_sec;
 	// в tm_data обнуляем время
 	tm_data.tm_hour = tm_data.tm_min = tm_data.tm_sec = 0;
 	// получаем дату
 	tm_data.tm_year = (tm_data.tm_year + 2010 - 1970);
-	record->data = timegm(&tm_data) - GMT_diff;	// local struct->local simple & mktime epoch
+	record->data = timegm(&tm_data);
 
 	// координаты
 	record->lat = 90.0 * posdata->LAT / 0xFFFFFFFF;

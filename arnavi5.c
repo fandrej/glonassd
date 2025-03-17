@@ -124,7 +124,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 			// в tm_data обнуляем время
 			tm_data.tm_hour = tm_data.tm_min = tm_data.tm_sec = 0;
 			// получаем дату
-			record->data = timegm(&tm_data) - GMT_diff;	// local struct->local simple & mktime epoch
+        	record->data = timegm(&tm_data);
 
 			iBuffPosition += sizeof(ARNAVI_RECORD_HEADER);
 

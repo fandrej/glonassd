@@ -233,6 +233,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
     struct tm tm_data = {0};
     time_t ulliTmp = 0;
     void *tpp = NULL;    // for prevent error: dereferencing type-punned pointer will break strict-aliasing rules
+    char buf[30];
 
     if( !parcel || parcel_size <= 0 || !answer )
         return;
@@ -407,7 +408,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
             // в tm_data обнуляем время
             tm_data.tm_hour = tm_data.tm_min = tm_data.tm_sec = 0;
             // получаем дату
-            record->data = timegm(&tm_data) - GMT_diff;    // local struct->local simple & mktime epoch
+            record->data = timegm(&tm_data);
 
             ++rec_ok;
 
@@ -660,7 +661,6 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
             i = packet_len + 3;    // break cycle
 
         }    // switch(tag)
-
     }    // while(i < packet_len + 3)
 
 
@@ -673,6 +673,20 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 
         if( record )
             memcpy(&answer->lastpoint, record, sizeof(ST_RECORD));
+
+        if( worker && worker->listener->log_all ) {
+            ctime_r(&record->data, buf);
+            logging("terminal_decode[%s:%d]: imei: %s\n", worker->listener->name, worker->listener->port, record->imei);
+            logging("terminal_decode[%s:%d]: recnum: %u\n", worker->listener->name, worker->listener->port, record->recnum);
+            logging("terminal_decode[%s:%d]: date: %lu %s", worker->listener->name, worker->listener->port, record->data, buf);
+            logging("terminal_decode[%s:%d]: time: %u\n", worker->listener->name, worker->listener->port, record->time);
+            logging("terminal_decode[%s:%d]: satellites: %u\n", worker->listener->name, worker->listener->port, record->satellites);
+            logging("terminal_decode[%s:%d]: valid: %u\n", worker->listener->name, worker->listener->port, record->valid);
+            logging("terminal_decode[%s:%d]: lon: %lf\n", worker->listener->name, worker->listener->port, record->lon);
+            logging("terminal_decode[%s:%d]: lat: %lf\n", worker->listener->name, worker->listener->port, record->lat);
+            logging("terminal_decode[%s:%d]: curs: %u\n", worker->listener->name, worker->listener->port, record->curs);
+            logging("terminal_decode[%s:%d]: speed: %lf\n", worker->listener->name, worker->listener->port, record->speed);
+        }
     }    // if( answer->count || rec_ok )
 
     part_size = packet_len = 0;
