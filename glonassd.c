@@ -817,16 +817,9 @@ int main(int argc, char* argv[])
     }	// if( attr_init )
 
     // increase RLIMIT_MSGQUEUE, root only
-    logging("glonassd[%d]: ST_RECORD size = %lld", (int)getpid(), sizeof(ST_RECORD));
-    if( getrlimit(RLIMIT_MSGQUEUE, &rlim) == 0 )
-        logging("glonassd[%d]: current limits: rlim.rlim_cur= %lld, rlim.rlim_max= %lld", (int)getpid(), rlim.rlim_cur, rlim.rlim_max);
-
     rlim.rlim_cur = rlim.rlim_max = 10 * 65536 * sizeof(ST_RECORD);
     if( setrlimit(RLIMIT_MSGQUEUE, &rlim) != 0 )
         logging("glonassd[%d]: setrlimit error %d, %s", (int)getpid(), errno, strerror(errno));
-
-    if( getrlimit(RLIMIT_MSGQUEUE, &rlim) == 0 )
-        logging("glonassd[%d]: new limits: rlim.rlim_cur= %lld, rlim.rlim_max= %lld", (int)getpid(), rlim.rlim_cur, rlim.rlim_max);
 
     /*
         The Main Loop
