@@ -861,7 +861,7 @@ int Parse_EGTS_SR_EXT_POS_DATA(EGTS_SR_EXT_POS_DATA_RECORD *posdata, ST_RECORD *
 int Parse_EGTS_SR_LIQUID_LEVEL_SENSOR(int rlen, EGTS_SR_LIQUID_LEVEL_SENSOR_RECORD *posdata, ST_RECORD *record)
 {
 	int data_size;
-    int koef = 1; // коэфф. дискретности показаний датчика
+    uint32_t koef = 1; // коэфф. дискретности показаний датчика
     int num = 0;  // порядковый номер датчика
 
 	if( !record )
@@ -879,11 +879,11 @@ int Parse_EGTS_SR_LIQUID_LEVEL_SENSOR(int rlen, EGTS_SR_LIQUID_LEVEL_SENSOR_RECO
 
 		if( !(posdata->FLG & B6) ) {
 		    // ошибок не обнаружено
-        	if(FLG & 0b00110000 == 32) {
+        	if((posdata->FLG & 0b00110000) == 32) {
         	    koef = 10; // показания ДУЖ в литрах с дискретностью в 0,1 литра
         	}
 
-        	num = FLG & 0b00000111; // 0-7
+        	num = (posdata->FLG & 0b00000111); // 0-7
             if(num < 2) { // у нас только 2 бака предусмотрено
     			record->fuel[num] = (int)(posdata->LLSD / koef);
             }
