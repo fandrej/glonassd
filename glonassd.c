@@ -197,7 +197,7 @@ static int database_setup(unsigned int start)
 
         db_library_handle = dlopen(lib_path, RTLD_LAZY);
         if( !db_library_handle ) {
-            logging("database_setup: dlopen(%s) error: %s\n", lib_path, dlerror());
+            logging("database_setup: dlopen(%s) error: %s", lib_path, dlerror());
             return 0;
         }
 
@@ -206,7 +206,7 @@ static int database_setup(unsigned int start)
         db_thread_func = dlsym(db_library_handle, "db_thread");
         cerror = dlerror();
         if( cerror != NULL ) {
-            logging("database_setup: dlsym(\"db_thread\") error: %s\n", cerror);
+            logging("database_setup: dlsym(\"db_thread\") error: %s", cerror);
             database_setup(0);
             return 0;
         }
@@ -216,7 +216,7 @@ static int database_setup(unsigned int start)
         cerror = dlerror();
         if( cerror != NULL ) {
             timer_function_pointer = NULL;
-            logging("database_setup: dlsym(\"timer_function\") error: %s\n", cerror);
+            logging("database_setup: dlsym(\"timer_function\") error: %s", cerror);
         }
 
         // start database thread
@@ -226,7 +226,7 @@ static int database_setup(unsigned int start)
             thread_ok = pthread_create(&db_thread, NULL, db_thread_func, &stConfigServer);
 
         if( thread_ok ) {	// error
-            logging("database_setup: pthread_create error %d: %s\n", errno, strerror(errno));
+            logging("database_setup: pthread_create error %d: %s", errno, strerror(errno));
             database_setup(0);
             return 0;
         }
@@ -269,8 +269,8 @@ static int setup(char *config_path)
 
     // load settings
     if( !loadConfig(config_path) ) {
-        syslog(LOG_NOTICE, "Can't load config file %s\n", stParams.config_path);
-        if( !stParams.daemon ) printf("Can't load config file %s\n", stParams.config_path);
+        syslog(LOG_NOTICE, "Can't load config file %s", stParams.config_path);
+        if( !stParams.daemon ) printf("Can't load config file %s", stParams.config_path);
         return 0;
     }
 
@@ -281,9 +281,9 @@ static int setup(char *config_path)
         thread_error = pthread_create(&log_thread, NULL, log_thread_func, NULL);
 
     if( thread_error ) {	// error
-        syslog(LOG_NOTICE, "Logger start error %d: %s\n", errno, strerror(errno));
+        syslog(LOG_NOTICE, "Logger start error %d: %s", errno, strerror(errno));
         syslog(LOG_NOTICE, "logging to syslog\n");
-        if( !stParams.daemon ) printf("Logger start error %d: %s\n", errno, strerror(errno));
+        if( !stParams.daemon ) printf("Logger start error %d: %s", errno, strerror(errno));
         if( !stParams.daemon ) printf("logging to syslog\n");
     }
 
@@ -336,7 +336,7 @@ void command(const char *pidfile, const char *cmd)
         fclose(handle);
 
         if( pid > 0 && !started && errno == ESRCH ) {
-            printf("Found PID file %s with PID %d without process glonassd(%d)\nDelete PID file manually, please.\n", pidfile, pid, pid);
+            printf("Found PID file %s with PID %d without process glonassd(%d)\nDelete PID file manually, please.", pidfile, pid, pid);
             exit(EXIT_FAILURE);
         }
     }	// if(handle)
@@ -354,7 +354,7 @@ void command(const char *pidfile, const char *cmd)
     else if( strcmp(cmd, "stop") == 0 ) {
         if( started ) {
             if( kill(pid, SIGUSR1) != 0 ) {
-                printf("glonassd: kill(%d, SIGUSR1) error %d: %s\n", (int)pid, errno, strerror(errno));
+                printf("glonassd: kill(%d, SIGUSR1) error %d: %s", (int)pid, errno, strerror(errno));
                 exit(EXIT_FAILURE);
             }
             exit(EXIT_SUCCESS);
@@ -366,7 +366,7 @@ void command(const char *pidfile, const char *cmd)
     else if( strcmp(cmd, "restart") == 0 ) {
         if( started ) {
             if( kill(pid, SIGHUP) != 0 ) {
-                printf("glonassd: kill(%d, SIGHUP) error %d: %s\n", (int)pid, errno, strerror(errno));
+                printf("glonassd: kill(%d, SIGHUP) error %d: %s", (int)pid, errno, strerror(errno));
                 exit(EXIT_FAILURE);
             }
             printf("glonassd restarting.\n");
@@ -413,14 +413,14 @@ static int library_load(char *protocol, void **lib_handle, void **f_decode, void
     *lib_handle = dlopen(lib_path, RTLD_LAZY);
     if( *lib_handle == NULL ) {
         cerror = dlerror();
-        logging("shared library %s: dlopen(%s) error: %s\n", protocol, lib_path, cerror);
+        logging("shared library %s: dlopen(%s) error: %s", protocol, lib_path, cerror);
         return 0;
     }
 
     *f_decode = dlsym(*lib_handle, "terminal_decode");
     cerror = dlerror();
     if( cerror != NULL ) {
-        logging("shared library %s: dlsym(\"terminal_decode\") error: %s\n", protocol, cerror);
+        logging("shared library %s: dlsym(\"terminal_decode\") error: %s", protocol, cerror);
         dlclose(*lib_handle);
         *lib_handle = NULL;
         return 0;
@@ -429,7 +429,7 @@ static int library_load(char *protocol, void **lib_handle, void **f_decode, void
     *f_encode = dlsym(*lib_handle, "terminal_encode");
     cerror = dlerror();
     if( cerror != NULL ) {
-        logging("shared library %s: dlsym(\"terminal_encode\") error: %s\n", protocol, cerror);
+        logging("shared library %s: dlsym(\"terminal_encode\") error: %s", protocol, cerror);
     }
 
     return 1;
@@ -460,7 +460,7 @@ static int listeners_start()
         // start service if enabled
         if( stListeners.listener[i].enabled ) {
 
-            logging("listener[%s] port=%d protocol=%s attempt to start\n", stListeners.listener[i].name, stListeners.listener[i].port, (stListeners.listener[i].protocol == SOCK_STREAM ? "TCP" : "UDP"));
+            logging("listener[%s] port=%d protocol=%s attempt to start", stListeners.listener[i].name, stListeners.listener[i].port, (stListeners.listener[i].protocol == SOCK_STREAM ? "TCP" : "UDP"));
 
             // load library for listener's worker
             if( library_load(stListeners.listener[i].name, &stListeners.listener[i].library_handle, (void*)&stListeners.listener[i].terminal_decode, (void*)&stListeners.listener[i].terminal_encode) ) {
@@ -468,7 +468,7 @@ static int listeners_start()
                 // create listener socket
                 stListeners.listener[i].socket = socket(AF_INET, stListeners.listener[i].protocol, 0);
                 if( stListeners.listener[i].socket < 0 ) {
-                    logging("listener[%s]: socket() error %d: %s\n", stListeners.listener[i].name, errno, strerror(errno));
+                    logging("listener[%s]: socket() error %d: %s", stListeners.listener[i].name, errno, strerror(errno));
                     continue;	// next listener
                 }
 
@@ -479,11 +479,11 @@ static int listeners_start()
                     Block error with: SO_REUSEADDR & SO_REUSEPORT
                 */
                 if (setsockopt(stListeners.listener[i].socket, SOL_SOCKET, SO_REUSEADDR, &(int) {1}, sizeof(int)) < 0)
-                    logging("listener[%s]: setsockopt(SO_REUSEADDR) error %d: %s\n", stListeners.listener[i].name, errno, strerror(errno));
+                    logging("listener[%s]: setsockopt(SO_REUSEADDR) error %d: %s", stListeners.listener[i].name, errno, strerror(errno));
 
 #ifdef SO_REUSEPORT
                 if (setsockopt(stListeners.listener[i].socket, SOL_SOCKET, SO_REUSEPORT, &(int) {1}, sizeof(int)) < 0)
-                    logging("listener %s: setsockopt(SO_REUSEPORT) error %d: %s\n", stListeners.listener[i].name, errno, strerror(errno));
+                    logging("listener %s: setsockopt(SO_REUSEPORT) error %d: %s", stListeners.listener[i].name, errno, strerror(errno));
 #endif
 
                 // bind socket to address & port
@@ -493,7 +493,7 @@ static int listeners_start()
                 in_addr.sin_port = htons(stListeners.listener[i].port);
 
                 if( bind(stListeners.listener[i].socket, (struct sockaddr *)&in_addr, sizeof(struct sockaddr_in)) < 0 ) {
-                    logging("listener[%s]: bind() error %d: %s\n", stListeners.listener[i].name, errno, strerror(errno));
+                    logging("listener[%s]: bind() error %d: %s", stListeners.listener[i].name, errno, strerror(errno));
                     close(stListeners.listener[i].socket);
                     stListeners.listener[i].socket = BAD_OBJ;
                     continue;
@@ -501,7 +501,7 @@ static int listeners_start()
 
                 // listen terminals, second param. - listener queue size
                 if( listen(stListeners.listener[i].socket, stConfigServer.socket_queue) < 0 ) {
-                    logging("listener[%s]: listen() error %d: %s\n", stListeners.listener[i].name, errno, strerror(errno));
+                    logging("listener[%s]: listen() error %d: %s", stListeners.listener[i].name, errno, strerror(errno));
                     close(stListeners.listener[i].socket);
                     stListeners.listener[i].socket = BAD_OBJ;
                     continue;
@@ -515,7 +515,7 @@ static int listeners_start()
                 pollset[pollcnt - 1].events = POLLIN;
                 pollset[pollcnt - 1].revents = 0;	// filled by the kernel
 
-                logging("listener[%s] started on port %d\n", stListeners.listener[i].name, stListeners.listener[i].port);
+                logging("listener[%s] started on port %d", stListeners.listener[i].name, stListeners.listener[i].port);
             }	// if( library_load(
 
         }	// if( stListeners.listener[i].enabled )
@@ -536,7 +536,7 @@ static int listeners_stop()
         if( stListeners.listener[i].socket != BAD_OBJ ) {
             shutdown(stListeners.listener[i].socket, SHUT_RDWR);
             close(stListeners.listener[i].socket);
-            logging("listener[%s] on port %d stopped\n", stListeners.listener[i].name, stListeners.listener[i].port);
+            logging("listener[%s] on port %d stopped", stListeners.listener[i].name, stListeners.listener[i].port);
         }
 
         if( stListeners.listener[i].library_handle )
@@ -565,11 +565,11 @@ static int forwarders_start()
     for(i = 0; i < stForwarders.count; i++) {
 
         if( !stForwarders.forwarder[i].app || !strlen(stForwarders.forwarder[i].app) ){
-            logging("forwarder[%s] has error in parametes, skipped\n", stForwarders.forwarder[i].name);
+            logging("forwarder[%s] has error in parametes, skipped", stForwarders.forwarder[i].name);
             continue;
         }
 
-        logging("forwarder[%s] attempt to start\n", stForwarders.forwarder[i].name);
+        logging("forwarder[%s] attempt to start", stForwarders.forwarder[i].name);
 
         // load library for encode/decode functions
         if( library_load(stForwarders.forwarder[i].app, &stForwarders.forwarder[i].library_handle, (void*)&stForwarders.forwarder[i].terminal_decode, (void*)&stForwarders.forwarder[i].terminal_encode) ) {
@@ -588,7 +588,7 @@ static int forwarders_start()
                 thread_ok = pthread_create(&stForwarders.forwarder[i].thread, NULL, forwarder_thread, &stForwarders.forwarder[i]);
 
             if( thread_ok )	// error
-                logging("forwarder[%s]: error %d: %s\n", stForwarders.forwarder[i].name, errno, strerror(errno));
+                logging("forwarder[%s]: error %d: %s", stForwarders.forwarder[i].name, errno, strerror(errno));
             else
                 ++cnt;
 
@@ -611,10 +611,10 @@ static int forwarders_stop()
         // stop forwarder if worked
         if( stForwarders.forwarder[i].thread ) {
             if( pthread_cancel(stForwarders.forwarder[i].thread) )
-                logging("cancel forwarder[%s] error %d: %s\n", stForwarders.forwarder[i].name, errno, strerror(errno));
+                logging("cancel forwarder[%s] error %d: %s", stForwarders.forwarder[i].name, errno, strerror(errno));
 
             if( pthread_join(stForwarders.forwarder[i].thread, NULL) )
-                logging("stop forwarder[%s] error %d: %s\n", stForwarders.forwarder[i].name, errno, strerror(errno));
+                logging("stop forwarder[%s] error %d: %s", stForwarders.forwarder[i].name, errno, strerror(errno));
 
             if( stForwarders.forwarder[i].library_handle )
                 dlclose(stForwarders.forwarder[i].library_handle);
@@ -648,7 +648,7 @@ int timers_stop()
     }	// for(i = 0; i < TIMERS_MAX; i++)
 
     if( e )
-        logging("%d timers stopped\n", e);
+        logging("%d timers stopped", e);
 
     return 1;
 }
@@ -709,7 +709,7 @@ int timers_start()
 
                 // Start the timer
                 if( timer_settime(stConfigServer.timers[i].id, 0, &its, NULL) ) {
-                    logging("timers_start: timer_settime error %d: %s\n", errno, strerror(errno));
+                    logging("timers_start: timer_settime error %d: %s", errno, strerror(errno));
                     timer_delete(stConfigServer.timers[i].id);
                     stConfigServer.timers[i].id = 0;
                 }   // if( timer_settime(
@@ -717,14 +717,14 @@ int timers_start()
                     ++e;
                 }
             } else {
-                logging("timers_start: timer_create error %d: %s\n", errno, strerror(errno));
+                logging("timers_start: timer_create error %d: %s", errno, strerror(errno));
             }
 
         }	// if( strlen(stConfigServer.timers[i].script_path) )
     }	// for(i = 0; i < TIMERS_MAX; i++)
 
     if( e )
-        logging("%d timers started\n", e);
+        logging("%d timers started", e);
 
     return 1;
 }
@@ -762,6 +762,7 @@ int main(int argc, char* argv[])
     ST_WORKER *worker_config;
     FILE *handle;
     struct rlimit rlim;
+    struct sigaction sa;
 
     // parse command string
     if( !parceParams(argc, argv) ) {
@@ -775,31 +776,31 @@ int main(int argc, char* argv[])
     // process start/restart/stop command
     command(gPidFilePath, stParams.cmd);
 
-    if( stParams.daemon ) {
+    if( stParams.daemon )
         toDaemon(gPidFilePath); // force programm to daemon
-    }
     else {
-        signal(SIGINT, INThandler);
-        signal(SIGTERM, INThandler);
+        sa.sa_handler = INThandler;
+        sa.sa_flags = 0;
+        sigemptyset(&sa.sa_mask);
+        sigaction(SIGINT, &sa, NULL);
+        sigaction(SIGTERM, &sa, NULL);
     }
 
     // create pid file
     handle = fopen(gPidFilePath, "w");
-    if(handle) {
-        fprintf(handle, "%d\n", (int)getpid());
-        fclose(handle);
-    }
-    else {
-        fprintf(stderr, "Create PID file %s, error %d: %s\n", gPidFilePath, errno, strerror(errno));
+    if( !handle ) {
+        fprintf(stderr, "Create PID file %s, error %d: %s", gPidFilePath, errno, strerror(errno));
         if( stParams.daemon )
-            syslog(LOG_NOTICE, "Create PID file %s, error %d: %s\n", gPidFilePath, errno, strerror(errno));
+            syslog(LOG_NOTICE, "Create PID file %s, error %d: %s", gPidFilePath, errno, strerror(errno));
         exit(EXIT_FAILURE);
     }
+    fprintf(handle, "%d", (int)getpid());
+    fclose(handle);
 
     if( stParams.daemon )
-        syslog(LOG_NOTICE, "glonassd[%d] started\n", (int)getpid());
+        syslog(LOG_NOTICE, "glonassd[%d] started", (int)getpid());
     else
-        printf("glonassd[%d] started\n", (int)getpid());
+        printf("glonassd[%d] started", (int)getpid());
 
     graceful_stop = 0;      // flag "stop programm"
     reconfigure = 1;        // flag "read config"
@@ -817,7 +818,7 @@ int main(int argc, char* argv[])
             // error, use default stack size
             attr_init = 0;
             pthread_attr_destroy(&worker_thread_attr);
-            syslog(LOG_NOTICE, "pthread_attr_setstacksize(%d) error %d: %s\n", 1024 * THREAD_STACK_SIZE_KB, errno, strerror(errno));
+            syslog(LOG_NOTICE, "pthread_attr_setstacksize(%d) error %d: %s", 1024 * THREAD_STACK_SIZE_KB, errno, strerror(errno));
         }	// if( pthread_attr_setstacksize
     }	// if( attr_init )
 
@@ -859,7 +860,7 @@ int main(int argc, char* argv[])
                 // real error or signal for stop
                 graceful_stop = 1;
                 exit_code = EXIT_FAILURE;
-                logging("glonassd[%d]: poll() error %d: %s\n", (int)getpid(), errno, strerror(errno));
+                logging("glonassd[%d]: poll() error %d: %s", (int)getpid(), errno, strerror(errno));
             }
 
             break;
@@ -887,7 +888,7 @@ int main(int argc, char* argv[])
                             worker_config->client_socket = accept(stListeners.listener[j].socket, (struct sockaddr *)&worker_config->client_addr, &sockaddr_in_size);
                             if( worker_config->client_socket < 0 ) {
                                 free(worker_config);
-                                logging("glonassd[%d]: listener[%s] accept() error %d: %s\n", (int)getpid(), stListeners.listener[j].name, errno, strerror(errno));
+                                logging("glonassd[%d]: listener[%s] accept() error %d: %s", (int)getpid(), stListeners.listener[j].name, errno, strerror(errno));
                             } else {
                                 // set settings for worker
                                 worker_config->listener = &stListeners.listener[j];
@@ -901,11 +902,11 @@ int main(int argc, char* argv[])
 
                                 if( thread_error ) {   // error :(
                                     free(worker_config);
-                                    logging("glonassd[%d]: listener[%s] pthread_create() error %d: %s\n", (int)getpid(), stListeners.listener[j].name, errno, strerror(errno));
+                                    logging("glonassd[%d]: listener[%s] pthread_create() error %d: %s", (int)getpid(), stListeners.listener[j].name, errno, strerror(errno));
                                 }	// if( pthread_create(
                                 else {
                                     if( pthread_detach(worker_config->thread) )
-                                        logging("glonassd[%d]: listener[%s] pthread_detach(%lld) error %d: %s\n", (int)getpid(), stListeners.listener[j].name, worker_config->thread, errno, strerror(errno));
+                                        logging("glonassd[%d]: listener[%s] pthread_detach(%lld) error %d: %s", (int)getpid(), stListeners.listener[j].name, worker_config->thread, errno, strerror(errno));
                                 }
                             }	// else if( worker_config->client_socket < 0 )
 
@@ -927,9 +928,9 @@ int main(int argc, char* argv[])
     /*
         graceful cleanup
     */
-    logging("glonassd[%d] stopped, exit_code=%d\n", (int)getpid(), exit_code);
+    logging("glonassd[%d] stopped, exit_code=%d", (int)getpid(), exit_code);
     cleanup();
-    syslog(LOG_NOTICE, "glonassd[%d] stopped, exit_code=%d\n", (int)getpid(), exit_code);
+    syslog(LOG_NOTICE, "glonassd[%d] stopped, exit_code=%d", (int)getpid(), exit_code);
     printf("glonassd[%d] stopped, exit_code=%d\n", (int)getpid(), exit_code);
 
     if( stParams.daemon )

@@ -126,22 +126,22 @@ static int load_file(char *path, char *buf, size_t bufsize)
 
 	// check file exists
 	if( (fp = open(path, O_RDONLY)) == BAD_OBJ ) {
-		logging("thread[%ld]: open(%s): error %d: %s\n", syscall(SYS_gettid), path, errno, strerror(errno));
+		logging("thread[%ld]: open(%s): error %d: %s", syscall(SYS_gettid), path, errno, strerror(errno));
 		return 0;
 	}
 
 	// check file size
 	size = lseek(fp, 0, SEEK_END);
 	if( size == -1L || lseek(fp, 0, SEEK_SET) ) {
-		logging("thread[%ld]: lseek(SEEK_END) error %d: %s\n", syscall(SYS_gettid), errno, strerror(errno));
+		logging("thread[%ld]: lseek(SEEK_END) error %d: %s", syscall(SYS_gettid), errno, strerror(errno));
 		close(fp);
 		return 0;
 	} else if( size >= bufsize ) {
-		logging("thread[%ld]: sql file size %d >= buffer size %d\n", syscall(SYS_gettid), size, bufsize);
+		logging("thread[%ld]: sql file size %d >= buffer size %d", syscall(SYS_gettid), size, bufsize);
 		close(fp);
 		return 0;
 	} else if( !size ) {
-		logging("thread[%ld]: sql file size = %d, is file empty?\n", syscall(SYS_gettid), size);
+		logging("thread[%ld]: sql file size = %d, is file empty?", syscall(SYS_gettid), size);
 		close(fp);
 		return 0;
 	}
@@ -149,7 +149,7 @@ static int load_file(char *path, char *buf, size_t bufsize)
 	// read file content into buffer
 	memset(buf, 0, bufsize);
 	if( (readed = read(fp, buf, size)) != size ) {
-		logging("thread[%ld]: read(%ld)=%ld error %d: %s\n", syscall(SYS_gettid), size, readed, errno, strerror(errno));
+		logging("thread[%ld]: read(%ld)=%ld error %d: %s", syscall(SYS_gettid), size, readed, errno, strerror(errno));
 		close(fp);
 		return 0;
 	}
@@ -201,13 +201,13 @@ static int db_connect(int connect, PGconn **connection)
 				db_result = PQexec(*connection, conninfo);
 				resultStatus = PQresultStatus(db_result);
 				if( resultStatus != PGRES_COMMAND_OK )
-					logging("database thread[%ld]: PQexec(%s): %s\n", syscall(SYS_gettid), conninfo, PQerrorMessage(*connection));
+					logging("database thread[%ld]: PQexec(%s): %s", syscall(SYS_gettid), conninfo, PQerrorMessage(*connection));
 				PQclear(db_result);
 			}
 
 		}	// if( PQstatus(*connection) == CONNECTION_OK )
 		else
-			logging("database thread[%ld]: PQconnectdb(%s): %s\n", syscall(SYS_gettid), conninfo, PQerrorMessage(*connection));
+			logging("database thread[%ld]: PQconnectdb(%s): %s", syscall(SYS_gettid), conninfo, PQerrorMessage(*connection));
 
 	}	// if(connect)
 	else {	// disconnect from database
@@ -290,7 +290,7 @@ static int write_data_to_db(PGconn *connection, char *msg, char *sql_insert_poin
 	if( pqstatus == PGRES_COMMAND_OK )
 		return 1;
 	else {
-		logging("database thread[%ld]: PQexecParams() error: %s\n", syscall(SYS_gettid), PQerrorMessage(connection));
+		logging("database thread[%ld]: PQexecParams() error: %s", syscall(SYS_gettid), PQerrorMessage(connection));
 		return 0;
 	}
 }
@@ -328,7 +328,7 @@ void *db_thread(void *arg)
 		if( queue_workers != -1 ) {
 			// save messages from queue
 			if( mq_getattr(queue_workers, &queue_attr) == 0 && queue_attr.mq_curmsgs > 0 ) {
-				logging("database thread writing %ld messages\n", queue_attr.mq_curmsgs);
+				logging("database thread writing %ld messages", queue_attr.mq_curmsgs);
 
 				while( (msg_size = mq_receive(queue_workers, msg_buf, buf_size, NULL)) > 0 ) {
 					if( PQstatus(db_connection) == CONNECTION_OK )
@@ -352,7 +352,7 @@ void *db_thread(void *arg)
 		// disconnect from database
 		db_connect(0, &db_connection);
 
-		logging("database thread[%ld] destroyed\n", syscall(SYS_gettid));
+		logging("database thread[%ld] destroyed", syscall(SYS_gettid));
 	}   // exit_db
 
 	// install error handler:
@@ -399,7 +399,7 @@ void *db_thread(void *arg)
 		} else
 			queue_attr.mq_maxmsg = (long)(rlim.rlim_cur / queue_attr.mq_msgsize / 10);
 	} else {
-		logging("database thread[%ld]: getrlimit() error %d: %s\n", syscall(SYS_gettid), errno, strerror(errno));
+		logging("database thread[%ld]: getrlimit() error %d: %s", syscall(SYS_gettid), errno, strerror(errno));
 		queue_attr.mq_maxmsg = (long)(819200 / queue_attr.mq_msgsize / 10);     /* Max. # of messages on queue */
 	}
 
@@ -408,7 +408,7 @@ void *db_thread(void *arg)
 
 	queue_workers = mq_open(QUEUE_WORKER, O_RDONLY | O_CREAT, S_IRUSR | S_IWUSR, &queue_attr);
 	if( queue_workers < 0 ) {
-		logging("database thread[%ld]: mq_open() error %d: %s\n", syscall(SYS_gettid), errno, strerror(errno));
+		logging("database thread[%ld]: mq_open() error %d: %s", syscall(SYS_gettid), errno, strerror(errno));
 		logging("Try this:\n");
 		logging("Setup 'POSIX message queues' size in /etc/security/limits.conf as:\n");
 		logging("*\thard\tmsgqueue\t%ld", (long)(65536 * queue_attr.mq_msgsize * 10));
@@ -421,7 +421,7 @@ void *db_thread(void *arg)
 	for(i = 0; i < INSERT_PARAMS_COUNT; i++)
 		paramValues[i] = values + (i * SIZE_TRACKER_FIELD);
 
-	logging("database thread[%ld] started, queue size %ld msgs\n", syscall(SYS_gettid), (long)queue_attr.mq_maxmsg);
+	logging("database thread[%ld] started, queue size %ld msgs", syscall(SYS_gettid), (long)queue_attr.mq_maxmsg);
 
 	// try to connect to database
 	if( !db_connect(2, &db_connection) ) {
@@ -491,20 +491,20 @@ void *timer_function(void *ptr)
 	// initialise
 	st_timer = (ST_TIMER *)ptr;
 	name = strrchr(st_timer->script_path, '/') + 1;
-	logging("timer[%ld]: %s: start\n", syscall(SYS_gettid), name);
+	logging("timer[%ld]: %s: start", syscall(SYS_gettid), name);
 
 	semaphore = sem_open(name, O_CREAT | O_EXCL, O_RDWR, 0);	// create named semaphore
 
 	if( semaphore != SEM_FAILED ) {	// if semaphore not exists, continue
 
 		if( !load_file(st_timer->script_path, sql, MAX_SQL_SIZE) || !strlen(sql) ) {
-        	logging("timer[%ld]: %s: script loading error, exit\n", syscall(SYS_gettid), name);
+        	logging("timer[%ld]: %s: script loading error, exit", syscall(SYS_gettid), name);
 			exit_timerfunc(ptr);
 			return NULL;
 		}
 
 		if( !db_connect(2, &db_connection) ) {
-        	logging("timer[%ld]: %s: failed database connection, exit\n", syscall(SYS_gettid), name);
+        	logging("timer[%ld]: %s: failed database connection, exit", syscall(SYS_gettid), name);
 			exit_timerfunc(ptr);
 			return NULL;
 		}
@@ -518,18 +518,18 @@ void *timer_function(void *ptr)
 		case PGRES_SINGLE_TUPLE:// same as above
 		case PGRES_COPY_OUT:    // Copy Out (from server) data transfer started
 		case PGRES_COPY_IN:     // Copy In (to server) data transfer started
-			logging("timer[%ld]: %s: result %s\n", syscall(SYS_gettid), name, PQresStatus(resultStatus));
+			logging("timer[%ld]: %s: result %s", syscall(SYS_gettid), name, PQresStatus(resultStatus));
 			break;
 		default:
-			logging("timer[%ld]: %s: result %s, error: %s\n", syscall(SYS_gettid), name, PQresStatus(resultStatus), PQresultErrorMessage(sql_result));
+			logging("timer[%ld]: %s: result %s, error: %s", syscall(SYS_gettid), name, PQresStatus(resultStatus), PQresultErrorMessage(sql_result));
 		}
 
 	}	// if( semaphore != SEM_FAILED )
 	else {
 		if( errno == EEXIST )
-			logging("timer[%ld]: %s already running, increase period, please\n", syscall(SYS_gettid), name);
+			logging("timer[%ld]: %s already running, increase period, please", syscall(SYS_gettid), name);
 		else
-			logging("timer[%ld]: %s: sem_open() error %d: %s\n", syscall(SYS_gettid), name, errno, strerror(errno));
+			logging("timer[%ld]: %s: sem_open() error %d: %s", syscall(SYS_gettid), name, errno, strerror(errno));
 	}
 
 	// clear error handler with run it (0 - not run, 1 - run)
