@@ -861,27 +861,33 @@ int Parse_EGTS_SR_EXT_POS_DATA(EGTS_SR_EXT_POS_DATA_RECORD *posdata, ST_RECORD *
 int Parse_EGTS_SR_LIQUID_LEVEL_SENSOR(int rlen, EGTS_SR_LIQUID_LEVEL_SENSOR_RECORD *posdata, ST_RECORD *record)
 {
 	int data_size;
+    int koef = 1; // коэфф. дискретности показаний датчика
+    int num = 0;  // порядковый номер датчика
 
 	if( !record )
 		return 0;
 
-	if( posdata->FLG & B3 ) {	// размер поля LLSD определяется исходя из общей длины данной подзаписи и размеров расположенных перед LLSD полей
+	if( posdata->FLG & B3 ) {
+	    // размер поля LLSD определяется исходя из общей длины данной подзаписи
+        // и размеров расположенных перед LLSD полей
 		data_size = rlen;	// здесь нас интересует общая длинна записи
-		// ибо как хранить такие данные хз
-	} else {	// поле LLSD имеет размер 4 байта
+		// ибо как разбирать такие данные хз
+	}
+    else {
+	    // поле LLSD имеет размер 4 байта
 		data_size = sizeof(EGTS_SR_LIQUID_LEVEL_SENSOR_RECORD);
 
-		if( !(posdata->FLG & B6) ) {	// ошибок не обнаружено
-			if( record->fuel[0] ) {	// показания первого датчика уже записаны
-				record->fuel[1] = posdata->LLSD;
-				if( posdata->FLG & 32 )	// показания ДУЖ в литрах с дискретностью в 0,1 литра
-					record->fuel[1] = 0.1 * posdata->LLSD;
-			} else {
-				record->fuel[0] = posdata->LLSD;
-				if( posdata->FLG & 32 )	// показания ДУЖ в литрах с дискретностью в 0,1 литра
-					record->fuel[0] = 0.1 * posdata->LLSD;
-			}
-		}	// if( !(posdata->FLG & B6) )
+		if( !(posdata->FLG & B6) ) {
+		    // ошибок не обнаружено
+        	if(FLG & 0b00110000 == 32) {
+        	    koef = 10; // показания ДУЖ в литрах с дискретностью в 0,1 литра
+        	}
+
+        	num = FLG & 0b00000111; // 0-7
+            if(num < 2) { // у нас только 2 бака предусмотрено
+    			record->fuel[num] = (int)(posdata->LLSD / koef);
+            }
+		}
 	}
 
 	return data_size;
