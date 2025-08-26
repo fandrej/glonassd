@@ -47,10 +47,11 @@ typedef struct {
     char soft[SIZE_TRACKER_FIELD];      // software version of terminal
     char clon;                  // longitude part (N/S)
     char clat;                  // latitude part (E/W)
-    time_t data;                // GPS date
+    time_t ttime;               // GPS timestamp
+    time_t data;                // GPS date: TODO: delete
     unsigned int status;        // terminas status field (bits field)
     unsigned int recnum;        // number of record
-    unsigned int time;          // GPS time (converting to seconds from 00:00:00 of day)
+    unsigned int time;          // GPS time (converting to seconds from 00:00:00 of day) TODO: delete
     unsigned int valid;         // record valid
     unsigned int satellites;    // number of satellites
     unsigned int curs;          // course
@@ -59,7 +60,7 @@ typedef struct {
     unsigned int outputs;       // outputs status, bits field
     unsigned int inputs;        // inputs status, bits field
     int ainputs[8];             // analog inputs values (8 ports max)
-    int fuel[2];                // fuel input values (2 max)
+    int fuel[4];                // fuel input values (4 max)
     int temperature;            // temp into teminal
     int zaj;                    // датчик зажигания (ignition sensor) 0/1
     int alarm;                  // датчик тревоги (SOS/alarm sensor) 0/1
@@ -71,7 +72,7 @@ typedef struct {
     double probeg;              // terminal-calculated distance from prev. point
     unsigned int port;          // TCP/UDP порт, на котором принимаются данные          sizeof(ST_RECORD)=232
     char ip[SIZE_TRACKER_FIELD];// IP-адрес, с которого приходят данные                 sizeof(ST_RECORD)=248
-    char message[SIZE_MESSAGE_FIELD];      // Произвольное сообщение от оборудования    sizeof(ST_RECORD)=1248
+    char message[SIZE_MESSAGE_FIELD]; // Произвольное сообщение от оборудования    sizeof(ST_RECORD)=1248
 } ST_RECORD;
 // sizeof(ST_RECORD)=1248
 

@@ -245,7 +245,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
         if( answer->count < MAX_RECORDS - 1 )
             ++answer->count;
         snprintf(answer->records[answer->count - 1].tracker, SIZE_TRACKER_FIELD, "galileo");
-        return &answer->records[answer->count - 1];
+        return initST_RECORD(&answer->records[answer->count - 1]);
     }
     //---------------------
 
@@ -401,6 +401,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
             // получаем локальное время (localtime_r is thread-safe)
             tpp = &data[i+1];
             ulliTmp = *(unsigned int *)tpp;
+
             ulliTmp += GMT_diff;    // UTC ->local
             gmtime_r(&ulliTmp, &tm_data);           // local simple->local struct
             // получаем время как число секунд от начала суток
@@ -410,6 +411,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
             // получаем дату
             record->data = timegm(&tm_data);
 
+            record->ttime = *(unsigned int *)&data[i+1];
             ++rec_ok;
 
             i += (1 + tag_len[tag]);
@@ -427,19 +429,9 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 
             tpp = &data[i+2];
             record->lat = 0.000001 * (*(int *)tpp);
-            if( record->lat < 0.0 ) {
-                record->lat = fabs(record->lat);
-                record->clat = 'S';
-            } else
-                record->clat = 'N';
 
             tpp = &data[i+6];
             record->lon = 0.000001 * (*(int *)tpp);
-            if( record->lon < 0.0 ) {
-                record->lon = fabs(record->lon);
-                record->clon = 'W';
-            } else
-                record->clon = 'E';
 
             ++rec_ok;    // 3
             i += (1 + tag_len[tag]);
@@ -678,6 +670,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
             ctime_r(&record->data, buf);
             logging("terminal_decode[%s:%d]: imei: %s\n", worker->listener->name, worker->listener->port, record->imei);
             logging("terminal_decode[%s:%d]: recnum: %u\n", worker->listener->name, worker->listener->port, record->recnum);
+            logging("terminal_decode[%s:%d]: ttime: %lu", worker->listener->name, worker->listener->port, record->ttime);
             logging("terminal_decode[%s:%d]: date: %lu %s", worker->listener->name, worker->listener->port, record->data, buf);
             logging("terminal_decode[%s:%d]: time: %u\n", worker->listener->name, worker->listener->port, record->time);
             logging("terminal_decode[%s:%d]: satellites: %u\n", worker->listener->name, worker->listener->port, record->satellites);

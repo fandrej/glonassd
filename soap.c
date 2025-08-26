@@ -53,7 +53,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 			if( rec_ok ) {
 				if( answer->count < MAX_RECORDS - 1 )
 					answer->count++;
-				record = &answer->records[answer->count - 1];
+				record = initST_RECORD(&answer->records[answer->count - 1]);
 				i = 0;
 			}	// if( rec_ok )
 
@@ -99,7 +99,9 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 				tm_data.tm_year -= 1900;
 				tm_data.tm_mon--;
 
-				ulliTmp = timegm(&tm_data) + GMT_diff;	// UTC struct->local simple
+                record->ttime = timegm(&tm_data);
+
+                ulliTmp = record->ttime + GMT_diff;	// UTC struct->local simple
 				gmtime_r(&ulliTmp, &tm_data);           // local simple->local struct
 				// получаем время как число секунд от начала суток
 				record->time = 3600 * tm_data.tm_hour + 60 * tm_data.tm_min + tm_data.tm_sec;

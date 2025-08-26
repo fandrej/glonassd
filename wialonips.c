@@ -121,7 +121,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
             if( iFields >= 8 ) {
 				if( answer->count < MAX_RECORDS - 1 )
 					answer->count++;
-				record = &answer->records[answer->count - 1];
+				record = initST_RECORD(&answer->records[answer->count - 1]);
 
 				snprintf(record->tracker, SIZE_TRACKER_FIELD, "WIPS");
 				snprintf(record->hard, SIZE_TRACKER_FIELD, "%d", 1);
@@ -135,7 +135,9 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 				tm_data.tm_year += 100;
 				sscanf(cTime, "%2d%2d%2d", &tm_data.tm_hour, &tm_data.tm_min, &tm_data.tm_sec);
 
-				ulliTmp = timegm(&tm_data) + GMT_diff;	// UTC struct->local simple
+                record->ttime = timegm(&tm_data);
+
+                ulliTmp = record->ttime + GMT_diff;	// UTC struct->local simple
 				gmtime_r(&ulliTmp, &tm_data);           // local simple->local struct
 				// получаем время как число секунд от начала суток
 				record->time = 3600 * tm_data.tm_hour + 60 * tm_data.tm_min + tm_data.tm_sec;
@@ -225,7 +227,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
             if( iFields >= 8 ) {
 				if( answer->count < MAX_RECORDS - 1 )
 					answer->count++;
-				record = &answer->records[answer->count - 1];
+				record = initST_RECORD(&answer->records[answer->count - 1]);
 
 				snprintf(record->tracker, SIZE_TRACKER_FIELD, "WIPS");
 				snprintf(record->hard, SIZE_TRACKER_FIELD, "%d", 1);
@@ -240,7 +242,9 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 				tm_data.tm_year += 100;
 				sscanf(cTime, "%2d%2d%2d", &tm_data.tm_hour, &tm_data.tm_min, &tm_data.tm_sec);
 
-				ulliTmp = timegm(&tm_data) + GMT_diff;	// UTC struct->local simple
+                record->ttime = timegm(&tm_data);
+
+                ulliTmp = record->ttime + GMT_diff;	// UTC struct->local simple
 				gmtime_r(&ulliTmp, &tm_data);           // local simple->local struct
 				// получаем время как число секунд от начала суток
 				record->time = 3600 * tm_data.tm_hour + 60 * tm_data.tm_min + tm_data.tm_sec;
@@ -345,7 +349,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 
 					if( answer->count < MAX_RECORDS - 1 )
 						answer->count++;
-					record = &answer->records[answer->count - 1];
+					record = initST_RECORD(&answer->records[answer->count - 1]);
 
 					snprintf(record->tracker, SIZE_TRACKER_FIELD, "WIPS");
 					snprintf(record->hard, SIZE_TRACKER_FIELD, "%d", 1);
@@ -359,7 +363,9 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
     				tm_data.tm_year += 100;
 					sscanf(cTime, "%2d%2d%2d", &tm_data.tm_hour, &tm_data.tm_min, &tm_data.tm_sec);
 
-					ulliTmp = timegm(&tm_data) + GMT_diff;	// UTC struct->local simple
+                    record->ttime = timegm(&tm_data);
+
+                    ulliTmp = record->ttime + GMT_diff;	// UTC struct->local simple
 					gmtime_r(&ulliTmp, &tm_data);           // local simple->local struct
 					// получаем время как число секунд от начала суток
 					record->time = 3600 * tm_data.tm_hour + 60 * tm_data.tm_min + tm_data.tm_sec;

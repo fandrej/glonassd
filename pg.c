@@ -64,54 +64,21 @@
 #include <libpq-fe.h>
 #include "glonassd.h"
 #include "de.h"
+#include "lib.h"    // MIN, MAX, BETWEEN, CRC, etc...
 #include "logger.h"
 
 // Definitions
 #define MAX_SQL_SIZE 4096
-#define INSERT_PARAMS_COUNT 34
+#define SQL_PARAMS_COUNT 38
 
 // Locals
-// params for inserting sql
-static __thread char *paramValues[INSERT_PARAMS_COUNT]= {
-	(char*)1,
-	(char*)1,
-	(char*)1,
-	(char*)1,
-	(char*)1,   // 5
-	(char*)1,
-	(char*)1,
-	(char*)1,
-	(char*)1,
-	(char*)1,   // 10
-	(char*)1,
-	(char*)1,
-	(char*)1,
-	(char*)1,
-	(char*)1,   // 15
-	(char*)1,
-	(char*)1,
-	(char*)1,
-	(char*)1,
-	(char*)1,   // 20
-	(char*)1,
-	(char*)1,
-	(char*)1,
-	(char*)1,
-	(char*)1,   // 25
-	(char*)1,
-	(char*)1,
-	(char*)1,
-	(char*)1,
-	(char*)1,   // 30
-	(char*)1,
-	(char*)1,
-	(char*)1,
-	(char*)1    // 34
-};
+// массив указателей на значения параметров SQL-запроса
+// parPointers[i] = NULL; for write NULL value to DB
+static __thread char *parPointers[SQL_PARAMS_COUNT];
+// буфер для хранения значений параметров SQL-запроса
+static __thread char parValues[SQL_PARAMS_COUNT * SIZE_TRACKER_FIELD];
 
-/*
-   Secondary functions
-*/
+/* Secondary functions */
 
 /*
    load_file:
@@ -211,12 +178,10 @@ static int db_connect(int connect, PGconn **connection)
 
 	}	// if(connect)
 	else {	// disconnect from database
-
 		if( *connection ) {
 			PQfinish(*connection);
 			*connection = NULL;
 		}
-
 	}
 
 	return(connect ? (PQstatus(*connection) == CONNECTION_OK) : 1);
@@ -235,51 +200,127 @@ static int write_data_to_db(PGconn *connection, char *msg, char *sql_insert_poin
 	PGresult *res;
 	ExecStatusType pqstatus;
 	ST_RECORD *record;
+    char field_message[SIZE_MESSAGE_FIELD];
+    char field_point[SIZE_MESSAGE_FIELD];
 
 	if( !connection || !msg || !sql_insert_point )
 		return 0;
 
-	record = (ST_RECORD *)msg;
-	snprintf(paramValues[0], SIZE_TRACKER_FIELD, "%lld", (long long)record->data); // $1
-	snprintf(paramValues[1], SIZE_TRACKER_FIELD, "%d", record->time);
-	snprintf(paramValues[2], SIZE_TRACKER_FIELD, "%s", record->imei);			   // $3
-	snprintf(paramValues[3], SIZE_TRACKER_FIELD, "%d", record->status);
-	snprintf(paramValues[4], SIZE_TRACKER_FIELD, "%03.07lf", record->lon);         // $5
-	snprintf(paramValues[5], SIZE_TRACKER_FIELD, "%c", record->clon);
-	snprintf(paramValues[6], SIZE_TRACKER_FIELD, "%03.07lf", record->lat);         // $7
-	snprintf(paramValues[7], SIZE_TRACKER_FIELD, "%c", record->clat);
-	snprintf(paramValues[8], SIZE_TRACKER_FIELD, "%d", record->height);            // $9
-	snprintf(paramValues[9], SIZE_TRACKER_FIELD, "%03.01lf", record->speed);
-	snprintf(paramValues[10], SIZE_TRACKER_FIELD, "%d", record->curs);             // $11
-	snprintf(paramValues[11], SIZE_TRACKER_FIELD, "%d", record->satellites);
-	snprintf(paramValues[12], SIZE_TRACKER_FIELD, "%d", record->valid);            // $13
-	snprintf(paramValues[13], SIZE_TRACKER_FIELD, "%d", record->recnum);
-	snprintf(paramValues[14], SIZE_TRACKER_FIELD, "%02.01lf", record->vbort);      // $15
-	snprintf(paramValues[15], SIZE_TRACKER_FIELD, "%02.01lf", record->vbatt);
-	snprintf(paramValues[16], SIZE_TRACKER_FIELD, "%d", record->temperature);      // $17
-	snprintf(paramValues[17], SIZE_TRACKER_FIELD, "%d", record->hdop);
-	snprintf(paramValues[18], SIZE_TRACKER_FIELD, "%d", record->outputs);          // $19
-	snprintf(paramValues[19], SIZE_TRACKER_FIELD, "%d", record->inputs);
-	snprintf(paramValues[20], SIZE_TRACKER_FIELD, "%d", record->ainputs[0]);       // $21
-	snprintf(paramValues[21], SIZE_TRACKER_FIELD, "%d", record->ainputs[1]);
-	snprintf(paramValues[22], SIZE_TRACKER_FIELD, "%d", record->ainputs[2]);       // $23
-	snprintf(paramValues[23], SIZE_TRACKER_FIELD, "%d", record->ainputs[3]);
-	snprintf(paramValues[24], SIZE_TRACKER_FIELD, "%d", record->ainputs[4]);       // $25
-	snprintf(paramValues[25], SIZE_TRACKER_FIELD, "%d", record->ainputs[5]);
-	snprintf(paramValues[26], SIZE_TRACKER_FIELD, "%d", record->ainputs[6]);       // $27
-	snprintf(paramValues[27], SIZE_TRACKER_FIELD, "%d", record->ainputs[7]);
-	snprintf(paramValues[28], SIZE_TRACKER_FIELD, "%d", record->fuel[0]);          // $29
-	snprintf(paramValues[29], SIZE_TRACKER_FIELD, "%d", record->fuel[1]);
-	snprintf(paramValues[30], SIZE_TRACKER_FIELD, "%04.03lf", record->probeg);     // $31
-	snprintf(paramValues[31], SIZE_TRACKER_FIELD, "%d", record->zaj);
-	snprintf(paramValues[32], SIZE_TRACKER_FIELD, "%d", record->alarm);            // $33
-	snprintf(paramValues[33], SIZE_MESSAGE_FIELD, "%s", record->message);		   // $34
+	// инициализируем массив указателей на значения параметров SQL-запроса
+	for(int i = 0; i < SQL_PARAMS_COUNT; i++) {
+	    // каждому указателю - свой адрес в буфере parValues
+		parPointers[i] = parValues + (i * SIZE_TRACKER_FIELD);
+    }
+    parPointers[33] = field_message;
+    parPointers[37] = field_point;
 
-	res = PQexecParams(connection,          // PGconn *conn,
+	record = (ST_RECORD *)msg;
+	snprintf(parPointers[0], SIZE_TRACKER_FIELD, "%lld", (long long)record->data);
+	snprintf(parPointers[1], SIZE_TRACKER_FIELD, "%d", record->time);
+	snprintf(parPointers[2], SIZE_TRACKER_FIELD, "%s", record->imei);
+
+	if(record->status != UINT_NULL) snprintf(parPointers[3], SIZE_TRACKER_FIELD, "%d", record->status);
+    else parPointers[3] = NULL;
+
+	snprintf(parPointers[4], SIZE_TRACKER_FIELD, "%03.07lf", record->lon);
+	snprintf(parPointers[5], SIZE_TRACKER_FIELD, "%c", record->clon);
+	snprintf(parPointers[6], SIZE_TRACKER_FIELD, "%03.07lf", record->lat);
+	snprintf(parPointers[7], SIZE_TRACKER_FIELD, "%c", record->clat);
+
+	if(record->height != INT_NULL) snprintf(parPointers[8], SIZE_TRACKER_FIELD, "%d", record->height);
+    else parPointers[8] = NULL;
+
+	if(record->speed != DOUBLE_NULL) snprintf(parPointers[9], SIZE_TRACKER_FIELD, "%03.01lf", record->speed);
+    else parPointers[9] = NULL;
+
+	if(record->curs != UINT_NULL) snprintf(parPointers[10], SIZE_TRACKER_FIELD, "%d", record->curs);
+    else parPointers[10] = NULL;
+
+	if(record->satellites != UINT_NULL) snprintf(parPointers[11], SIZE_TRACKER_FIELD, "%d", record->satellites);
+    else parPointers[11] = NULL;
+
+	if(record->valid != UINT_NULL) snprintf(parPointers[12], SIZE_TRACKER_FIELD, "%d", record->valid);
+    else parPointers[12] = NULL;
+
+	if(record->recnum != UINT_NULL) snprintf(parPointers[13], SIZE_TRACKER_FIELD, "%d", record->recnum);
+    else parPointers[13] = NULL;
+
+	if(record->vbort != DOUBLE_NULL) snprintf(parPointers[14], SIZE_TRACKER_FIELD, "%02.01lf", record->vbort);
+    else parPointers[14] = NULL;
+
+	if(record->vbatt != DOUBLE_NULL) snprintf(parPointers[15], SIZE_TRACKER_FIELD, "%02.01lf", record->vbatt);
+    else parPointers[15] = NULL;
+
+	if(record->temperature != INT_NULL) snprintf(parPointers[16], SIZE_TRACKER_FIELD, "%d", record->temperature);
+    else parPointers[16] = NULL;
+
+	if(record->hdop != UINT_NULL) snprintf(parPointers[17], SIZE_TRACKER_FIELD, "%d", record->hdop);
+    else parPointers[17] = NULL;
+
+	if(record->outputs != UINT_NULL) snprintf(parPointers[18], SIZE_TRACKER_FIELD, "%d", record->outputs);
+    else parPointers[18] = NULL;
+
+	if(record->inputs != UINT_NULL) snprintf(parPointers[19], SIZE_TRACKER_FIELD, "%d", record->inputs);
+    else parPointers[19] = NULL;
+
+	if(record->ainputs[0] != INT_NULL) snprintf(parPointers[20], SIZE_TRACKER_FIELD, "%d", record->ainputs[0]);
+    else parPointers[20] = NULL;
+
+	if(record->ainputs[1] != INT_NULL) snprintf(parPointers[21], SIZE_TRACKER_FIELD, "%d", record->ainputs[1]);
+    else parPointers[21] = NULL;
+
+	if(record->ainputs[2] != INT_NULL) snprintf(parPointers[22], SIZE_TRACKER_FIELD, "%d", record->ainputs[2]);
+    else parPointers[22] = NULL;
+
+	if(record->ainputs[3] != INT_NULL) snprintf(parPointers[23], SIZE_TRACKER_FIELD, "%d", record->ainputs[3]);
+    else parPointers[23] = NULL;
+
+	if(record->ainputs[4] != INT_NULL) snprintf(parPointers[24], SIZE_TRACKER_FIELD, "%d", record->ainputs[4]);
+    else parPointers[24] = NULL;
+
+	if(record->ainputs[5] != INT_NULL) snprintf(parPointers[25], SIZE_TRACKER_FIELD, "%d", record->ainputs[5]);
+    else parPointers[25] = NULL;
+
+	if(record->ainputs[6] != INT_NULL) snprintf(parPointers[26], SIZE_TRACKER_FIELD, "%d", record->ainputs[6]);
+    else parPointers[26] = NULL;
+
+	if(record->ainputs[7] != INT_NULL) snprintf(parPointers[27], SIZE_TRACKER_FIELD, "%d", record->ainputs[7]);
+    else parPointers[27] = NULL;
+
+	if(record->fuel[0] != INT_NULL) snprintf(parPointers[28], SIZE_TRACKER_FIELD, "%d", record->fuel[0]);
+    else parPointers[28] = NULL;
+
+	if(record->fuel[1] != INT_NULL) snprintf(parPointers[29], SIZE_TRACKER_FIELD, "%d", record->fuel[1]);
+    else parPointers[29] = NULL;
+
+	if(record->probeg != DOUBLE_NULL) snprintf(parPointers[30], SIZE_TRACKER_FIELD, "%04.03lf", record->probeg);
+    else parPointers[30] = NULL;
+
+	if(record->zaj != INT_NULL) snprintf(parPointers[31], SIZE_TRACKER_FIELD, "%d", record->zaj);
+    else parPointers[31] = NULL;
+
+	if(record->alarm != INT_NULL) snprintf(parPointers[32], SIZE_TRACKER_FIELD, "%d", record->alarm);
+    else parPointers[32] = NULL;
+
+    if(strlen(record->message)) snprintf(parPointers[33], SIZE_MESSAGE_FIELD, "%s", record->message);
+    else parPointers[33] = NULL;
+
+    if(record->fuel[2] != INT_NULL) snprintf(parPointers[34], SIZE_TRACKER_FIELD, "%d", record->fuel[2]);
+    else parPointers[34] = NULL;
+
+    if(record->fuel[3] != INT_NULL) snprintf(parPointers[35], SIZE_TRACKER_FIELD, "%d", record->fuel[3]);
+    else parPointers[35] = NULL;
+
+    if(record->ttime) snprintf(parPointers[36], SIZE_TRACKER_FIELD, "%lld", (long long)record->ttime);
+    else parPointers[36] = NULL;
+
+	snprintf(parPointers[37], SIZE_MESSAGE_FIELD, "POINT(%03.07lf %03.07lf)", record->lon, record->lat);
+
+	res = PQexecParams(connection,             // PGconn *conn,
                         sql_insert_point,      // const char *command,
-                        INSERT_PARAMS_COUNT,   // int nParams,
+                        SQL_PARAMS_COUNT,      // int nParams,
                         NULL,                  // const Oid *paramTypes
-                        (const char* const*)paramValues,
+                        (const char* const*)parPointers,
                         NULL,                  // const int *paramLengths,
                         NULL,                  // const int *paramFormats,
                         1);                    // int resultFormat: 1-ask for binary results
@@ -297,10 +338,7 @@ static int write_data_to_db(PGconn *connection, char *msg, char *sql_insert_poin
 //------------------------------------------------------------------------------
 
 
-
-/*
-   Main functions
-*/
+/* Main functions */
 
 /*
    db_thread
@@ -312,14 +350,12 @@ void *db_thread(void *arg)
 {
 	static __thread PGconn *db_connection = NULL;
 	static __thread char sql_insert_point[MAX_SQL_SIZE];	// text of inserting sql
-	static __thread char values[INSERT_PARAMS_COUNT * SIZE_TRACKER_FIELD];	// buffer for parameters values for sql
 	static __thread char msg_buf[SOCKET_BUF_SIZE];
 	static __thread mqd_t queue_workers = -1;	// Posix IPC queue of messages from workers
 	static __thread struct mq_attr queue_attr;
 	static __thread struct rlimit rlim;
 	static __thread ssize_t msg_size;
 	static __thread size_t buf_size;
-	static __thread int i;
 
 	// error handler:
 	void exit_db(void * arg) {
@@ -416,10 +452,6 @@ void *db_thread(void *arg)
 		exit_db(arg);
 		return NULL;
 	}
-
-	// initialise sql-parameters pointers
-	for(i = 0; i < INSERT_PARAMS_COUNT; i++)
-		paramValues[i] = values + (i * SIZE_TRACKER_FIELD);
 
 	logging("database thread[%ld] started, queue size %ld msgs", syscall(SYS_gettid), (long)queue_attr.mq_maxmsg);
 

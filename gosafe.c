@@ -112,7 +112,7 @@ static void terminal_decode_txt(char *parcel, int parcel_size, ST_ANSWER *answer
             // it's data
             if( record_ok > 0 && answer->count < MAX_RECORDS - 1 )
             	answer->count++;
-            record = &answer->records[answer->count - 1];
+            record = initST_RECORD(&answer->records[answer->count - 1]);
 
             saveptr2 = NULL;
             for(part_num = 0, cPart = strtok_r(cPaket, delim_part, &saveptr2); cPart; part_num++, cPart = strtok_r(NULL, delim_part, &saveptr2)) {
@@ -202,7 +202,9 @@ static void terminal_decode_txt(char *parcel, int parcel_size, ST_ANSWER *answer
                     				tm_data.tm_mon--;	// http://www.cplusplus.com/reference/ctime/tm/
                     				tm_data.tm_year += 100;
 
-                    				ulliTmp = timegm(&tm_data) + GMT_diff;	// UTC struct->local simple
+                                    record->ttime = timegm(&tm_data);
+
+                                    ulliTmp = record->ttime + GMT_diff;	// UTC struct->local simple
                     				gmtime_r(&ulliTmp, &tm_data);           // local simple->local struct
                     				// получаем время как число секунд от начала суток
                     				record->time = 3600 * tm_data.tm_hour + 60 * tm_data.tm_min + tm_data.tm_sec;
@@ -346,7 +348,7 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
             	answer->count++;
                 record_ok = 0;
             }
-            record = &answer->records[answer->count - 1];
+            record = initST_RECORD(&answer->records[answer->count - 1]);
         }
         else {
             break;
@@ -375,12 +377,14 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
             continue;
         }
 
+        record->ttime = hex2dec(st_header->date_time, 4);
+
         // get current time
         cur_time = time(NULL) + GMT_diff;
         gmtime_r(&cur_time, &tm_cur_data);
 
         // get parcel data time
-        ulliTmp = hex2dec(st_header->date_time, 4) + GMT_diff; // UTC ->local simple (timestamp, seconds);
+        ulliTmp = record->ttime + GMT_diff; // UTC ->local simple (timestamp, seconds);
     	gmtime_r(&ulliTmp, &tm_data);           // local simple->local struct
 
     	tm_data.tm_year = (tm_data.tm_year + 2000 - 1970);
@@ -594,31 +598,25 @@ static uint8_t decodeFUL(ST_RECORD *record, char *chank){
     uint8_t index = 0;
     uint8_t chank_length = (uint8_t)chank[index++]; // not include first byte (size of chank)
     uint8_t type_length, type, length;
+    int i = 0;
     //logging("decodeFUL, chank[0]=0x%.2X, chank[1]=0x%.2X, chank_length=%u", (uint8_t)chank[0], (uint8_t)chank[1], chank_length);
 
-    while( index < chank_length ){
+    while( index < chank_length && i < 4 ){
         type_length = (uint8_t)chank[index++];  // “Bit4-Bit7” represents sub-data ID, “Bit0-bit3” represents data length
         type = (type_length & 240   /* 11110000 */) >> 4;   // Fuel identifier,
         length = type_length & 15;  // 00001111
         //logging("decodeFUL, type_length=%d, type=%d, length=%d", type_length, type, length);
 
-        type = type;
-
-        if( record->fuel[0] > 0 ){
-            record->fuel[1] = (int)hex2dec(&chank[index], length);
-            /*
-            E.g. if Octane 90 gasoline is used, it should be calculated as:
-            47226696 (g) = 47226.696(kg) / 0.722kg/L=65410.94 liters
-            */
-            record->fuel[1] = (int)Round((double)record->fuel[1] / 1000.0 / 0.722, 0);
-        }
-        else {
-            record->fuel[0] = (int)hex2dec(&chank[index], length);
-            record->fuel[0] = (int)Round((double)record->fuel[0] / 1000.0 / 0.722, 0);
-        }
+        record->fuel[i] = (int)hex2dec(&chank[index], length);
+        /*
+        E.g. if Octane 90 gasoline is used, it should be calculated as:
+        47226696 (g) = 47226.696(kg) / 0.722kg/L=65410.94 liters
+        */
+        record->fuel[i] = (int)Round((double)record->fuel[1] / 1000.0 / 0.722, 0);
         // Unit is g, Convert to gallon or liter by density of fuel type
 
         index += length;
+        i++;
     }   // while( index < chank_length )
 
     return chank_length + 1;    // include first byte (size of chank)

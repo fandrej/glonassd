@@ -48,7 +48,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
         if( rec_ok ) {
             if( answer->count < MAX_RECORDS - 1 )
                 answer->count++;
-            record = &answer->records[answer->count - 1];
+            record = initST_RECORD(&answer->records[answer->count - 1]);
             rec_ok = 0;
         }    // if( rec_ok )
 
@@ -94,6 +94,8 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
             record->ainputs[0] = (record->status & 1);    //  кнопка SOS
             record->alarm = record->ainputs[0];
             record->ainputs[2] = 0;    //  кнопка запрос связи
+
+            record->ttime = ulliTmp;
 
             // переводим время GMT в местное
             ulliTmp += GMT_diff;

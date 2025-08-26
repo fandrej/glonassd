@@ -203,6 +203,9 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 
                 // разбираем данные
                 record = &answer->records[answer->count];
+            	memset(record, 0, sizeof(ST_RECORD));
+                initST_RECORD(record);
+
 				if( Parse_EGTS_SR_POS_DATA( (EGTS_SR_POS_DATA_RECORD *)&parcel[parcel_pointer], record, answer, worker ) ) {
 					memcpy(&answer->lastpoint, record, sizeof(ST_RECORD));
     				if( answer->count < MAX_RECORDS - 1 )
@@ -733,16 +736,17 @@ int Parse_EGTS_SR_POS_DATA(EGTS_SR_POS_DATA_RECORD *posdata, ST_RECORD *record, 
 	if( !record )
 		return 0;
 
-	memset(record, 0, sizeof(ST_RECORD));
-
-	ulliTmp = posdata->NTM + GMT_diff;	// UTC ->local
+	ulliTmp = posdata->NTM;
 	gmtime_r(&ulliTmp, &tm_data);       // local simple->local struct
-	// получаем время как число секунд от начала суток
-	record->time = 3600 * tm_data.tm_hour + 60 * tm_data.tm_min + tm_data.tm_sec;
-	// в tm_data обнуляем время
-	tm_data.tm_hour = tm_data.tm_min = tm_data.tm_sec = 0;
 	// получаем дату
 	tm_data.tm_year = (tm_data.tm_year + 2010 - 1970);
+
+    record->ttime = timegm(&tm_data);
+
+	// получаем время как число секунд от начала суток
+	record->time = 3600 * tm_data.tm_hour + 60 * tm_data.tm_min + tm_data.tm_sec + GMT_diff;	// UTC ->local;
+	// в tm_data обнуляем время
+	tm_data.tm_hour = tm_data.tm_min = tm_data.tm_sec = 0;
 	record->data = timegm(&tm_data);
 
 	// координаты
@@ -884,7 +888,7 @@ int Parse_EGTS_SR_LIQUID_LEVEL_SENSOR(int rlen, EGTS_SR_LIQUID_LEVEL_SENSOR_RECO
         	}
 
         	num = (posdata->FLG & 0b00000111); // 0-7
-            if(num < 2) { // у нас только 2 бака предусмотрено
+            if(num < 4) { // у нас только 4 бака предусмотрено
     			record->fuel[num] = (int)(posdata->LLSD / koef);
             }
 		}

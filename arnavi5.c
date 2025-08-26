@@ -111,13 +111,16 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 			iDataSize = record_header->SIZE;
 			iDataReaded = 0;
 
-			record = &answer->records[answer->count];
+			record = initST_RECORD(&answer->records[answer->count]);
+
 			strcpy(record->imei, answer->lastpoint.imei);
 			strcpy(record->tracker, answer->lastpoint.tracker);
 			strcpy(record->hard, answer->lastpoint.hard);
 			strcpy(record->soft, answer->lastpoint.soft);
 
-			ulliTmp = record_header->TIME + GMT_diff;	// UTC ->local
+            record->ttime = record_header->TIME;
+
+            ulliTmp = record_header->TIME + GMT_diff;	// UTC ->local
 			gmtime_r(&ulliTmp, &tm_data);           // local simple->local struct
 			// получаем время как число секунд от начала суток
 			record->time = 3600 * tm_data.tm_hour + 60 * tm_data.tm_min + tm_data.tm_sec;
@@ -285,7 +288,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 				case 79:	// The value of the relative level and temperature DUT protocol LLS 9
 
 					iTemp = (uint8_t)parcel[iBuffPosition] - 70;
-					if( iTemp < 2 ) {	// my cpecific - 2 fuel value
+					if( iTemp < 4 ) {	// my cpecific - 4 fuel value
 						record->fuel[iTemp] = *(uint16_t *)&parcel[iBuffPosition + 1];
 					}
 
@@ -294,7 +297,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 
 					// four bytes - the number of sensor 0x03 - sensor №3
 					iTemp = (uint8_t)parcel[iBuffPosition + 4];
-					if( iTemp < 2 ) {
+					if( iTemp < 4 ) {
 						record->fuel[iTemp] = *(uint16_t *)&parcel[iBuffPosition + 1];
 					}
 

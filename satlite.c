@@ -232,7 +232,7 @@ static void satlite_decode_txt(char *parcel, int parcel_size, ST_ANSWER *answer)
 
 			if( answer->count < MAX_RECORDS - 1 )
 				++answer->count;
-			record = &answer->records[answer->count - 1];
+			record = initST_RECORD(&answer->records[answer->count - 1]);
 
 			snprintf(record->imei, SIZE_TRACKER_FIELD, "%s", cImei);
 			snprintf(record->tracker, SIZE_TRACKER_FIELD, "sat-lite2");
@@ -245,6 +245,8 @@ static void satlite_decode_txt(char *parcel, int parcel_size, ST_ANSWER *answer)
 			tm_data.tm_year += 100;	// 2 digit year's in tm_data.tm_year since 1900 year
 			tm_data.tm_mon--;	// http://www.cplusplus.com/reference/ctime/tm/
 			sscanf(cTime, "%2d%2d%2d", &tm_data.tm_hour, &tm_data.tm_min, &tm_data.tm_sec);
+
+            record->ttime = timegm(&tm_data);
 
 			ulliTmp = timegm(&tm_data) + GMT_diff;	// UTC struct->local simple
 			gmtime_r(&ulliTmp, &tm_data);           // local simple->local struct
@@ -598,7 +600,7 @@ static void satlite_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer)
 
 	while( iBuffPosition < binary_container->data_len ) {
 
-		record = &answer->records[answer->count];
+		record = initST_RECORD(&answer->records[answer->count]);
 
 		snprintf(record->imei, SIZE_TRACKER_FIELD, "%d", binary_container->tracker_id);
 		snprintf(record->tracker, SIZE_TRACKER_FIELD, "sat-lite2");
@@ -612,6 +614,8 @@ static void satlite_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer)
 			iBuffPosition += common_data_header->packet_len;
 			continue;
 		}
+
+        record->ttime = common_data_header->timestamp;
 
 		ulliTmp = common_data_header->timestamp + GMT_diff;	// UTC ->local
 		gmtime_r(&ulliTmp, &tm_data);           // local simple->local struct
@@ -763,10 +767,7 @@ static void satlite_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer)
 
 			for(i = 0; i < 4; i++) {
 				if( l2b_sd_line->fuel_data[i] ) {
-					if( !record->fuel[0] )
-						record->fuel[0] = l2b_sd_line->fuel_data[i]; // данные 4х топливных датчиков RS485
-					else if( !record->fuel[1] )
-						record->fuel[1] = l2b_sd_line->fuel_data[i];
+    				record->fuel[i] = l2b_sd_line->fuel_data[i]; // данные 4х топливных датчиков RS485
 				}
 			}	// for(int i = 0; i < 4; i++)
 

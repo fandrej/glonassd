@@ -14,6 +14,7 @@
 #include <unistd.h>
 #include <syslog.h>
 #include <errno.h>
+#include "de.h"     // ST_ANSWER, ST_RECORD
 #include "lib.h"
 
 #ifndef MILE
@@ -489,3 +490,34 @@ unsigned long long int seconds(void)
 	return( (stm.tm_year * 365 + stm.tm_yday) * 86400 + stm.tm_hour * 3600 + stm.tm_min * 60 + stm.tm_sec );
 }
 //------------------------------------------------------------------------------
+
+
+ST_RECORD *initST_RECORD(ST_RECORD *record)
+{
+    int i;
+    if(record) {
+        record->status = UINT_NULL;        // terminas status field (bits field)
+        record->recnum = UINT_NULL;        // number of record
+        record->valid = UINT_NULL;         // record valid
+        record->satellites = UINT_NULL;    // number of satellites
+        record->curs = UINT_NULL;          // course
+        record->height = INT_NULL;                 // height above sea level
+        record->hdop = UINT_NULL;          // HDOP
+        record->outputs = UINT_NULL;       // outputs status, bits field
+        record->inputs = UINT_NULL;        // inputs status, bits field
+        record->temperature = INT_NULL;            // temp into teminal
+        record->zaj = INT_NULL;                    // датчик зажигания (ignition sensor) 0/1
+        record->alarm = INT_NULL;                  // датчик тревоги (SOS/alarm sensor) 0/1
+        record->speed = DOUBLE_NULL;               // speed, km/h
+        record->vbort = DOUBLE_NULL;               // car on-board voltage
+        record->vbatt = DOUBLE_NULL;               // terminal battery voltage
+        record->probeg = DOUBLE_NULL;              // terminal-calculated distance from prev. point
+        record->port = UINT_NULL;          // TCP/UDP порт, на котором принимаются данные          sizeof(ST_RECORD)=232
+    }
+    for(i = 0; i < 8; i++) {
+        record->ainputs[i] = INT_NULL;             // analog inputs values (8 ports max)
+        if(i < 4)
+            record->fuel[i] = INT_NULL;             // fuel input values (4 max)
+    }
+    return record;
+}

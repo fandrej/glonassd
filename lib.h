@@ -2,6 +2,9 @@
 #ifndef __MYLIB__
 #define __MYLIB__
 
+#include <limits.h>
+#include <float.h>
+
 #define WGS84 (0)
 #define PZ90 (1)
 /*
@@ -16,6 +19,14 @@
 #define max(X,Y) max(X,Y)
 #define BETWEEN(V,X,Y) ((X) <= (V) && (V) <= (Y))
 #define between(V,X,Y) BETWEEN(V,X,Y)
+
+// эти значения используются для определения отсутствия значения в структуре ST_RECORD (de.h)
+#define INT_NULL      INT_MIN
+#define UINT_NULL     UINT_MAX
+#define DOUBLE_NULL   -DBL_MAX
+#define LONG_NULL     LONG_MIN
+
+ST_RECORD *initST_RECORD(ST_RECORD *record);
 
 unsigned short CRC16( unsigned char *puchMsg, unsigned short usDataLen);
 unsigned char CRC8(unsigned char *puchMsg, unsigned short usDataLen);

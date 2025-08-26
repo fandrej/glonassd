@@ -32,7 +32,11 @@ INSERT INTO gps.tgpsdata (
 	nprobeg,        --$31
 	nzaj,
 	nalarm,         --$33
-    cmessage
+    cmessage,
+    nfuel3,         --$35
+    nfuel4,
+    ttime,          --$37
+    gpoint
 ) VALUES (
 	to_timestamp($1::bigint),
 	$2::integer,
@@ -67,5 +71,9 @@ INSERT INTO gps.tgpsdata (
 	$31::real,
 	$32::integer,
 	$33::integer,
-	$34::varchar
+	$34::varchar,
+	$35::real,
+	$36::real,
+	to_timestamp($37::bigint),
+    ST_PointFromText($38::varchar, 4326)::geometry --https://postgis.net/docs/ST_PointFromText.html
 );
