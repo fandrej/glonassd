@@ -771,7 +771,7 @@ int Parse_EGTS_SR_POS_DATA(EGTS_SR_POS_DATA_RECORD *posdata, ST_RECORD *record, 
 		record->clon = 'E';
 
 	// 14 младших бит, скорость в км/ч с дискретностью 0,1 км/ч
-	record->speed = (posdata->SPD & 16383) / 10;
+	record->speed = 0.1 * (posdata->SPD & 16383);
 	// направление движения
 	// DIRH  :15		(Direction the Highest bit) старший бит (8) параметра DIR
 	record->curs = posdata->DIR;
@@ -906,9 +906,12 @@ int Parse_EGTS_SR_STATE_DATA(EGTS_SR_STATE_DATA_RECORD *statedata, ST_RECORD *re
 	if( !record )
 		return 0;
 
-    record->vbort = statedata->MPSV;
-    record->vbatt = statedata->IBV > 0 ? statedata->IBV : statedata->BBV;
-    record->alarm = (statedata->ST & 3) | (statedata->ST & 4);
+    record->vbort = 0.1 * statedata->MPSV;
+    if(statedata->FL & 1)
+        record->vbatt = 0.1 * statedata->IBV;
+    else if(statedata->FL & 2)
+        record->vbatt = 0.1 * statedata->BBV;
+    record->alarm = (statedata->ST & 3) ? 1 : 0;
 
 	return data_size;
 }

@@ -481,14 +481,6 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 
             tpp = &data[i+1];
             record->inputs = *(unsigned short *)tpp;
-            record->ainputs[0] = record->inputs & 1;  //in0 > 0 SOS
-            record->ainputs[1] = record->inputs & 2;  //in1 > 0 зажигание
-            record->ainputs[2] = record->inputs & 4;  //in2 > 0 запрос связи
-            record->ainputs[3] = record->inputs & 8;  //in3 > 0 двери
-
-            record->alarm = record->ainputs[0];
-            record->zaj = record->ainputs[1];
-
             i += (1 + tag_len[tag]);
             cur_tag = tag;
 
@@ -497,6 +489,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 
             tpp = &data[i+1];
             record->status = *(unsigned short *)tpp;
+            record->zaj = (record->status & 256) ? 1 : 0;
 
             i += (1 + tag_len[tag]);
             cur_tag = tag;
@@ -528,76 +521,58 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
             cur_tag = tag;
 
             break;
-        case 80:    // IN0  SOS
+        case 80:    // IN0: Значение на входе: 1.напряжение, мВ; 2.число импульсов; 3.частота, Гц.
 
-            tpp = &data[i+1];
-            record->ainputs[0] = *(unsigned short *)tpp;
-            record->alarm = record->ainputs[0] != 0;
-
+            record->ainputs[0] = *(unsigned short *)&data[i+1];
             i += (1 + tag_len[tag]);
             cur_tag = tag;
 
             break;
-        case 81:    // IN1  зажигание
+        case 81:    // IN1: Значение на входе
 
-            tpp = &data[i+1];
-            record->ainputs[1] = *(unsigned short *)tpp;
-            record->zaj = record->ainputs[1] != 0;
-
+            record->ainputs[1] = *(unsigned short *)&data[i+1];
             i += (1 + tag_len[tag]);
             cur_tag = tag;
 
             break;
-        case 82:    // IN2   запрос связи
+        case 82:    // IN2: Значение на входе
 
-            tpp = &data[i+1];
-            record->ainputs[2] = *(unsigned short *)tpp;
-
+            record->ainputs[2] = *(unsigned short *)&data[i+1];
             i += (1 + tag_len[tag]);
             cur_tag = tag;
 
             break;
-        case 83:    // IN3  Аналогово-цифровой ДУТ или датчик дверей
+        case 83:    // IN3: Значение на входе
 
-            tpp = &data[i+1];
-            record->ainputs[3] = *(unsigned short *)tpp;
-
+            record->ainputs[3] = *(unsigned short *)&data[i+1];
             i += (1 + tag_len[tag]);
             cur_tag = tag;
 
             break;
         case 84:    // IN4
 
-            tpp = &data[i+1];
-            record->ainputs[4] = *(unsigned short *)tpp;
-
+            record->ainputs[4] = *(unsigned short *)&data[i+1];
             i += (1 + tag_len[tag]);
             cur_tag = tag;
 
             break;
         case 85:    // IN5
 
-            tpp = &data[i+1];
-            record->ainputs[5] = *(unsigned short *)tpp;
-
+            record->ainputs[5] = *(unsigned short *)&data[i+1];
             i += (1 + tag_len[tag]);
             cur_tag = tag;
 
             break;
         case 86:    // IN6
 
-            tpp = &data[i+1];
-            record->ainputs[6] = *(unsigned short *)tpp;
-
+            record->ainputs[6] = *(unsigned short *)&data[i+1];
             i += (1 + tag_len[tag]);
             cur_tag = tag;
 
             break;
         case 87:    // IN7
 
-            tpp = &data[i+1];
-            record->ainputs[7] = *(unsigned short *)tpp;
-
+            record->ainputs[7] = *(unsigned short *)&data[i+1];
             i += (1 + tag_len[tag]);
             cur_tag = tag;
 
