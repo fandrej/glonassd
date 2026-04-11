@@ -1,7 +1,7 @@
 PROJECT = glonassd
 
 CC = gcc
-LIBS = -lpthread -L/usr/lib/nptl -rdynamic -ldl -lrt -lm
+LIBS = -lpthread -L/usr/lib/nptl -rdynamic -ldl -lrt -lm -Wl,-z,noexecstack
 INCLUDE = -I/usr/include/nptl
 # https://gcc.gnu.org/onlinedocs/gcc/Option-Summary.html#Option-Summary
 CFLAGS = -std=gnu99 -D_REENTERANT -m64
