@@ -74,6 +74,6 @@ INSERT INTO gps.tgpsdata (
 	$34::varchar,
 	$35::real,
 	$36::real,
-	to_timestamp($37::bigint),
+	timezone('utc', to_timestamp($37::bigint)),
     ST_PointFromText($38::varchar, 4326)::geometry --https://postgis.net/docs/ST_PointFromText.html
 );
