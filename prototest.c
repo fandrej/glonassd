@@ -10,11 +10,11 @@
 #include <stdlib.h> /* malloc */
 #include <string.h> /* memset */
 #include <errno.h>  /* errno */
-#include <stdio.h> 	/* fopen */
+#include <stdio.h>     /* fopen */
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include <unistd.h>	/* write */
+#include <unistd.h>    /* write */
 #include "de.h"
 #include "lib.h"        // MIN, MAX, BETWEEN, CRC, etc...
 #include "glonassd.h"   // stParams
@@ -29,34 +29,35 @@
 */
 void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER *worker)
 {
-	int fHandle;
-	char fName[FILENAME_MAX];
-	int iTemp;
-	time_t t;
-	struct tm local;
+    int fHandle;
+    char fName[FILENAME_MAX];
+    int iTemp;
+    time_t t;
+    struct tm local;
 
-	if( parcel && parcel_size ) {
+    if( parcel && parcel_size ) {
 
-		// путь к файлу - каталог запуска
-		iTemp = snprintf(fName, FILENAME_MAX, "%s/logs/", stParams.start_path);
-		// имя файла - текущее дата_время + случайное число
-		t = time(NULL);
-		localtime_r(&t, &local);
-		snprintf(&fName[iTemp], FILENAME_MAX-iTemp, "%02d%02d%02d_%02d%02d%02d_%d",
-					local.tm_mday, local.tm_mon+1, local.tm_year-100,
-					local.tm_hour, local.tm_min, local.tm_sec,
-					rand());
+        // путь к файлу - каталог запуска
+        iTemp = snprintf(fName, FILENAME_MAX, "%s/logs/", stParams.start_path);
+        // имя файла - текущее дата_время + случайное число
+        t = time(NULL);
+        localtime_r(&t, &local);
+        snprintf(&fName[iTemp], FILENAME_MAX-iTemp, "%02d%02d%02d_%02d%02d%02d_%d",
+                    local.tm_mday, local.tm_mon+1, local.tm_year-100,
+                    local.tm_hour, local.tm_min, local.tm_sec,
+                    rand());
 
-		if( (fHandle = open(fName, O_APPEND | O_CREAT | O_WRONLY, S_IWRITE)) == -1 ) {
-			logging("terminal_decode[prototest]: open() error %d: %s\n", errno, strerror(errno));
-		} else {
-			if( !write(fHandle, parcel, parcel_size) )
-				logging("terminal_decode[prototest]: write() error %d: %s\n", errno, strerror(errno));
+        if( (fHandle = open(fName, O_APPEND | O_CREAT | O_WRONLY, S_IWRITE)) == -1 ) {
+            logging("terminal_decode[prototest]: open() error %d: %s\n", errno, strerror(errno));
+        }
+        else {
+            if( !write(fHandle, parcel, parcel_size) )
+                logging("terminal_decode[prototest]: write() error %d: %s\n", errno, strerror(errno));
 
-			close(fHandle);
-		}
+            close(fHandle);
+        }
 
-	}	// if( parcel )
+    }    // if( parcel )
 
 }
 //------------------------------------------------------------------------------
@@ -72,7 +73,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 */
 int terminal_encode(ST_RECORD *records, int reccount, char *buffer, int bufsize)
 {
-	int top = 0;
-	return top;
+    int top = 0;
+    return top;
 }
 //------------------------------------------------------------------------------

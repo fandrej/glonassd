@@ -63,15 +63,13 @@ static uint8_t decodeFUL(ST_RECORD *record, char *chank);
 */
 void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER *worker)
 {
-	if( !parcel || parcel_size <= 0 || !answer )
-		return;
+    if( !parcel || parcel_size <= 0 || !answer )
+        return;
 
-	if( parcel[0] == '*' && parcel[1] == 'G' && parcel[2] == 'S' ) {
-		terminal_decode_txt(parcel, parcel_size, answer, worker);
-    }
-	else {
-		terminal_decode_bin(parcel, parcel_size, answer, worker);
-    }
+    if( parcel[0] == '*' && parcel[1] == 'G' && parcel[2] == 'S' )
+        terminal_decode_txt(parcel, parcel_size, answer, worker);
+    else
+        terminal_decode_bin(parcel, parcel_size, answer, worker);
 }   // terminal_decode
 //------------------------------------------------------------------------------
 
@@ -93,9 +91,8 @@ static void terminal_decode_txt(char *parcel, int parcel_size, ST_ANSWER *answer
     if( !parcel || parcel_size <= 0 || !answer )
         return;
 
-    if( worker && worker->listener->log_all ) {
+    if( worker && worker->listener->log_all )
         logging("terminal_decode[%s:%d]: terminal_decode_txt", worker->listener->name, worker->listener->port);
-    }
 
     // TCP hartbeat data
     // *GS02,357852034572894#
@@ -111,7 +108,7 @@ static void terminal_decode_txt(char *parcel, int parcel_size, ST_ANSWER *answer
         if( strlen(cPaket) > 21 ) {
             // it's data
             if( record_ok > 0 && answer->count < MAX_RECORDS - 1 )
-            	answer->count++;
+                answer->count++;
             record = initST_RECORD(&answer->records[answer->count - 1]);
 
             saveptr2 = NULL;
@@ -124,60 +121,59 @@ static void terminal_decode_txt(char *parcel, int parcel_size, ST_ANSWER *answer
                 }
                 else if( part_num == 1 ){
                     // 357852034572894
-    				snprintf(record->imei, SIZE_TRACKER_FIELD, "%s", cPart);
+                    snprintf(record->imei, SIZE_TRACKER_FIELD, "%s", cPart);
                 }
                 else {
 
                     saveptr3 = NULL;
                     for(param_num = 0, cParams = strtok_r(cPart, delim_param, &saveptr3); cParams; param_num++, cParams = strtok_r(NULL, delim_param, &saveptr3)) {
-                        if( param_num == 0 ) {
-            				snprintf(parameter, 4, "%s", cParams);
-                        }
+                        if( param_num == 0 )
+                            snprintf(parameter, 4, "%s", cParams);
                         else if( param_num == 1 ) {
                             //logging("terminal_decode[%s:%d]: parameter=%s values=%s", worker->listener->name, worker->listener->port, parameter, cParams);
 
                             if( strcmp(parameter, "GPS") == 0 ) {
-                				memset(&tm_data, 0, sizeof(struct tm));
+                                memset(&tm_data, 0, sizeof(struct tm));
 
                                 // 1 2 3  4 5  6       7   8       9 10 11  121314
                                 // 025804;2;N23.164396;E113.428541;0;0;1.10;161112
                                 //                          1  2  3   4  5  6  7  8   9 10 11  12 13 14
-                    			iFields = sscanf(cParams, "%2d%2d%2d;%d;%c%lf;%c%lf;%lf;%u;%f;%2d%2d%2d",
-                    								&tm_data.tm_hour,   // 1
+                                iFields = sscanf(cParams, "%2d%2d%2d;%d;%c%lf;%c%lf;%lf;%u;%f;%2d%2d%2d",
+                                                    &tm_data.tm_hour,   // 1
                                                     &tm_data.tm_min,    // 2
                                                     &tm_data.tm_sec,    // 3
-                    								&gps_dimension,     // 4
-                    								&record->clat,      // 5
-                    								&record->lat,       // 6
-                    								&record->clon,      // 7
-                    								&record->lon,       // 8
-                    								&record->speed,     // 9
-                    								&record->curs,      // 10
-                    								&hdop,              // 11
-                    								&tm_data.tm_mday,   // 12
+                                                    &gps_dimension,     // 4
+                                                    &record->clat,      // 5
+                                                    &record->lat,       // 6
+                                                    &record->clon,      // 7
+                                                    &record->lon,       // 8
+                                                    &record->speed,     // 9
+                                                    &record->curs,      // 10
+                                                    &hdop,              // 11
+                                                    &tm_data.tm_mday,   // 12
                                                     &tm_data.tm_mon,    // 13
                                                     &tm_data.tm_year    // 14
-                    							  );
+                                                  );
                                 if( iFields < 14 ){
                                     valid = ' ';
                                     // 1 2 3  4 5  6       7   8       9 10111213
                                     // 065633;A;N23.164865;E113.428970;0;0;150411
                                     //                          1  2  3   4  5  6  7  8   9 10  11 12 13
-                        			iFields = sscanf(cParams, "%2d%2d%2d;%c;%c%lf;%c%lf;%lf;%u;%2d%2d%2d",
-                        								&tm_data.tm_hour,   // 1
+                                    iFields = sscanf(cParams, "%2d%2d%2d;%c;%c%lf;%c%lf;%lf;%u;%2d%2d%2d",
+                                                        &tm_data.tm_hour,   // 1
                                                         &tm_data.tm_min,    // 2
                                                         &tm_data.tm_sec,    // 3
-                        								&valid,             // 4
-                        								&record->clat,      // 5
-                        								&record->lat,       // 6
-                        								&record->clon,      // 7
-                        								&record->lon,       // 8
-                        								&record->speed,     // 9
-                        								&record->curs,      // 10
-                        								&tm_data.tm_mday,   // 11
+                                                        &valid,             // 4
+                                                        &record->clat,      // 5
+                                                        &record->lat,       // 6
+                                                        &record->clon,      // 7
+                                                        &record->lon,       // 8
+                                                        &record->speed,     // 9
+                                                        &record->curs,      // 10
+                                                        &tm_data.tm_mday,   // 11
                                                         &tm_data.tm_mon,    // 12
                                                         &tm_data.tm_year    // 13
-                        							  );
+                                                      );
                                     record->valid = valid == 'A' && record->lat > 0.0;
                                 }   // if( iFields < 14 )
                                 else {
@@ -198,34 +194,33 @@ static void terminal_decode_txt(char *parcel, int parcel_size, ST_ANSWER *answer
                                 }
 
                                 if( iFields >= 13 ){
-                    				// переводим время GMT и текстовом формате в местное
-                    				tm_data.tm_mon--;	// http://www.cplusplus.com/reference/ctime/tm/
-                    				tm_data.tm_year += 100;
+                                    // переводим время GMT и текстовом формате в местное
+                                    tm_data.tm_mon--;    // http://www.cplusplus.com/reference/ctime/tm/
+                                    tm_data.tm_year += 100;
 
                                     record->ttime = timegm(&tm_data);
 
-                                    ulliTmp = record->ttime + GMT_diff;	// UTC struct->local simple
-                    				gmtime_r(&ulliTmp, &tm_data);           // local simple->local struct
-                    				// получаем время как число секунд от начала суток
-                    				record->time = 3600 * tm_data.tm_hour + 60 * tm_data.tm_min + tm_data.tm_sec;
-                    				// в tm_data обнуляем время
-                    				tm_data.tm_hour = tm_data.tm_min = tm_data.tm_sec = 0;
-                    				// получаем дату
-                    				record->data = timegm(&tm_data);	// local struct->local simple & mktime epoch
+                                    ulliTmp = record->ttime + GMT_diff;    // UTC struct->local simple
+                                    gmtime_r(&ulliTmp, &tm_data);           // local simple->local struct
+                                    // получаем время как число секунд от начала суток
+                                    record->time = 3600 * tm_data.tm_hour + 60 * tm_data.tm_min + tm_data.tm_sec;
+                                    // в tm_data обнуляем время
+                                    tm_data.tm_hour = tm_data.tm_min = tm_data.tm_sec = 0;
+                                    // получаем дату
+                                    record->data = timegm(&tm_data);    // local struct->local simple & mktime epoch
 
                                     record_ok = 1;
                                 }   // if( iFields >= 13 )
-                                else {
+                                else
                                     record_ok = 0;
-                                }
                             }   // if( strcmp(parameter, "GPS") == 0 )
                             else if( strcmp(parameter, "STT") == 0 ) {
                                 // 1 2
                                 // 2;0
-                    			iFields = sscanf(cParams, "%d;%d",
-                    								&record->status,  // 1
+                                iFields = sscanf(cParams, "%d;%d",
+                                                    &record->status,  // 1
                                                     &record->alarm    // 2
-                       							  );
+                                                     );
                                 record->zaj = record->status & 256;     // bit 9
                                 record->alarm = record->alarm & 512;    // bit 10
 
@@ -237,13 +232,12 @@ static void terminal_decode_txt(char *parcel, int parcel_size, ST_ANSWER *answer
                             }   // else if( strcmp(parameter, "STT") == 0 )
                             else if( strcmp(parameter, "MGR") == 0 ) {
                                 // 1000
-                    			iFields = sscanf(cParams, "%lf",
-                    								&record->probeg   // 1 (meters)
-                       							  );
+                                iFields = sscanf(cParams, "%lf",
+                                                    &record->probeg   // 1 (meters)
+                                                     );
 
-                                if( worker && worker->listener->log_all ) {
+                                if( worker && worker->listener->log_all )
                                     logging("terminal_decode[%s:%d]: record->probeg=%lf", worker->listener->name, worker->listener->port, record->probeg);
-                                }
                             }   // else if( strcmp(parameter, "MGR") == 0 )
                             else if( strcmp(parameter, "ADC") == 0 ) {
                                 // 1   2  3   4  5  6
@@ -251,11 +245,11 @@ static void terminal_decode_txt(char *parcel, int parcel_size, ST_ANSWER *answer
 
                                 hdop = 0.0;
                                 //                          1   2   3   4   5   6
-                    			iFields = sscanf(cParams, "%*d;%lf;%*d;%f;%*d;%lf",
-                    								&record->vbort,   // 2
+                                iFields = sscanf(cParams, "%*d;%lf;%*d;%f;%*d;%lf",
+                                                    &record->vbort,   // 2
                                                     &hdop,            // 4
                                                     &record->vbatt    // 6
-                       							  );
+                                                     );
                                 record->temperature = (int)hdop;
 
                                 if( worker && worker->listener->log_all ) {
@@ -271,19 +265,16 @@ static void terminal_decode_txt(char *parcel, int parcel_size, ST_ANSWER *answer
                 }   // else
             }   // for(cPaket = strtok_r(parcel
 
-            if( record_ok == 0 && answer->count == 1 ){
+            if( record_ok == 0 && answer->count == 1 )
                 answer->count = 0;  // receive only one record in parcel & it is bad
-            }
         }   // if( strlen(cPaket) > 21 )
     }   // for(cPaket = strtok_r(parcel
 
-    if( answer->count > 0 ){
+    if( answer->count > 0 )
         memcpy(&answer->lastpoint, &answer->records[answer->count - 1], sizeof(ST_RECORD));
-    }
 
-    if( worker && worker->listener->log_all ) {
+    if( worker && worker->listener->log_all )
         logging("terminal_decode[%s:%d]: %d packets readed, %d records created", worker->listener->name, worker->listener->port, packet_num, answer->count);
-    }
 }
 //------------------------------------------------------------------------------
 
@@ -345,21 +336,20 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
         // test for correct packet
         if( p_start < p_stop && p_stop < parcel_size ){
             if( record_ok > 0 && answer->count < MAX_RECORDS - 1 ){
-            	answer->count++;
+                answer->count++;
                 record_ok = 0;
             }
             record = initST_RECORD(&answer->records[answer->count - 1]);
         }
-        else {
+        else
             break;
-        }
 
 
         st_header = (ST_HEADER *)&parcel[p_start];
 
-		snprintf(record->soft, SIZE_TRACKER_FIELD, "%d", st_header->proto_version);
-		snprintf(record->imei, SIZE_TRACKER_FIELD, "%lld", hex2dec(st_header->device_id, 7));
-		snprintf(answer->lastpoint.imei, SIZE_TRACKER_FIELD, "%s", record->imei);
+        snprintf(record->soft, SIZE_TRACKER_FIELD, "%d", st_header->proto_version);
+        snprintf(record->imei, SIZE_TRACKER_FIELD, "%lld", hex2dec(st_header->device_id, 7));
+        snprintf(answer->lastpoint.imei, SIZE_TRACKER_FIELD, "%s", record->imei);
 
         if( worker && worker->listener->log_all ) {
             logging("terminal_decode[%s:%d]: packet %d, %d-%d", worker->listener->name, worker->listener->port, answer->count, p_start, p_stop);
@@ -371,9 +361,8 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
 
         if( st_header->packet_type == 0 ){
             // heaqrtbeat (IMEI only)
-            if( worker && worker->listener->log_all ) {
+            if( worker && worker->listener->log_all )
                 logging("terminal_decode[%s:%d]: heaqrtbeat\n", worker->listener->name, worker->listener->port);
-            }
             continue;
         }
 
@@ -385,9 +374,9 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
 
         // get parcel data time
         ulliTmp = record->ttime + GMT_diff; // UTC ->local simple (timestamp, seconds);
-    	gmtime_r(&ulliTmp, &tm_data);           // local simple->local struct
+        gmtime_r(&ulliTmp, &tm_data);           // local simple->local struct
 
-    	tm_data.tm_year = (tm_data.tm_year + 2000 - 1970);
+        tm_data.tm_year = (tm_data.tm_year + 2000 - 1970);
 
         if( tm_data.tm_year != tm_cur_data.tm_year ){
             // дата странная, см. комментарий ниже
@@ -408,18 +397,17 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
                                             tm_data.tm_hour, tm_data.tm_min, tm_data.tm_sec);
         }
 
-    	// получаем время как число секунд от начала суток
-    	record->time = 3600 * tm_data.tm_hour + 60 * tm_data.tm_min + tm_data.tm_sec;
-    	// в tm_data обнуляем время
-    	tm_data.tm_hour = tm_data.tm_min = tm_data.tm_sec = 0;
-    	// получаем дату
-    	record->data = timegm(&tm_data) - GMT_diff;	// local struct->local simple & mktime epoch
+        // получаем время как число секунд от начала суток
+        record->time = 3600 * tm_data.tm_hour + 60 * tm_data.tm_min + tm_data.tm_sec;
+        // в tm_data обнуляем время
+        tm_data.tm_hour = tm_data.tm_min = tm_data.tm_sec = 0;
+        // получаем дату
+        record->data = timegm(&tm_data) - GMT_diff;    // local struct->local simple & mktime epoch
 
         data_mask = hex2dec(st_header->data_mask, 2);
 
-        if( worker && worker->listener->log_all ) {
+        if( worker && worker->listener->log_all )
             logging("terminal_decode[%s:%d]: data_mask=%d", worker->listener->name, worker->listener->port, data_mask);
-        }
 
         // ставим указатель на Data field
         p_start += sizeof(ST_HEADER);
@@ -433,18 +421,16 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
         т.е. надо её не барть из посылки, а брать текущую (по гринвичу).
         */
         p_sys = strstr(&parcel[p_start], "Proma");
-        if( !p_sys ){
+        if( !p_sys )
             p_sys = strstr(&parcel[p_start], "Gosafe");
-        }
         if( p_sys ){
             // есть поле SYS
             p_start = (int)(p_sys - parcel - 2);
             if( !(1 & data_mask) ){
                 // нет бита, определяющего наличие поля SYS
                 data_mask += 1;
-                if( worker && worker->listener->log_all ) {
+                if( worker && worker->listener->log_all )
                     logging("terminal_decode[%s:%d]: data_mask corrected (SYS bit inserted)", worker->listener->name, worker->listener->port);
-                }
             }
         }
 
@@ -496,9 +482,8 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
                 case 8: // COT
                     p_start += decodeCOT(record, &parcel[p_start]);
 
-                    if( worker && worker->listener->log_all ) {
+                    if( worker && worker->listener->log_all )
                         logging("terminal_decode[%s:%d]: record->probeg=%lf", worker->listener->name, worker->listener->port, record->probeg);
-                    }
 
                     break;
                 case 16: // ADC
@@ -513,9 +498,8 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
                 case 32: // DTT, page 20
                     p_start += decodeDTT(record, &parcel[p_start]);
 
-                    if( worker && worker->listener->log_all ) {
+                    if( worker && worker->listener->log_all )
                         logging("terminal_decode[%s:%d]: record->status=%u", worker->listener->name, worker->listener->port, record->status);
-                    }
 
                     break;
                 case 64: // IWD, Reserved
@@ -535,9 +519,8 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
 
                     break;
                 case 256: // OBD or FUL, page 25
-                    if( st_header->packet_type & bit6 ){
+                    if( st_header->packet_type & bit6 )
                         p_start += decodeOBD(record, &parcel[p_start]);
-                    }
                     else {
                         p_start += decodeFUL(record, &parcel[p_start]);
                         if( worker && worker->listener->log_all ) {
@@ -555,7 +538,8 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
                     }
             }   // switch( i & data_mask )
 
-            if( p_start >= p_stop - 2) {    // CRC, 2 byte
+            if( p_start >= p_stop - 2) {
+                // CRC, 2 byte
                 break;
             }
         }   // for(int i = 1; i < 1024; i=(i<<1))
@@ -565,17 +549,14 @@ static void terminal_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer
         }
     }   // while(p_stop < parcel_size)
 
-    if( record_ok == 0 && answer->count == 1 ){
+    if( record_ok == 0 && answer->count == 1 )
         answer->count = 0;  // receive only one record in parcel & it is bad
-    }
 
-    if( answer->count > 0 ){
+    if( answer->count > 0 )
         memcpy(&answer->lastpoint, &answer->records[answer->count - 1], sizeof(ST_RECORD));
-    }
 
-    if( worker && worker->listener->log_all ) {
+    if( worker && worker->listener->log_all )
         logging("terminal_decode[%s:%d]: %d records created\n", worker->listener->name, worker->listener->port, answer->count);
-    }
 }   // terminal_decode_bin
 
 
@@ -735,11 +716,11 @@ static uint8_t decodeCOT(ST_RECORD *record, char *chank) {
 
         switch( type ){
             case 0: // Odometer (meter)
-        		record->probeg = (double)hex2dec(&chank[index], length);
+                record->probeg = (double)hex2dec(&chank[index], length);
                 break;
             case 1: // Engine hour (Моточасы)
                 tmp = strlen(record->message);
-        		snprintf(&record->message[tmp], SIZE_MESSAGE_FIELD - tmp, "Моточасы: %d (сек.); ", (int)hex2dec(&chank[index], length));
+                snprintf(&record->message[tmp], SIZE_MESSAGE_FIELD - tmp, "Моточасы: %d (сек.); ", (int)hex2dec(&chank[index], length));
         }   // swith( type )
 
         index += length;
@@ -808,13 +789,13 @@ static uint8_t decodeSYS(ST_RECORD *record, char *chank){
 
         switch( type ){
             case 0: // Device name
-        		snprintf(record->tracker, min(length + 1, SIZE_TRACKER_FIELD), "%s", &chank[index]);
+                snprintf(record->tracker, min(length + 1, SIZE_TRACKER_FIELD), "%s", &chank[index]);
                 break;
             case 1: // Firmware version
-        		snprintf(record->soft, min(length + 1, SIZE_TRACKER_FIELD), "%s", &chank[index]);
+                snprintf(record->soft, min(length + 1, SIZE_TRACKER_FIELD), "%s", &chank[index]);
                 break;
             case 2: // Hardware version
-        		snprintf(record->hard, min(length + 1, SIZE_TRACKER_FIELD), "%s", &chank[index]);
+                snprintf(record->hard, min(length + 1, SIZE_TRACKER_FIELD), "%s", &chank[index]);
         }   // swith( type )
 
         index += length;
@@ -835,9 +816,8 @@ static long long int hex2dec(char *c, size_t size)
 
     if( size < (STRLEN >> 1) ){
         memset(temp, 0, STRLEN);
-        for(i = 0, j = 0; i < size; i++, j += 2){
+        for(i = 0, j = 0; i < size; i++, j += 2)
             sprintf(&temp[j], "%.2X", (uint8_t)c[i]);
-        }
         retval = strtoll(temp, NULL, 16);
     }
 

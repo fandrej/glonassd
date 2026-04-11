@@ -38,9 +38,7 @@
 #include "lib.h"
 #include "logger.h"
 
-/*
-    utilite functions
-*/
+/* utilite functions */
 
 // create/close forward socket
 static int set_forward_socket(ST_WORKER *config, char *socket_path, int *psocket)
@@ -90,7 +88,8 @@ unsigned int test_forward(ST_WORKER *config, char *imei, ST_FORWARD_ATTR *forwar
 
         // search imei of the terminal in forwarded terminals list
         for(i = 0; i < stForwarders.listcount; ++i) {
-            if( !strcmp(imei, stForwarders.terminals[i].imei) ) {    // terminal exists in list
+            if( !strcmp(imei, stForwarders.terminals[i].imei) ) {
+                // terminal exists in list
 
                 // search needded forwarder by name & get his protocol
                 for(j = 0; j < stForwarders.count; ++j) {
@@ -137,7 +136,8 @@ static void send_data_to_forward(ST_WORKER *config, void *data, int data_size, S
 
     if( data && data_size ) {
 
-        if( fa->forward_encode ) {    // data - array of ST_RECORD & data_size - number records in array
+        if( fa->forward_encode ) {
+            // data - array of ST_RECORD & data_size - number records in array
             full_size = sizeof(ST_FORWARD_MSG) + sizeof(ST_RECORD) * data_size;
 
             if( full_size > SOCKET_BUF_SIZE ) {
@@ -146,7 +146,8 @@ static void send_data_to_forward(ST_WORKER *config, void *data, int data_size, S
                 full_size = sizeof(ST_FORWARD_MSG) + sizeof(ST_RECORD) * data_size;
             }
         }
-        else {    // data - char* & data_size - length of the data
+        else {
+            // data - char* & data_size - length of the data
             full_size = sizeof(ST_FORWARD_MSG) + data_size;
         }
 
@@ -157,7 +158,8 @@ static void send_data_to_forward(ST_WORKER *config, void *data, int data_size, S
         if( full_size <= SOCKET_BUF_SIZE ) {
             memcpy(&forward_buf[sizeof(ST_FORWARD_MSG)], data, full_size - sizeof(ST_FORWARD_MSG));
 
-            if( send(fa->forward_socket, forward_buf, full_size, 0) <= 0 ) {    // socket error
+            if( send(fa->forward_socket, forward_buf, full_size, 0) <= 0 ) {
+                // socket error
                 logging("%s[%ld]: send(forward_socket) error %d: %s\n", config->listener->name, syscall(SYS_gettid), errno, strerror(errno));
                 set_forward_socket(config, NULL, &fa->forward_socket);    // close socket
             }    // if( send(
@@ -199,9 +201,11 @@ static void send_data_to_db(ST_WORKER *config, ST_RECORD *records, unsigned int 
     if( !records || count <= 0 || config->db_queue == BAD_OBJ )
         return;
 
-    for(r = 0; r < count; r++) {    // for all decoded records
+    for(r = 0; r < count; r++) {
+        // for all decoded records
 
-        if( records[r].imei[0] ) {    // if IMEI decoded
+        if( records[r].imei[0] ) {
+            // if IMEI decoded
             // write listener port number to record
             records[r].port = config->listener->port;
             // write IP-address of terminal to record
@@ -257,15 +261,13 @@ void *worker_thread(void *st_worker)
 
             // close forwarding sockets
             if( forward_count ) {
-                for( i = 0; i < forward_count; i++) {
+                for( i = 0; i < forward_count; i++)
                     set_forward_socket(config, NULL, &forward_attr[i].forward_socket);
-                }
             }
 
             // close database queue
-            if( config->db_queue != BAD_OBJ ) {
+            if( config->db_queue != BAD_OBJ )
                 mq_close(config->db_queue);
-            }
 
             // log, if required
             if( stConfigServer.log_enable > 1 && config->listener->log_all ) {
@@ -279,18 +281,15 @@ void *worker_thread(void *st_worker)
 
             free(config);
         }    // if( config )
-        else {
+        else
             logging("%s[%d:%ld]: imei %s: exit_worker(config=NULL)\n", config->listener->name, config->listener->port, syscall(SYS_gettid), config->imei);
-        }
     }
     //------------------------------------------------------------------------------
 
     // install error handler:
     pthread_cleanup_push(exit_worker, st_worker);
 
-    /*
-        initialization
-    */
+    /* initialization */
     // configuration of the worker
     config = (ST_WORKER *)st_worker;
     if( !config ) {
@@ -331,10 +330,9 @@ void *worker_thread(void *st_worker)
     // reset forwarding attributes
     memset(forward_attr, 0, sizeof(ST_FORWARD_ATTR) * MAX_FORWARDS);
 
-    /*
-        main cycle - terminal dialog
-    */
-    while( 1 ) {    // until socket live
+    /* main cycle - terminal dialog */
+    while( 1 ) {
+        // until socket live
 
         pthread_testcancel();
 
@@ -373,11 +371,11 @@ void *worker_thread(void *st_worker)
             }
 
         }
-        else {
+        else
             bytes_read = recvfrom(config->client_socket, socket_buf, SOCKET_BUF_SIZE, 0, NULL, NULL);
-        }
 
-        if( bytes_read <= 0 ) {    // socket read error or terminal disconnect
+        if( bytes_read <= 0 ) {
+            // socket read error or terminal disconnect
 
             if( stConfigServer.log_enable > 1 && config->listener->log_all )
                 logging("%s[%d:%ld]: bytes_read (%zu) <= 0\n", config->listener->name, config->listener->port, syscall(SYS_gettid), bytes_read);
@@ -438,7 +436,8 @@ void *worker_thread(void *st_worker)
         }    // if( answer.count )
 
         // test for retranslation
-        if( !forward_tested && config->imei[0] ) {    // before not tested & imey exists
+        if( !forward_tested && config->imei[0] ) {
+            // before not tested & imey exists
             ++forward_tested;    // set flag to test fired
 
             // is forwarding need ?
@@ -451,10 +450,12 @@ void *worker_thread(void *st_worker)
 
                 if( forward_attr[i].forward_socket != BAD_OBJ ) {
 
-                    if( forward_attr[i].forward_encode ) {    // terminal & forward protocols not equal
+                    if( forward_attr[i].forward_encode ) {
+                        // terminal & forward protocols not equal
                         send_data_to_forward(config, answer.records, answer.count, &forward_attr[i]);    // forward decoded records
                     }
-                    else { // terminal & forward protocols is equal
+                    else {
+                        // terminal & forward protocols is equal
                         send_data_to_forward(config, socket_buf, bytes_read, &forward_attr[i]);    // forward raw data
                     }
                 }    // if( forward_attr[i].forward_socket != BAD_OBJ )
@@ -469,7 +470,8 @@ void *worker_thread(void *st_worker)
             else
                 bytes_write = sendto(config->client_socket, answer.answer, answer.size, 0, (struct sockaddr *)&config->client_addr, sizeof(struct sockaddr_in));
 
-            if( bytes_write <= 0 ){    // socket write error
+            if( bytes_write <= 0 ){
+                // socket write error
                 if( config->listener->log_err || (stConfigServer.log_enable > 1 && config->listener->log_all) )
                     logging("%s[%d:%ld]: sended to terminal error %d: %s\n", config->listener->name, config->listener->port, syscall(SYS_gettid), errno, strerror(errno));
                 exit_worker(config);
@@ -489,9 +491,7 @@ void *worker_thread(void *st_worker)
 
     }    // while( 1 )
 
-    /*
-        shutdown
-    */
+    /* shutdown */
     // clear error handler with run it (0 - not run, 1 - run)
     pthread_cleanup_pop(1);
 

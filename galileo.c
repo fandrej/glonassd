@@ -276,19 +276,26 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
         // respond from server (e.g forwarder)
         return;    // do nothing
     }    // else if( parcel[i] == 2
-    else {    // пришла следующая часть посылки
+    else {
+        // пришла следующая часть посылки
 
-        if( part_size ) {    // есть первая часть посылки
-            if(part_size + parcel_size <= SOCKET_BUF_SIZE) {    // add part of the parcel to buffer
+        if( part_size ) {
+            // есть первая часть посылки
+            if(part_size + parcel_size <= SOCKET_BUF_SIZE) {
+                // add part of the parcel to buffer
                 memcpy(&data[part_size], parcel, parcel_size);
                 part_size += parcel_size;
-            } else {    // full parcel is too long
+            }
+            else {
+                // full parcel is too long
                 memcpy(&data[part_size], parcel, parcel_size - (SOCKET_BUF_SIZE - part_size));
                 part_size += (SOCKET_BUF_SIZE - part_size);
             }
         }    // if( part_size )
-        else {    // нет первой части посылки, part_size == 0
-            if( answer->lastpoint.imei[0] ) {    // есть IMEI
+        else {
+            // нет первой части посылки, part_size == 0
+            if( answer->lastpoint.imei[0] ) {
+                // есть IMEI
                 // попробуем найти записи в посылке
                 for(i = 0; i < parcel_size - 2; i++) {
                     if( parcel[i] == answer->lastpoint.imei[0]
@@ -309,7 +316,8 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 
     }    // else if( parcel[i] == 1
 
-    if( part_size - 5 < packet_len ) {    // это только часть всей посылки
+    if( part_size - 5 < packet_len ) {
+        // это только часть всей посылки
         //logging("terminal_decode[galileo]: wait\n");
         return;    // и выходим, будем ждать остаток
     }
@@ -320,7 +328,8 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
     if( packet_len > 0 ) {
         record = new_record();
         i = 3;    // пропускаем 2 байта длинны записи
-    } else {
+    }
+    else {
         // да отвяжись ты уже
         answer->answer[0] = 2;    // response code
         // copy CRC of the packet
@@ -335,7 +344,8 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 
         tag = data[i];
 
-        if( rec_ok > 1 && tag < 48 && cur_tag > tag ) {    // №№ тегов начали ходить по кругу
+        if( rec_ok > 1 && tag < 48 && cur_tag > tag ) {
+            // №№ тегов начали ходить по кругу
             // у этих устройств ID не обязателен в любой из записей
             // и если его нет, заполним
             if( !strlen(record->imei) && strlen(answer->lastpoint.imei) )
@@ -673,9 +683,9 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 */
 int terminal_encode(ST_RECORD *records, int reccount, char *buffer, int bufsize)
 {
-	int i, top = 0;
-	struct tm tm_data;
-	time_t ulliTmp;
+    int i, top = 0;
+    struct tm tm_data;
+    time_t ulliTmp;
     // реализуем самую минимально необходимую посылку
     #pragma pack( push, 1 )
     struct {
@@ -708,13 +718,13 @@ int terminal_encode(ST_RECORD *records, int reccount, char *buffer, int bufsize)
     } parcel;
     #pragma pack( pop )
 
-	if( !records || !reccount || !buffer || !bufsize )
-		return top;
+    if( !records || !reccount || !buffer || !bufsize )
+        return top;
 
-	if( reccount < 0 )
-		reccount *= -1;
+    if( reccount < 0 )
+        reccount *= -1;
 
-	memset(buffer, 0, bufsize);
+    memset(buffer, 0, bufsize);
 
     parcel.header =         0x01;
     parcel.tag_imei =       0x03;
@@ -727,13 +737,13 @@ int terminal_encode(ST_RECORD *records, int reccount, char *buffer, int bufsize)
 
     for(i = 0; i < reccount; i++) {
 
-		// get local time from terminal record
-		ulliTmp = records[i].data + records[i].time;
-		memset(&tm_data, 0, sizeof(struct tm));
-		// convert local time to UTC
-		gmtime_r(&ulliTmp, &tm_data);
+        // get local time from terminal record
+        ulliTmp = records[i].data + records[i].time;
+        memset(&tm_data, 0, sizeof(struct tm));
+        // convert local time to UTC
+        gmtime_r(&ulliTmp, &tm_data);
 
-    	memset(parcel.imei, 0, 15);
+        memset(parcel.imei, 0, 15);
         memcpy(parcel.imei, records[i].imei, strlen(records[i].imei));
         parcel.date = mktime(&tm_data);
         parcel.position_sat_val = (uint8_t)records[i].satellites + (((uint8_t)records[i].valid) << 4);
@@ -748,10 +758,10 @@ int terminal_encode(ST_RECORD *records, int reccount, char *buffer, int bufsize)
         memcpy(&buffer[top], &parcel, sizeof(parcel));
         top += sizeof(parcel);
 
-		if( bufsize - top < sizeof(parcel) )
+        if( bufsize - top < sizeof(parcel) )
             break;
     }   // for(i = 0; i < reccount; i++)
 
-	return top;
+    return top;
 }
 //------------------------------------------------------------------------------

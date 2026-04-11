@@ -70,15 +70,17 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
                             &record->ainputs[7]    // 14
                           );
 
-        if( iTemp == 1 ) {    // пришел ответ на команду
+        if( iTemp == 1 ) {
+            // пришел ответ на команду
             iTemp = sscanf(cPart, "^%[^;];%s", record->imei, cTemp);
             answer->count = 0;
-        } else if( iTemp >= 10 ) {    // отметка
+        }
+        else if( iTemp >= 10 ) {
+            // отметка
 
             if( iTemp < 14 ) {
-                if( worker->listener->log_err ) {
+                if( worker->listener->log_err )
                     logging("terminal_decode[%s:%d]: %d parameters recognized, but 14 expected in record\n", worker->listener->name, worker->listener->port, iTemp);
-                }
                 record->status = 0;
                 record->probeg = 0;
                 record->ainputs[6] = 0;
@@ -105,24 +107,22 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
             // в tm_data обнуляем время
             tm_data.tm_hour = tm_data.tm_min = tm_data.tm_sec = 0;
             // получаем дату
-        	record->data = timegm(&tm_data);
+            record->data = timegm(&tm_data);
 
             rec_ok++;
 
             memcpy(&answer->lastpoint, record, sizeof(ST_RECORD));
         }    // if( iTemp == 14 )
-        else {
+        else
             answer->count = 0;
-        }
 
         cPart = strtok(NULL, "\n");
     }    // while( cPart )
 
-    if( answer->count ) {
+    if( answer->count )
         answer->size = snprintf(answer->answer, 4, "OK\n");
-    } else {
+    else
         memset(answer, 0, sizeof(ST_ANSWER));
-    }
 }
 //------------------------------------------------------------------------------
 

@@ -3,24 +3,14 @@
     main file for project
 
     help:
-    http://pyviy.blogspot.ru/2010/12/gcc.html
-    http://cpp.com.ru/shildt_spr_po_c/
-    https://gcc.gnu.org/onlinedocs/gcc-4.4.2/gcc/Thread_002dLocal.html#Thread_002dLocal
-    https://gcc.gnu.org/onlinedocs/gcc-4.4.2/gcc/Option-Summary.html#Option-Summary
-    https://gcc.gnu.org/onlinedocs/gcc-4.4.2/gcc/C-Extensions.html#C-Extensions
-    http://www.ibm.com/developerworks/ru/library/os_lang_c_details_01/index.html
-    http://www.netzmafia.de/skripten/unix/linux-daemon-howto.html
     http://stackoverflow.com/questions/17954432/creating-a-daemon-in-linux
-    http://www.catb.org/esr/cookbook/helloserver.c
-    http://ru.vingrad.com/Ogranichennoye-kolichestvo-podklyucheny-po-soketu-id51fb9c726ccc196813000002/relations
-    http://www.ibm.com/developerworks/library/l-memory-leaks/index.html
     http://digitalchip.ru/osobennosti-ispolzovaniya-extern-i-static-v-c-c
 
     compile:
     cd /home/work/gcc/glonassd
-    make -B all
+    make -B min
 
-        Note: if error "/usr/bin/ld: cannot find -lpq" occured, run: apt-get install libpq-dev
+    Note: if error "/usr/bin/ld: cannot find -lpq" occured, run: apt-get install libpq-dev
 
     start (one of variants):
     ./glonassd start
@@ -32,13 +22,13 @@
     /etc/init.d/glonassd.sh stop
     service glonassd stop
 
-        Autostart configure
-        Edit DAEMON variable in glonassd.sh file for correct path to daemon folder.
-        Copy glonassd.sh file in /etc/init.d folder.
-        Use chmod 0755 /etc/init.d/glonassd.sh for make it executable.
-        Use systemctl daemon-reload and update-rc.d glonassd.sh defaults for enable autostart daemon.
-        Use update-rc.d -f glonassd.sh remove for diasble autostart without delete glonassd.sh file.
-        Delete /etc/init.d/glonassd.sh file and use systemctl daemon-reload for fully cleanup daemon info.
+    Autostart configure
+    Edit DAEMON variable in glonassd.sh file for correct path to daemon folder.
+    Copy glonassd.sh file in /etc/init.d folder.
+    Use chmod 0755 /etc/init.d/glonassd.sh for make it executable.
+    Use systemctl daemon-reload and update-rc.d glonassd.sh defaults for enable autostart daemon.
+    Use update-rc.d -f glonassd.sh remove for diasble autostart without delete glonassd.sh file.
+    Delete /etc/init.d/glonassd.sh file and use systemctl daemon-reload for fully cleanup daemon info.
 
     see logs:
     cat /var/log/glonassd.log
@@ -48,7 +38,7 @@
     ps -xj | grep glonassd
 
     see open ports:
-    netstat -lptun | grep 401
+    ss -lptun | grep 401
 
     see memory usage:
     pmap <pid>
@@ -85,7 +75,7 @@
 #include <errno.h>
 #include <syslog.h>
 #include <unistd.h> /* getcwd */
-#include <dlfcn.h>	/* dlopen */
+#include <dlfcn.h>    /* dlopen */
 #include <arpa/inet.h>
 #include <poll.h>
 #include <pthread.h>
@@ -99,29 +89,29 @@
 #include "lib.h"
 
 // globals
-#define THREAD_STACK_SIZE_KB	(512)   // DANGEROUS! crash if SOCKET_BUF_SIZE too big!
+#define THREAD_STACK_SIZE_KB    (512)   // DANGEROUS!
 
 const char *const gPidFilePath = "/var/run/glonassd.pid";
-volatile sig_atomic_t graceful_stop, reconfigure;     // flags
-int active_workers = 0;               // atomic counter of live worker threads
-ST_PARAMS stParams;	                // startup params
-ST_CONFIG_SERVER stConfigServer;	// main config
-ST_LISTENERS stListeners;		    // listeners
-ST_FORWARDERS stForwarders;	        // forwarders
-void (*timer_function_pointer)(union sigval) = NULL;  // timer routine address
-long GMT_diff = 0;	// difference between local time & GMT time
-pthread_attr_t worker_thread_attr;	// thread attributes
+volatile sig_atomic_t graceful_stop, reconfigure;   // flags
+int active_workers = 0;                             // atomic counter of live worker threads
+ST_PARAMS stParams;                                 // startup params
+ST_CONFIG_SERVER stConfigServer;                    // main config
+ST_LISTENERS stListeners;                           // listeners
+ST_FORWARDERS stForwarders;                         // forwarders
+void (*timer_function_pointer)(union sigval) = NULL;// timer routine address
+long GMT_diff = 0;                  // difference between local time & GMT time
+pthread_attr_t worker_thread_attr;  // thread attributes
 int attr_init = 0;                  // flag: 0 - thread attributes initialized, != 0 - not initialized
 
 // locals
 static void *db_library_handle = NULL;
 static pthread_t db_thread = 0;
 static pthread_t log_thread = 0;
-static struct pollfd *pollset = NULL;	// pull of the listener's sockets
-static int pollcnt = 0;	// number of the polled sockets
+static struct pollfd *pollset = NULL;   // pull of the listener's sockets
+static int pollcnt = 0;                 // number of the polled sockets
 
 // functions
-extern int loadConfig(char *cPathToFile);	// loadconfig.c
+extern int loadConfig(char *cPathToFile);   // loadconfig.c
 static int parceParams(int argc, char* argv[]);
 static int setup(char *config_path);
 static void usage(void);
@@ -149,7 +139,7 @@ static int parceParams(int argc, char* argv[])
             *p = 0;
     }
     else if( !getcwd(stParams.start_path, FILENAME_MAX) ){
-    	strncpy(stParams.start_path, argv[0],  FILENAME_MAX);
+        strncpy(stParams.start_path, argv[0],  FILENAME_MAX);
         p = strrchr(stParams.start_path, '/');
         if(p)
             *p = 0;
@@ -167,7 +157,7 @@ static int parceParams(int argc, char* argv[])
                    strcmp("restart", argv[i]) == 0 ) {
             stParams.cmd = argv[i];
         }
-    }	// for(i=0; i<argc; i++)
+    }    // for(i=0; i<argc; i++)
 
     if( !strlen(stParams.config_path) )
         sprintf(stParams.config_path, "%s/%s", stParams.start_path, CONFIG_DEFAULT);
@@ -203,7 +193,7 @@ static int database_setup(unsigned int start)
         }
 
         // get pointer to database thread function
-        dlerror();	// Clear any existing error
+        dlerror();    // Clear any existing error
         db_thread_func = dlsym(db_library_handle, "db_thread");
         cerror = dlerror();
         if( cerror != NULL ) {
@@ -226,7 +216,8 @@ static int database_setup(unsigned int start)
         else
             thread_ok = pthread_create(&db_thread, NULL, db_thread_func, &stConfigServer);
 
-        if( thread_ok ) {	// error
+        if( thread_ok ) {
+            // error
             logging("database_setup: pthread_create error %d: %s", errno, strerror(errno));
             database_setup(0);
             return 0;
@@ -235,7 +226,7 @@ static int database_setup(unsigned int start)
         // return database thread working status
         return ( pthread_tryjoin_np(db_thread, NULL) == EBUSY );
 
-    }	// if( start )
+    }    // if( start )
     else {
 
         // stop database thread
@@ -282,7 +273,8 @@ static int setup(char *config_path)
     else
         thread_error = pthread_create(&log_thread, NULL, log_thread_func, NULL);
 
-    if( thread_error ) {	// error
+    if( thread_error ) {
+        // error
         syslog(LOG_NOTICE, "Logger start error %d: %s", errno, strerror(errno));
         syslog(LOG_NOTICE, "logging to syslog\n");
         if( !stParams.daemon ) printf("Logger start error %d: %s", errno, strerror(errno));
@@ -343,7 +335,7 @@ void command(const char *pidfile, const char *cmd)
             printf("Found PID file %s with PID %d without process glonassd(%d)\nDelete PID file manually, please.", pidfile, pid, pid);
             exit(EXIT_FAILURE);
         }
-    }	// if(handle)
+    }    // if(handle)
 
     if( strcmp(cmd, "start") == 0 ) {
         if( started ) {
@@ -354,7 +346,7 @@ void command(const char *pidfile, const char *cmd)
             printf("Start glonassd as daemon.\nUse 'grep glonassd /var/log/syslog' command to see the result\n");
         else
             printf("Start glonassd.\n");
-    }	// if( strcmp(cmd, "start")
+    }    // if( strcmp(cmd, "start")
     else if( strcmp(cmd, "stop") == 0 ) {
         if( started ) {
             if( kill(pid, SIGUSR1) != 0 ) {
@@ -362,11 +354,12 @@ void command(const char *pidfile, const char *cmd)
                 exit(EXIT_FAILURE);
             }
             exit(EXIT_SUCCESS);
-        } else {
+        }
+        else {
             printf("glonassd not started.\n");
             exit(EXIT_FAILURE);
         }
-    }	// if( strcmp(cmd, "stop")
+    }    // if( strcmp(cmd, "stop")
     else if( strcmp(cmd, "restart") == 0 ) {
         if( started ) {
             if( kill(pid, SIGHUP) != 0 ) {
@@ -375,11 +368,12 @@ void command(const char *pidfile, const char *cmd)
             }
             printf("glonassd restarting.\n");
             exit(EXIT_SUCCESS);
-        } else {
+        }
+        else {
             printf("glonassd not started.\n");
             exit(EXIT_FAILURE);
         }
-    }	// if( strcmp(cmd, "restart")
+    }    // if( strcmp(cmd, "restart")
     else {
         usage();
         exit(EXIT_FAILURE);
@@ -432,9 +426,8 @@ static int library_load(char *protocol, void **lib_handle, void **f_decode, void
 
     *f_encode = dlsym(*lib_handle, "terminal_encode");
     cerror = dlerror();
-    if( cerror != NULL ) {
+    if( cerror != NULL )
         logging("shared library %s: dlsym(\"terminal_encode\") error: %s", protocol, cerror);
-    }
 
     return 1;
 }
@@ -473,7 +466,7 @@ static int listeners_start()
                 stListeners.listener[i].socket = socket(AF_INET, stListeners.listener[i].protocol, 0);
                 if( stListeners.listener[i].socket < 0 ) {
                     logging("listener[%s]: socket() error %d: %s", stListeners.listener[i].name, errno, strerror(errno));
-                    continue;	// next listener
+                    continue;    // next listener
                 }
 
                 /*
@@ -511,20 +504,20 @@ static int listeners_start()
                     continue;
                 }
 
-                ++pollcnt;	// number of started listeners (and polled sockets)
+                ++pollcnt;    // number of started listeners (and polled sockets)
 
                 // set up pollfd structure
                 pollset = (struct pollfd *)realloc(pollset, pollcnt * sizeof(struct pollfd));
                 pollset[pollcnt - 1].fd = stListeners.listener[i].socket;
                 pollset[pollcnt - 1].events = POLLIN;
-                pollset[pollcnt - 1].revents = 0;	// filled by the kernel
+                pollset[pollcnt - 1].revents = 0;    // filled by the kernel
 
                 logging("listener[%s] started on port %d", stListeners.listener[i].name, stListeners.listener[i].port);
-            }	// if( library_load(
+            }    // if( library_load(
 
-        }	// if( stListeners.listener[i].enabled )
+        }    // if( stListeners.listener[i].enabled )
 
-    }	// for(i = 0; i < stListeners.count; i++)
+    }    // for(i = 0; i < stListeners.count; i++)
 
     return pollcnt;
 }
@@ -545,7 +538,7 @@ static int listeners_stop()
 
         if( stListeners.listener[i].library_handle )
             dlclose(stListeners.listener[i].library_handle);
-    }	// for(i=0; i < stListeners.count; i++)
+    }    // for(i=0; i < stListeners.count; i++)
 
     // clear pollfd structure
     pollcnt = 0;
@@ -579,7 +572,7 @@ static int forwarders_start()
         if( library_load(stForwarders.forwarder[i].app, &stForwarders.forwarder[i].library_handle, (void*)&stForwarders.forwarder[i].terminal_decode, (void*)&stForwarders.forwarder[i].terminal_encode) ) {
 
             // open saved files directory
-            stForwarders.forwarder[i].data_dir = opendir(stConfigServer.forward_files);	// use malloc internally
+            stForwarders.forwarder[i].data_dir = opendir(stConfigServer.forward_files);    // use malloc internally
             name_max = pathconf(stConfigServer.forward_files, _PC_NAME_MAX);
             if (name_max == -1)         /* Limit not defined, or error */
                 name_max = FILENAME_MAX;         /* Take a guess */
@@ -591,14 +584,14 @@ static int forwarders_start()
             else
                 thread_ok = pthread_create(&stForwarders.forwarder[i].thread, NULL, forwarder_thread, &stForwarders.forwarder[i]);
 
-            if( thread_ok )	// error
+            if( thread_ok )    // error
                 logging("forwarder[%s]: error %d: %s", stForwarders.forwarder[i].name, errno, strerror(errno));
             else
                 ++cnt;
 
-        }	// if( library_load
+        }    // if( library_load
 
-    }	// for(i = 0; i < stForwarders.count; i++)
+    }    // for(i = 0; i < stForwarders.count; i++)
 
     return( cnt == stForwarders.count );
 }
@@ -623,9 +616,9 @@ static int forwarders_stop()
             if( stForwarders.forwarder[i].library_handle )
                 dlclose(stForwarders.forwarder[i].library_handle);
 
-        }	// if( stForwarders.forwarder[i].thread )
+        }    // if( stForwarders.forwarder[i].thread )
 
-    }	// for(i=0; i<stForwarders.count; i++)
+    }    // for(i=0; i<stForwarders.count; i++)
     stForwarders.count = 0;
 
     // clear list of the forwarding terminals
@@ -649,7 +642,7 @@ int timers_stop()
             stConfigServer.timers[i].id = 0;
             e++;
         }
-    }	// for(i = 0; i < TIMERS_MAX; i++)
+    }    // for(i = 0; i < TIMERS_MAX; i++)
 
     if( e )
         logging("%d timers stopped", e);
@@ -666,14 +659,15 @@ int timers_start()
     struct tm local;
     time_t t;
 
-    if( !timer_function_pointer ) { // see function database_setup
+    if( !timer_function_pointer ) {
+        // see function database_setup
         logging("timers_start: timer function not exists\n");
         return 0;
     }
 
     memset(&se, 0, sizeof(struct sigevent));
-    se.sigev_notify = SIGEV_THREAD;	// Upon timer expiration, invoke sigev_notify_function as if it were the start function of a new thread
-    se.sigev_notify_function = timer_function_pointer;	// thread function, see pg.c (timer_function)
+    se.sigev_notify = SIGEV_THREAD;    // Upon timer expiration, invoke sigev_notify_function as if it were the start function of a new thread
+    se.sigev_notify_function = timer_function_pointer;    // thread function, see pg.c (timer_function)
 
     // thread attributes
     if( attr_init )
@@ -692,19 +686,23 @@ int timers_start()
 
                 memset(&its, 0, sizeof(struct itimerspec));
                 // first start time
-                if( stConfigServer.timers[i].start != -1 ) {	// time exists
+                if( stConfigServer.timers[i].start != -1 ) {
+                    // time exists
                     t = time(NULL);
                     localtime_r(&t, &local);
-                    curtime = local.tm_hour * 3600 + local.tm_min * 60 + local.tm_sec;	// current time in sec. from 00:00:00 of current day
+                    curtime = local.tm_hour * 3600 + local.tm_min * 60 + local.tm_sec;    // current time in sec. from 00:00:00 of current day
 
-                    if( curtime > stConfigServer.timers[i].start ) {
+                    if( curtime > stConfigServer.timers[i].start )
                         its.it_value.tv_sec = 24 * 3600 - (curtime - stConfigServer.timers[i].start);
-                    } else if( curtime < stConfigServer.timers[i].start ) {
+                    else if( curtime < stConfigServer.timers[i].start )
                         its.it_value.tv_sec = stConfigServer.timers[i].start - curtime;
-                    } else {	// start immediality!
+                    else {
+                        // start immediality!
                         its.it_value.tv_sec = 1;
                     }
-                } else {	// periodical
+                }
+                else {
+                    // periodical
                     its.it_value.tv_sec = stConfigServer.timers[i].period;
                 }
 
@@ -717,15 +715,14 @@ int timers_start()
                     timer_delete(stConfigServer.timers[i].id);
                     stConfigServer.timers[i].id = 0;
                 }   // if( timer_settime(
-                else {
+                else
                     ++e;
-                }
-            } else {
-                logging("timers_start: timer_create error %d: %s", errno, strerror(errno));
             }
+            else
+                logging("timers_start: timer_create error %d: %s", errno, strerror(errno));
 
-        }	// if( strlen(stConfigServer.timers[i].script_path) )
-    }	// for(i = 0; i < TIMERS_MAX; i++)
+        }    // if( strlen(stConfigServer.timers[i].script_path) )
+    }    // for(i = 0; i < TIMERS_MAX; i++)
 
     if( e )
         logging("%d timers started", e);
@@ -808,9 +805,7 @@ int main(int argc, char* argv[])
 
     graceful_stop = 0;      // flag "stop programm"
     reconfigure = 1;        // flag "read config"
-    /*
-        Daemon-specific initialization done
-    */
+    /* Daemon-specific initialization done */
 
     // initialise thread attributes
     attr_init = (0 == pthread_attr_init(&worker_thread_attr)); // attr_init = 1 if successfull
@@ -823,19 +818,18 @@ int main(int argc, char* argv[])
             attr_init = 0;
             pthread_attr_destroy(&worker_thread_attr);
             syslog(LOG_NOTICE, "pthread_attr_setstacksize(%d) error %d: %s", 1024 * THREAD_STACK_SIZE_KB, errno, strerror(errno));
-        }	// if( pthread_attr_setstacksize
-    }	// if( attr_init )
+        }    // if( pthread_attr_setstacksize
+    }    // if( attr_init )
 
     // increase RLIMIT_MSGQUEUE, root only
     rlim.rlim_cur = rlim.rlim_max = 10 * 65536 * sizeof(ST_RECORD);
     setrlimit(RLIMIT_MSGQUEUE, &rlim);
 
-    /*
-        The Main Loop
-    */
+    /* The Main Loop */
     while( !graceful_stop ) {
 
-        if( reconfigure ) {     // signal SIGHUP (see todaemon.c)
+        if( reconfigure ) {
+            // signal SIGHUP (see todaemon.c)
             cleanup();          // do first
             reconfigure = 0;    // do second
 
@@ -848,19 +842,21 @@ int main(int argc, char* argv[])
                 exit_code = EXIT_FAILURE;
                 break;
             }
-        }	// if( reconfigure )
+        }    // if( reconfigure )
 
         // wait listeners
         nfds = poll(pollset, pollcnt, -1);  // wait infinity
 
         switch(nfds) {
-        case -1:	// poll() error (socket close or SIGNAL)
+        case -1:    // poll() error (socket close or SIGNAL)
 
-            if( reconfigure || graceful_stop ) {    // signals (see todaemon.c)
+            if( reconfigure || graceful_stop ) {
+                // signals (see todaemon.c)
                 // do nothing,
                 // reconfigure handled before this,
                 // stop cycle if graceful_stop > 0
-            } else {
+            }
+            else {
                 // real error or signal for stop
                 graceful_stop = 1;
                 exit_code = EXIT_FAILURE;
@@ -868,18 +864,20 @@ int main(int argc, char* argv[])
             }
 
             break;
-        case 0:	// timeout
+        case 0:    // timeout
 
             // this case newer fired becouse we infinity waiting
 
             break;
-        default:	// nfds = number of structures which have nonzero revents fields
+        default:    // nfds = number of structures which have nonzero revents fields
 
-            for(i = 0; i < pollcnt; i++) {	// scan fired sockets
+            for(i = 0; i < pollcnt; i++) {
+                // scan fired sockets
 
                 if( pollset[i].revents ) {
 
-                    for(j = 0; j < stListeners.count; j++) {	// scan listeners
+                    for(j = 0; j < stListeners.count; j++) {
+                        // scan listeners
 
                         // search fired socket
                         if( stListeners.listener[j].socket == pollset[i].fd ) {
@@ -893,7 +891,8 @@ int main(int argc, char* argv[])
                             if( worker_config->client_socket < 0 ) {
                                 free(worker_config);
                                 logging("glonassd[%d]: listener[%s] accept() error %d: %s", (int)getpid(), stListeners.listener[j].name, errno, strerror(errno));
-                            } else if( stConfigServer.max_connections > 0 &&
+                            }
+                            else if( stConfigServer.max_connections > 0 &&
                                        __atomic_load_n(&active_workers, __ATOMIC_RELAXED) >= stConfigServer.max_connections ) {
                                 // connection limit reached — refuse gracefully
                                 logging("glonassd[%d]: listener[%s] max_connections (%d) reached, connection from %s refused",
@@ -902,7 +901,8 @@ int main(int argc, char* argv[])
                                         inet_ntoa(worker_config->client_addr.sin_addr));
                                 close(worker_config->client_socket);
                                 free(worker_config);
-                            } else {
+                            }
+                            else {
                                 // set settings for worker
                                 worker_config->listener = &stListeners.listener[j];
                                 strncpy(worker_config->ip, inet_ntoa(worker_config->client_addr.sin_addr), SIZE_TRACKER_FIELD);
@@ -916,35 +916,34 @@ int main(int argc, char* argv[])
                                 else
                                     thread_error = pthread_create(&worker_config->thread, NULL, worker_thread, worker_config);
 
-                                if( thread_error ) {   // error :(
+                                if( thread_error ) {
+                                    // error :(
                                     __atomic_fetch_sub(&active_workers, 1, __ATOMIC_RELAXED);
                                     free(worker_config);
                                     logging("glonassd[%d]: listener[%s] pthread_create() error %d: %s", (int)getpid(), stListeners.listener[j].name, errno, strerror(errno));
-                                }	// if( pthread_create(
+                                }    // if( pthread_create(
                                 else {
                                     if( pthread_detach(worker_config->thread) )
                                         logging("glonassd[%d]: listener[%s] pthread_detach(%lld) error %d: %s", (int)getpid(), stListeners.listener[j].name, worker_config->thread, errno, strerror(errno));
                                 }
-                            }	// else if( worker_config->client_socket < 0 )
+                            }    // else if( worker_config->client_socket < 0 )
 
-                            break;	// fired socket located and treated, break search
-                        }	// if( stListeners.listener[j].socket == pollset[i].fd )
+                            break;    // fired socket located and treated, break search
+                        }    // if( stListeners.listener[j].socket == pollset[i].fd )
 
-                    }	// for(j = 0;
+                    }    // for(j = 0;
 
-                    if( ++k == nfds )	// if all fired sockets treated
+                    if( ++k == nfds )    // if all fired sockets treated
                         break;          // stop scan
-                }	// if( pollset[i].revents )
+                }    // if( pollset[i].revents )
 
-            }	// for(i = 0;
+            }    // for(i = 0;
 
-        }	// switch(nfds)
+        }    // switch(nfds)
 
-    }	// while( !graceful_stop )
+    }    // while( !graceful_stop )
 
-    /*
-        graceful cleanup
-    */
+    /* graceful cleanup */
     logging("glonassd[%d] stopped, exit_code=%d", (int)getpid(), exit_code);
     cleanup();
     syslog(LOG_NOTICE, "glonassd[%d] stopped, exit_code=%d", (int)getpid(), exit_code);

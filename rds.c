@@ -37,8 +37,8 @@
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif // _GNU_SOURCE
-#include <sys/syscall.h>	/* syscall */
-#include <stdio.h>			/* FILENAME_MAX */
+#include <sys/syscall.h>    /* syscall */
+#include <stdio.h>            /* FILENAME_MAX */
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
@@ -50,7 +50,7 @@
 #include <sys/stat.h>       /* mode constants */
 #include <fcntl.h>          /* mq_open, O_* constants */
 #include <semaphore.h>
-#include <sys/resource.h>	/* setrlimit */
+#include <sys/resource.h>    /* setrlimit */
 #include <hiredis/hiredis.h>
 //#include <json-c/json.h>
 #include "glonassd.h"
@@ -61,9 +61,7 @@
 #define MAX_SQL_SIZE 4096
 
 // Locals
-/*
-   Secondary functions
-*/
+/* Secondary functions */
 
 /*
    load_file:
@@ -88,11 +86,13 @@ static int load_file(char *path, char *buf, size_t bufsize)
         logging("thread[%ld]: lseek(SEEK_END) error %d: %s", syscall(SYS_gettid), errno, strerror(errno));
         close(fp);
         return 0;
-    } else if( size >= bufsize ) {
+    }
+    else if( size >= bufsize ) {
         logging("thread[%ld]: sql file size %d >= buffer size %d", syscall(SYS_gettid), size, bufsize);
         close(fp);
         return 0;
-    } else if( !size ) {
+    }
+    else if( !size ) {
         logging("thread[%ld]: sql file size = %d, is file empty?", syscall(SYS_gettid), size);
         close(fp);
         return 0;
@@ -122,7 +122,8 @@ static int db_connect(int connect, redisContext **rds_context)
 {
     struct timeval timeout = { 1, 500000 }; // 1.5 seconds
 
-    if(connect) {	// connecting to database
+    if(connect) {
+        // connecting to database
 
         logging("database thread[%ld]: try to connect to database %s on host %s:%d", syscall(SYS_gettid), stConfigServer.db_name, stConfigServer.db_host, stConfigServer.db_port);
 
@@ -136,8 +137,9 @@ static int db_connect(int connect, redisContext **rds_context)
         else
             logging("database thread[%ld]: Connected to database %s on host %s:%d", syscall(SYS_gettid), stConfigServer.db_name, stConfigServer.db_host, stConfigServer.db_port);
 
-    }	// if(connect)
-    else {	// disconnect from database
+    }    // if(connect)
+    else {
+        // disconnect from database
 
         if( *rds_context ) {
             redisFree(*rds_context);
@@ -192,9 +194,7 @@ static int write_data_to_db(char *msg, redisContext *rds_context)
     rds_reply = redisCommand(rds_context, "SET gd_%s %s", record->imei, json_object_to_json_string(jobj));
     */
 
-    /*
-    without json-c library
-    */
+    /* without json-c library */
     sprintf(json, "{ \"imei\": \"%s\", \"datetime\": %lld, \"lon\": %03.07lf, \"lat\": %03.07lf, "
                     "\"speed\": %03.01lf, \"curs\": %d, \"satellites\": %d, "
                     "\"height\": %d, \"valid\": %d, \"vbort\": %02.01lf, \"vbatt\": %02.01lf, "
@@ -254,9 +254,7 @@ static int write_data_to_db(char *msg, redisContext *rds_context)
 
 
 
-/*
-   Main functions
-*/
+/* Main functions */
 
 /*
    db_thread
@@ -268,7 +266,7 @@ void *db_thread(void *arg)
 {
     static __thread redisContext *rds_context = NULL;
     static __thread char msg_buf[SOCKET_BUF_SIZE];
-    static __thread mqd_t queue_workers = -1;	// Posix IPC queue of messages from workers
+    static __thread mqd_t queue_workers = -1;    // Posix IPC queue of messages from workers
     static __thread struct mq_attr queue_attr;
     static __thread struct rlimit rlim;
     static __thread ssize_t msg_size;
@@ -289,7 +287,7 @@ void *db_thread(void *arg)
                     else
                         break;
                 }   // while
-            }	// if( mq_getattr
+            }    // if( mq_getattr
 
             mq_close(queue_workers);
             /*
@@ -317,7 +315,7 @@ void *db_thread(void *arg)
     /* test system limit of the length of messages queue RLIMIT_MSGQUEUE
        by default 819200 bytes
        setup RLIMIT_MSGQUEUE size in /etc/security/limits.conf as:
-        hard	msgqueue	1342177280
+        hard    msgqueue    1342177280
        and reboot;
        see limits as:
        ulimit -a
@@ -329,16 +327,19 @@ void *db_thread(void *arg)
 
     // get RLIMIT_MSGQUEUE and calculate actual size of queue
     if( getrlimit(RLIMIT_MSGQUEUE, &rlim) == 0 ) {
-        if( rlim.rlim_cur != rlim.rlim_max ) {	// increase RLIMIT_MSGQUEUE error
+        if( rlim.rlim_cur != rlim.rlim_max ) {
+            // increase RLIMIT_MSGQUEUE error
             rlim.rlim_cur = rlim.rlim_max;
             // calculate actual size of queue
             if( setrlimit(RLIMIT_MSGQUEUE, &rlim) == 0 )
                 queue_attr.mq_maxmsg = (long)(rlim.rlim_max / queue_attr.mq_msgsize / 10);
             else
                 queue_attr.mq_maxmsg = (long)(rlim.rlim_cur / queue_attr.mq_msgsize / 10);
-        } else
+        }
+        else
             queue_attr.mq_maxmsg = (long)(rlim.rlim_cur / queue_attr.mq_msgsize / 10);
-    } else {
+    }
+    else {
         logging("database thread[%ld]: getrlimit() error %d: %s", syscall(SYS_gettid), errno, strerror(errno));
         queue_attr.mq_maxmsg = (long)(819200 / queue_attr.mq_msgsize / 10);     /* Max. # of messages on queue */
     }
@@ -369,19 +370,19 @@ void *db_thread(void *arg)
         if( rds_context && !rds_context->err ) {
             msg_size = mq_receive(queue_workers, msg_buf, buf_size, NULL);
             if( msg_size > 0 ) {
-                write_data_to_db(msg_buf, rds_context);	// write message to database
+                write_data_to_db(msg_buf, rds_context);    // write message to database
             }   // if( msg_size > 0 )
         }   // if( rds_context && !rds_context->err )
         else {
             if( rds_context )   // connected, but error
                 db_connect(0, &rds_context);
 
-            sleep(3);	// wait
+            sleep(3);    // wait
 
-            db_connect(1, &rds_context);	// try again
+            db_connect(1, &rds_context);    // try again
         }
 
-    }	// while( 1 )
+    }    // while( 1 )
 
     // clear error handler with run it (0 - not run, 1 - run)
     pthread_cleanup_pop(1);
@@ -416,28 +417,29 @@ void *timer_function(void *ptr)
         }
 
         pthread_detach(pthread_self());
-    }	// exit_timerfunc
+    }    // exit_timerfunc
 
     // install error handler:
     pthread_cleanup_push(exit_timerfunc, ptr);
 
     // initialise
     st_timer = (ST_TIMER *)ptr;
-	name = strrchr(st_timer->script_path, '/') + 1;
-	logging("timer[%ld]: %s: start", syscall(SYS_gettid), name);
+    name = strrchr(st_timer->script_path, '/') + 1;
+    logging("timer[%ld]: %s: start", syscall(SYS_gettid), name);
 
-    semaphore = sem_open(name, O_CREAT | O_EXCL, O_RDWR, 0);	// create named semaphore
+    semaphore = sem_open(name, O_CREAT | O_EXCL, O_RDWR, 0);    // create named semaphore
 
-    if( semaphore != SEM_FAILED ) {	// if semaphore not exists, continue
+    if( semaphore != SEM_FAILED ) {
+        // if semaphore not exists, continue
 
         if( !load_file(st_timer->script_path, sql, MAX_SQL_SIZE) || !strlen(sql) ) {
-        	logging("timer[%ld]: %s: script loading error, exit", syscall(SYS_gettid), name);
+            logging("timer[%ld]: %s: script loading error, exit", syscall(SYS_gettid), name);
             exit_timerfunc(ptr);
             return NULL;
         }
 
         if( !db_connect(1, &rds_context) ) {
-        	logging("timer[%ld]: %s: failed database connection, exit", syscall(SYS_gettid), name);
+            logging("timer[%ld]: %s: failed database connection, exit", syscall(SYS_gettid), name);
             exit_timerfunc(ptr);
             return NULL;
         }
@@ -445,7 +447,7 @@ void *timer_function(void *ptr)
         /* TODO:
         exec REDIS command?
         */
-    }	// if( semaphore != SEM_FAILED )
+    }    // if( semaphore != SEM_FAILED )
     else {
         if( errno == EEXIST )
             logging("timer[%ld]: %s already running, increase period, please", syscall(SYS_gettid), name);
