@@ -89,8 +89,8 @@ typedef struct {
 */
 extern ST_CONFIG_SERVER stConfigServer;	// glonassd.c
 extern ST_LISTENERS stListeners;		// glonassd.c
-extern int graceful_stop;               // glonassd.c
-extern int reconfigure;                 // glonassd.c
+extern volatile sig_atomic_t graceful_stop;     // glonassd.c
+extern volatile sig_atomic_t reconfigure;       // glonassd.c
 extern long GMT_diff;                   // glonassd.c
 extern pthread_attr_t worker_thread_attr;      // glonassd.c
 extern int attr_init;                   // glonassd.c

@@ -102,7 +102,7 @@
 #define THREAD_STACK_SIZE_KB	(512)   // DANGEROUS! crash if SOCKET_BUF_SIZE too big!
 
 const char *const gPidFilePath = "/var/run/glonassd.pid";
-int graceful_stop, reconfigure;     // flags
+volatile sig_atomic_t graceful_stop, reconfigure;     // flags
 ST_PARAMS stParams;	                // startup params
 ST_CONFIG_SERVER stConfigServer;	// main config
 ST_LISTENERS stListeners;		    // listeners
