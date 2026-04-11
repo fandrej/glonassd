@@ -61,6 +61,7 @@ static void terimal_reset_logged(char *forward_name)
 {
 	unsigned int i;
 
+	pthread_mutex_lock(&stForwarders.terminals_lock);
 	for(i = 0; i < stForwarders.listcount; ++i) {
 		if( forward_name[0] == stForwarders.terminals[i].forward[0] )
 		{
@@ -70,6 +71,7 @@ static void terimal_reset_logged(char *forward_name)
 			}
 		}
 	}	// for(i = 0; i < stForwarders.listcount; i++)
+	pthread_mutex_unlock(&stForwarders.terminals_lock);
 }
 //------------------------------------------------------------------------------
 
@@ -82,6 +84,7 @@ static int terimal_logged(char *imei, char *forward_name)
 	unsigned int i, retval = 1;
 
 	if( imei ){
+		pthread_mutex_lock(&stForwarders.terminals_lock);
 		for(i = 0; i < stForwarders.listcount; ++i) {
 			if( forward_name[0] == stForwarders.terminals[i].forward[0] && imei[0] == stForwarders.terminals[i].imei[0] )
 			{
@@ -93,6 +96,7 @@ static int terimal_logged(char *imei, char *forward_name)
 				}
 			}
 		}	// for(i = 0; i < stForwarders.listcount; i++)
+		pthread_mutex_unlock(&stForwarders.terminals_lock);
 	}	// if( imei )
 
 	return retval;

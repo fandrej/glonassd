@@ -266,6 +266,7 @@ static int setup(char *config_path)
     memset(&waittime, 0, sizeof(struct timespec));
     memset(&stListeners, 0, sizeof(ST_LISTENERS));
     memset(&stForwarders, 0, sizeof(ST_FORWARDERS));
+    pthread_mutex_init(&stForwarders.terminals_lock, NULL);
 
     // load settings
     if( !loadConfig(config_path) ) {
@@ -304,6 +305,8 @@ int cleanup(void)
 
     if( stListeners.listener )
         free(stListeners.listener);
+
+    pthread_mutex_destroy(&stForwarders.terminals_lock);
 
     if( stForwarders.forwarder )
         free(stForwarders.forwarder);

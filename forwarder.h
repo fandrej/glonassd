@@ -5,6 +5,7 @@
 #include <sys/select.h>
 #include <sys/un.h>
 #include <dirent.h>
+#include <pthread.h>
 #include "de.h"
 
 #define IN_SOCKET   0
@@ -51,6 +52,7 @@ typedef struct {
     int count;
     ST_FORWARD_TERMINAL *terminals;	// list of forwarding terminals
     int listcount;
+    pthread_mutex_t terminals_lock;	// protects terminals[].logged from concurrent forwarder threads
 } ST_FORWARDERS;
 extern ST_FORWARDERS stForwarders;		// glonassd.c
 
