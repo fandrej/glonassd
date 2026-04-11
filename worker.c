@@ -275,6 +275,8 @@ void *worker_thread(void *st_worker)
                     logging("%s[%d:%ld]: shutdown\n", config->listener->name, config->listener->port, syscall(SYS_gettid));
             }    // if( stConfigServer.log_enable )
 
+            __atomic_fetch_sub(&active_workers, 1, __ATOMIC_RELAXED);
+
             free(config);
         }    // if( config )
         else {

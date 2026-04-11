@@ -103,6 +103,7 @@
 
 const char *const gPidFilePath = "/var/run/glonassd.pid";
 volatile sig_atomic_t graceful_stop, reconfigure;     // flags
+int active_workers = 0;               // atomic counter of live worker threads
 ST_PARAMS stParams;	                // startup params
 ST_CONFIG_SERVER stConfigServer;	// main config
 ST_LISTENERS stListeners;		    // listeners
@@ -892,10 +893,22 @@ int main(int argc, char* argv[])
                             if( worker_config->client_socket < 0 ) {
                                 free(worker_config);
                                 logging("glonassd[%d]: listener[%s] accept() error %d: %s", (int)getpid(), stListeners.listener[j].name, errno, strerror(errno));
+                            } else if( stConfigServer.max_connections > 0 &&
+                                       __atomic_load_n(&active_workers, __ATOMIC_RELAXED) >= stConfigServer.max_connections ) {
+                                // connection limit reached — refuse gracefully
+                                logging("glonassd[%d]: listener[%s] max_connections (%d) reached, connection from %s refused",
+                                        (int)getpid(), stListeners.listener[j].name,
+                                        stConfigServer.max_connections,
+                                        inet_ntoa(worker_config->client_addr.sin_addr));
+                                close(worker_config->client_socket);
+                                free(worker_config);
                             } else {
                                 // set settings for worker
                                 worker_config->listener = &stListeners.listener[j];
                                 strncpy(worker_config->ip, inet_ntoa(worker_config->client_addr.sin_addr), SIZE_TRACKER_FIELD);
+
+                                // increment before create to avoid a race where thread exits before we count it
+                                __atomic_fetch_add(&active_workers, 1, __ATOMIC_RELAXED);
 
                                 // start worker thread
                                 if( attr_init )
@@ -904,6 +917,7 @@ int main(int argc, char* argv[])
                                     thread_error = pthread_create(&worker_config->thread, NULL, worker_thread, worker_config);
 
                                 if( thread_error ) {   // error :(
+                                    __atomic_fetch_sub(&active_workers, 1, __ATOMIC_RELAXED);
                                     free(worker_config);
                                     logging("glonassd[%d]: listener[%s] pthread_create() error %d: %s", (int)getpid(), stListeners.listener[j].name, errno, strerror(errno));
                                 }	// if( pthread_create(

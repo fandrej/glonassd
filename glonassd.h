@@ -58,6 +58,7 @@ typedef struct {
 	char db_pass[STRLEN];           // database user's password
 	int socket_queue;               // listener's socket queue size
 	int socket_timeout;             // listener's socket timeout in seconds (max 600)
+	int max_connections;            // max simultaneous worker threads (0 = unlimited)
 	int forward_timeout;            // forwarder's socket timeout in seconds (1-5)
 	int forward_wait;	            // time between reconnect to server after connection lost
 	char forward_files[FILENAME_MAX];    // forwarders files directory
@@ -92,6 +93,7 @@ extern ST_LISTENERS stListeners;		// glonassd.c
 extern volatile sig_atomic_t graceful_stop;     // glonassd.c
 extern volatile sig_atomic_t reconfigure;       // glonassd.c
 extern long GMT_diff;                   // glonassd.c
+extern int active_workers;             // glonassd.c — atomic counter of live worker threads
 extern pthread_attr_t worker_thread_attr;      // glonassd.c
 extern int attr_init;                   // glonassd.c
 
