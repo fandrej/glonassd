@@ -4,6 +4,10 @@ forward/
 logs/
 hiredis/
 
+# Claude
+.claude/
+CLAUDE.md
+
 # my notes
 *.txt
 *.tmp

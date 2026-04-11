@@ -1,7 +1,8 @@
 PROJECT = glonassd
 
 CC = gcc
-LIBS = -lpthread -L/usr/lib/nptl -rdynamic -ldl -lrt -lm -Wl,-z,noexecstack
+LIBS = -lpthread -L/usr/lib/nptl -rdynamic -ldl -lrt -lm
+LDSOFLAGS = -Wl,-z,noexecstack
 INCLUDE = -I/usr/include/nptl
 # https://gcc.gnu.org/onlinedocs/gcc/Option-Summary.html#Option-Summary
 CFLAGS = -std=gnu99 -D_REENTERANT -m64
@@ -27,82 +28,82 @@ run: $(PROJECT)
 # shared library for decode/encode GALILEO
 galileo: galileo.c de.h logger.h
 	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) galileo.c -o galileo.o
-	$(CC) -shared -o galileo.so galileo.o
+	$(CC) -shared $(LDSOFLAGS) -o galileo.so galileo.o
 
 # shared library for decode/encode SAT-LITE/SAT-LITE2
 satlite: satlite.c de.h logger.h
 	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) satlite.c -o satlite.o
-	$(CC) -shared -o satlite.so satlite.o
+	$(CC) -shared $(LDSOFLAGS) -o satlite.so satlite.o
 
 # shared library for decode/encode ARNAVI 4
 arnavi: arnavi.c arnavi.h de.h logger.h
 	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) arnavi.c -o arnavi.o
-	$(CC) -shared -o arnavi.so arnavi.o
+	$(CC) -shared $(LDSOFLAGS) -o arnavi.so arnavi.o
 
 # shared library for decode/encode ARNAVI 5
 arnavi5: arnavi5.c arnavi.h de.h logger.h
 	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) arnavi5.c -o arnavi5.o
-	$(CC) -shared -o arnavi5.so arnavi5.o
+	$(CC) -shared $(LDSOFLAGS) -o arnavi5.so arnavi5.o
 
 # shared library for decode/encode Wialon IPS
 wialonips: wialonips.c de.h logger.h
 	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) wialonips.c -o wialonips.o
-	$(CC) -shared -o wialonips.so wialonips.o
+	$(CC) -shared $(LDSOFLAGS) -o wialonips.so wialonips.o
 
 # shared library for decode/encode GPS-101 - GPS-103
 gps103: gps103.c de.h logger.h
 	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) gps103.c -o gps103.o
-	$(CC) -shared -o gps103.so gps103.o
+	$(CC) -shared $(LDSOFLAGS) -o gps103.so gps103.o
 
 # shared library for decode/encode SOAP
 soap: soap.c de.h logger.h
 	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) soap.c -o soap.o
-	$(CC) -shared -o soap.so soap.o
+	$(CC) -shared $(LDSOFLAGS) -o soap.so soap.o
 
 # shared library for decode/encode EGTS
 egts: egts.c egts.h de.h logger.h
 	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) egts.c -o egts.o
-	$(CC) -shared -o egts.so egts.o
+	$(CC) -shared $(LDSOFLAGS) -o egts.so egts.o
 
 # shared library for decode/encode FAVW
 favw: favw.c de.h logger.h
 	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) favw.c -o favw.o
-	$(CC) -shared -o favw.so favw.o
+	$(CC) -shared $(LDSOFLAGS) -o favw.so favw.o
 
 # shared library for decode/encode FAVA
 fava: fava.c de.h logger.h
 	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) fava.c -o fava.o
-	$(CC) -shared -o fava.so fava.o
+	$(CC) -shared $(LDSOFLAGS) -o fava.so fava.o
 
 # shared library for decode/encode TQ GPRS
 tqgprs: tqgprs.c de.h logger.h
 	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) tqgprs.c -o tqgprs.o
-	$(CC) -shared -o tqgprs.so tqgprs.o
+	$(CC) -shared $(LDSOFLAGS) -o tqgprs.so tqgprs.o
 
 # shared library for decode/encode GOSAFE
 gosafe: gosafe.c de.h logger.h
 	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) gosafe.c -o gosafe.o
-	$(CC) -shared -o gosafe.so gosafe.o
+	$(CC) -shared $(LDSOFLAGS) -o gosafe.so gosafe.o
 
 # shared library for test/log protocol
 prototest: prototest.c de.h glonassd.h logger.h
 	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) prototest.c -o prototest.o
-	$(CC) -shared -o prototest.so prototest.o
+	$(CC) -shared $(LDSOFLAGS) -o prototest.so prototest.o
 
 # shared library for database PostgreSQL
 pg: pg.c glonassd.h de.h logger.h
 	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) $(INCLUDE) -I/usr/include/postgresql pg.c $(LIBS) -o pg.o -lpq
-	$(CC) -shared -o pg.so pg.o -lpq
+	$(CC) -shared $(LDSOFLAGS) -o pg.so pg.o -lpq
 
 # shared library for database REDIS
 rds: rds.c glonassd.h de.h logger.h
 	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) $(INCLUDE) -I/usr/local/include/hiredis rds.c -I/usr/local/include/json-c/ $(LIBS) -o rds.o -lhiredis -ljson-c
-	$(CC) -shared -o rds.so rds.o -lhiredis
+	$(CC) -shared $(LDSOFLAGS) -o rds.so rds.o -lhiredis
 
 # shared library for database ORACLE
 oracle: oracle.c glonassd.h de.h logger.h
 	$(CC) -c $(SOCFLAGS) $(OPTIMIZE) $(INCLUDE) -I/usr/local/include oracle.c $(LIBS) -o oracle.o -lodpic
-	$(CC) -shared -o oracle.so oracle.o -lodpic
+	$(CC) -shared $(LDSOFLAGS) -o oracle.so oracle.o -lodpic
 
 # all
 all: $(PROJECT) galileo satlite wialonips gps103 soap egts arnavi arnavi5 favw fava tqgprs prototest pg rds oracle
