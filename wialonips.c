@@ -46,13 +46,24 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 			// #L#353451048036030;NA
 			// answer: #AL#1\r\n
 
-			memset(answer->lastpoint.imei, 0, SIZE_TRACKER_FIELD);
-			iTemp = sscanf(cRec, "#L#%[^;];%*s", answer->lastpoint.imei);
+            // v.2 http://extapi.wialon.com/hw/cfg/Wialon%20IPS_v_2_0.pdf
+            // 01234567
+            // #L#2.0;868204002602414;NA;8E08^@
 
-			if( iTemp == 1 && strlen(answer->lastpoint.imei) ) {
-				iAnswerSize = 8;	// 7 + завершающий 0
-				answer->size += snprintf(&answer->answer[answer->size], iAnswerSize, "#AL#1\r\n");
-			}	// if( iTemp == 1 )
+            memset(answer->lastpoint.imei, 0, SIZE_TRACKER_FIELD);
+            if( cRec[4] == '.' && cRec[6] == ';' )
+                iTemp = sscanf(cRec, "#L#2.0;%[^;];%*s", answer->lastpoint.imei);
+            else
+                iTemp = sscanf(cRec, "#L#%[^;];%*s", answer->lastpoint.imei);
+
+            if( iTemp == 1 && strlen(answer->lastpoint.imei) ) {
+                iAnswerSize = 8;    // 7 + завершающий 0
+                answer->size += snprintf(&answer->answer[answer->size], iAnswerSize, "#AL#1\r\n");
+            }
+
+            if( worker->listener->log_all ) {
+                logging("terminal_decode[%s:%d]: %s\n", worker->listener->name, worker->listener->port, answer->lastpoint.imei);
+            }
 
 			break;
 		case 'P':	// пинговый пакет: #P#\r\n
@@ -66,6 +77,8 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
             //       1    2    3   4     5   6     7     8      9     10
             // #SD#date;time;lat1;lat2;lon1;lon2;speed;course;height;sats\r\n
             // #SD#300919;082210;5642.7514;N;03646.6824;E;38;217;0;16;NA;0;NA;0;NA;ign:1:,freq_data_2:1:,c_data_1:1:,innervoltage:1:,battery:1:,c_data_3:1:,fs_data:1:,ts_data:1:,c_data_2:1:,freq_data_1:1:
+            //       1       2       3       4     5        6 7   8   9  10
+            // #SD#080526;082037;5352.638240;N;08637.201920;E;21;140;438;15;951E
 			// answer: #ASD#1\r\n
 
             if( !strlen(answer->lastpoint.imei) ){
@@ -174,7 +187,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 								&iOutputs // 13
 							  );
 
-            if( iTemp >= 10 ) {
+            if( iTemp >= 8 ) {
 
 				if( answer->count < MAX_RECORDS - 1 )
 					answer->count++;
@@ -211,15 +224,22 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 
 				record->curs = iCurs;
 				record->speed = iSpeed;
-				record->height = (int)dAltitude;
-				record->satellites = iSatellits;
+
+                if( iTemp >= 10 ) {
+                    record->height = (int)dAltitude;    // 9
+                    record->satellites = iSatellits;    // 10
+                }
+                else {
+                    record->height = 0;
+                    record->satellites = 0;
+                }
 
 				if( record->satellites > 2 && record->lat > 0.0 && record->lon > 0.0 )
 					record->valid = 1;
 				else
 					record->valid = 0;
 
-			}	// if( iTemp >= 10 )
+			}	// if( iTemp >= 8 )
 
 			if( iTemp >= 11 ) {
 				record->hdop = (int)dHDOP;
