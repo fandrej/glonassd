@@ -132,6 +132,12 @@ static int database_setup(unsigned int start);
 static int timers_start();
 static int timers_stop();
 
+// Функция для вычисления разницы времени в секундах (с дробной частью)
+double time_diff_sec(struct timespec start, struct timespec end) {
+    return (end.tv_sec - start.tv_sec) +
+           (end.tv_nsec - start.tv_nsec) / 1e9; // 1e9 = 1,000,000,000.0
+}
+
 // parcing command-line parameters
 static int parceParams(int argc, char* argv[])
 {

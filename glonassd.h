@@ -99,5 +99,5 @@ extern int attr_init;                   // glonassd.c
     functions
 */
 int cleanup(void);                 // glonassd.c
-
+double time_diff_sec(struct timespec start, struct timespec end); // glonassd.c
 #endif

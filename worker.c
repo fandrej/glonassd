@@ -193,6 +193,7 @@ static void send_data_to_forward(ST_WORKER *config, void *data, int data_size, S
 static void send_data_to_db(ST_WORKER *config, ST_RECORD *records, unsigned int count)
 {
 	unsigned int r;
+    static char send_error = 0;
 
 	if( !records || count <= 0 || config->db_queue == BAD_OBJ )
 		return;
@@ -205,16 +206,23 @@ static void send_data_to_db(ST_WORKER *config, ST_RECORD *records, unsigned int 
 
 			// send message into database queue
 			if( mq_send(config->db_queue, (const char *)&records[r], sizeof(ST_RECORD), 0) < 0 ) {
-				switch(errno) {
-				case EAGAIN:
-					logging("%s[%ld]: mq_send(config->db_queue) message queue is already full\n", config->listener->name, syscall(SYS_gettid));
-					break;
-				default:
-					logging("%s[%ld]: mq_send(config->db_queue) error %d: %s\n", config->listener->name, syscall(SYS_gettid), errno, strerror(errno));
-				}	// switch(errno)
-			}	// if( mq_send(
-
-		}	// if( strlen(records[r].imei) )
+			    if( send_error == 0 ) {
+			        send_error = 1;
+    				switch(errno) {
+    				case EAGAIN:
+    					logging("%s[%ld]: mq_send(config->db_queue) message queue is already full\n", config->listener->name, syscall(SYS_gettid));
+            			break;
+    				default:
+    					logging("%s[%ld]: mq_send(config->db_queue) error %d: %s\n", config->listener->name, syscall(SYS_gettid), errno, strerror(errno));
+    				}
+                }
+                break; // stop write to queue
+			}
+            else if( send_error > 0 ) {
+                send_error = 0;
+   				logging("%s[%ld]: message queue is restored\n", config->listener->name, syscall(SYS_gettid));
+            }
+		}	// if( records[r].imei[0] )
 
 	}	// for(r = 0; r < count; r++)
 }

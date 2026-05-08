@@ -30,8 +30,9 @@
    http://man7.org/linux/man-pages/man7/sem_overview.7.html
    http://linux.die.net/man/7/mq_overview
    http://www.redov.ru/kompyutery_i_internet/unix_vzaimodeistvie_processov/p3.php#metkadoc75
-   https://redis.io/clients#c
+   https://redis.io/docs/latest/develop/clients/hiredis/
    https://github.com/redis/hiredis
+   https://github.com/redis/hiredis#pipelining
    https://yular.github.io/2017/01/28/C-Redis-QuickStart/
 */
 
@@ -386,12 +387,12 @@ void *db_thread(void *arg)
     // queue files located in: /dev/mqueue
     queue_workers = mq_open(QUEUE_WORKER, O_RDONLY | O_CREAT, S_IRUSR | S_IWUSR, &queue_attr);
     if( queue_workers < 0 ) {
-        logging("database thread[%ld]: mq_open() error %d: %s\nTry this:\nSetup 'POSIX message queues' size in /etc/security/limits.conf as:\n*\thard\tmsgqueue\t%ld\nSee 'POSIX message queues' size as: ulimit -a", syscall(SYS_gettid), errno, strerror(errno), (long)(65536 * queue_attr.mq_msgsize * 10));
+        logging("database thread[%ld]: mq_open(%s) error %d: %s\nTry this:\nSetup 'POSIX message queues' size in /etc/security/limits.conf as:\n*\thard\tmsgqueue\t%ld\nSee 'POSIX message queues' size as: ulimit -a", syscall(SYS_gettid), QUEUE_WORKER, errno, strerror(errno), (long)(65536 * queue_attr.mq_msgsize * 10));
         exit_db(arg);
         return NULL;
     }
 
-    logging("database thread[%ld] started, queue size %ld msgs\n", syscall(SYS_gettid), (long)queue_attr.mq_maxmsg);
+    logging("database thread[%ld] started, queue (%s) size %ld msgs\n", syscall(SYS_gettid), QUEUE_WORKER, (long)queue_attr.mq_maxmsg);
 
     // try to connect to database
     db_connect(1, &rds_context);
@@ -402,10 +403,11 @@ void *db_thread(void *arg)
 
         if( rds_context && !rds_context->err ) {
             msg_size = mq_receive(queue_workers, msg_buf, buf_size, NULL);
-            if( msg_size > 0 ) {
+            if( msg_size > 0 )
                 write_data_to_db(msg_buf, rds_context);	// write message to database
-            }   // if( msg_size > 0 )
-        }   // if( rds_context && !rds_context->err )
+            else if ( msg_size < 0 && errno == EAGAIN )
+                sleep(0.01);	// wait
+        }
         else {
             if( rds_context )   // connected, but error
                 db_connect(0, &rds_context);
