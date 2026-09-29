@@ -62,6 +62,7 @@ typedef struct {
 	int forward_wait;	            // time between reconnect to server after connection lost
 	char forward_files[FILENAME_MAX];    // forwarders files directory
 	ST_TIMER timers[TIMERS_MAX];    // timers structure
+	int max_record_age;             // drop records older than N seconds (0 = keep all)
 } ST_CONFIG_SERVER;
 
 // listener structure

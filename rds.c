@@ -47,6 +47,7 @@
 #include <syslog.h>
 #include <pthread.h>
 #include <unistd.h>         /* sleep */
+#include <time.h>           /* time */
 #include <mqueue.h>
 #include <sys/types.h>
 #include <sys/stat.h>       /* mode constants */
@@ -67,6 +68,8 @@ extern ST_CONFIG_SERVER stConfigServer;	// main config
 #define MAX_ARRAY_SIZE (MAX_JSON_SIZE * 50 + 99 + 2 + 1) // 100 jsons + 99 ',' + '['']' + 0
 
 // Locals
+/* dropped stale records counter, touched only from db_thread */
+static long long records_dropped = 0;
 /*
    Secondary functions
 */
@@ -179,6 +182,21 @@ static int write_data_to_db(char *msg, redisContext *rds_context)
 
     record = (ST_RECORD *)msg;
 
+    /* Drop stale records before touching Redis.
+       After a receiver outage the units dump their black-box archive, and that
+       archive squeezes real-time data out of the queue. The check sits before
+       GET/SET so an archived point costs no round-trip at all. */
+    if( stConfigServer.max_record_age > 0 ) {
+        long long rec_ts = (long long)record->data + record->time;
+        long long rec_age = (long long)time(NULL) - rec_ts;
+        if( rec_ts > 0 && rec_age > stConfigServer.max_record_age ) {
+            if( ++records_dropped % 1000 == 1 )
+                logging("database thread[%ld]: stale records dropped: %lld (last: imei %s, age %lld s)\n",
+                        syscall(SYS_gettid), records_dropped, record->imei, rec_age);
+            return 1;   /* accepted and deliberately dropped, not a write error */
+        }
+    }
+
     /* create JSON string aka:
     { "imei": "1234567890", "data": 0, "time": 50400, "lon": 55.5400, "lat": 65.6500, "speed": 20.0, "curs": 40, "port": 19005 }
     */
@@ -242,6 +260,16 @@ static int write_data_to_db(char *msg, redisContext *rds_context)
 
     // get exists data
     rds_reply = redisCommand(rds_context, "GET %s", key);
+
+    /* redisCommand() returns NULL on any connection error. Without this check
+       rds_reply->str (offset 0x20) was dereferenced on NULL, which is exactly
+       the "segfault at 20 ... in rds.so" crash: 196 of them since 2026-03-17. */
+    if( !rds_reply ) {
+        logging("database thread[%ld]: write_data_to_db: GET %s returned NULL: %s\n",
+                syscall(SYS_gettid), key,
+                rds_context->err ? rds_context->errstr : "no error text");
+        return 0;   /* db_thread sees rds_context->err and reconnects */
+    }
 
     if( rds_reply->str && rds_reply->str[0] == '[' ){
         // add to existing array
@@ -393,6 +421,7 @@ void *db_thread(void *arg)
     }
 
     logging("database thread[%ld] started, queue (%s) size %ld msgs\n", syscall(SYS_gettid), QUEUE_WORKER, (long)queue_attr.mq_maxmsg);
+    logging("database thread[%ld]: max_record_age=%d sec\n", syscall(SYS_gettid), stConfigServer.max_record_age);
 
     // try to connect to database
     db_connect(1, &rds_context);

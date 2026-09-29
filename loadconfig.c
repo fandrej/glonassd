@@ -216,6 +216,11 @@ int set_config(char *section, char *param, char *value)
 					stConfigServer.socket_timeout = MIN(abs(atoi(value)), 600);
 			}
 
+			if( strcmp(param, "max_record_age") == 0 ) {
+				if( strlen(value) )
+					stConfigServer.max_record_age = abs(atoi(value));
+			}
+
 			if( strcmp(param, "forward_timeout") == 0 ) {
 				if( strlen(value) )
 					stConfigServer.forward_timeout = abs(atoi(value));
@@ -353,6 +358,7 @@ int loadConfig(char *cPathToFile)
 	snprintf(stConfigServer.forward_files, FILENAME_MAX, "%s", stParams.start_path);
 	stConfigServer.socket_queue = 50;
 	stConfigServer.socket_timeout = 600;
+	stConfigServer.max_record_age = 0;	// by default keep all records
 	stConfigServer.db_port = 0;
 	stConfigServer.log_enable = 1;
 	stConfigServer.forward_timeout = 1;
