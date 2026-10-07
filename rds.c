@@ -66,6 +66,7 @@ extern ST_CONFIG_SERVER stConfigServer;	// main config
 #define MAX_SQL_SIZE 4096
 #define MAX_JSON_SIZE (512) // max size of json string one record (511 bytes)
 #define MAX_ARRAY_SIZE (MAX_JSON_SIZE * 50 + 99 + 2 + 1) // 100 jsons + 99 ',' + '['']' + 0
+#define DB_BATCH_SIZE (200)  // max records written by one pair of pipelines
 
 // Locals
 /* dropped stale records counter, touched only from db_thread */
@@ -161,157 +162,202 @@ static int db_connect(int connect, redisContext **rds_context)
 //------------------------------------------------------------------------------
 
 /*
+   write_batch_to_db:
+   record a batch of encoded gps/glonass terminal messages to database.
+   One record used to cost GET + SET + SADD, three sequential round-trips. With
+   s2 -> f7 RTT ~34 ms that capped the writer at ~10 records/s, and in rush hours
+   the backlog grew up to max_record_age. Here all GETs of the batch go in one
+   pipeline and all SET/SADD in a second one: two round-trips per batch.
+   Points of one imei inside the batch are appended to its array in arrival order.
+   msgs - array of pointers to ST_RECORD structures, n - their count
+   return number of accepted records (dropped stale ones included) or 0 on error
+*/
+static int write_batch_to_db(char **msgs, int n, redisContext *rds_context)
+{
+    static __thread char (*arrays)[MAX_ARRAY_SIZE] = NULL;  // value of every unique key in the batch
+    static __thread size_t lens[DB_BATCH_SIZE];             // strlen of arrays[k]
+    static __thread char keys[DB_BATCH_SIZE][25];           // unique keys in the batch
+    static __thread int rec_key[DB_BATCH_SIZE];             // key index of every record, -1 = dropped
+    static __thread int sadd_key[DB_BATCH_SIZE];            // unique (key, port) pairs for SADD
+    static __thread unsigned int sadd_port[DB_BATCH_SIZE];
+    redisReply *rds_reply;
+    ST_RECORD *record;
+    char json[MAX_JSON_SIZE];
+    char key[25];
+    size_t json_size;
+    int i, j, k, nkeys = 0, nsadd = 0, written = 0, result = 1;
+
+    if( !rds_context || n <= 0 )
+        return 0;
+    if( n > DB_BATCH_SIZE )
+        n = DB_BATCH_SIZE;
+
+    if( !arrays ) {
+        arrays = malloc((size_t)DB_BATCH_SIZE * MAX_ARRAY_SIZE);
+        if( !arrays ) {
+            logging("database thread[%ld]: write_batch_to_db: malloc(%ld) error\n",
+                    syscall(SYS_gettid), (long)DB_BATCH_SIZE * MAX_ARRAY_SIZE);
+            return 0;
+        }
+    }
+
+    // 1. drop stale records, collect unique keys
+    for(i = 0; i < n; i++) {
+        record = (ST_RECORD *)msgs[i];
+        rec_key[i] = -1;
+
+        /* Drop stale records before touching Redis.
+           After a receiver outage the units dump their black-box archive, and that
+           archive squeezes real-time data out of the queue. The check sits before
+           GET/SET so an archived point costs no round-trip at all. */
+        if( stConfigServer.max_record_age > 0 ) {
+            long long rec_ts = (long long)record->data + record->time;
+            long long rec_age = (long long)time(NULL) - rec_ts;
+            if( rec_ts > 0 && rec_age > stConfigServer.max_record_age ) {
+                if( ++records_dropped % 1000 == 1 )
+                    logging("database thread[%ld]: stale records dropped: %lld (last: imei %s, age %lld s)\n",
+                            syscall(SYS_gettid), records_dropped, record->imei, rec_age);
+                written++;  /* accepted and deliberately dropped, not a write error */
+                continue;
+            }
+        }
+
+        sprintf(key, "gd__%s", record->imei);
+        for(k = 0; k < nkeys && strcmp(keys[k], key); k++)
+            ;
+        if( k == nkeys ) {
+            strcpy(keys[nkeys], key);
+            nkeys++;
+        }
+        rec_key[i] = k;
+    }
+
+    if( !nkeys )
+        return written;
+
+    // 2. get exists data: one pipeline for all keys
+    for(k = 0; k < nkeys; k++)
+        redisAppendCommand(rds_context, "GET %s", keys[k]);
+
+    for(k = 0; k < nkeys; k++) {
+        /* NULL reply on connection error: see the segfault history in 8ce413a */
+        if( redisGetReply(rds_context, (void **)&rds_reply) != REDIS_OK || !rds_reply ) {
+            logging("database thread[%ld]: write_batch_to_db: GET %s returned NULL: %s\n",
+                    syscall(SYS_gettid), keys[k],
+                    rds_context->err ? rds_context->errstr : "no error text");
+            return 0;   /* db_thread sees rds_context->err and reconnects */
+        }
+
+        if( rds_reply->type == REDIS_REPLY_STRING && rds_reply->str && rds_reply->str[0] == '['
+            && rds_reply->len < MAX_ARRAY_SIZE ) {
+            memcpy(arrays[k], rds_reply->str, rds_reply->len);
+            arrays[k][rds_reply->len] = 0;
+            lens[k] = rds_reply->len;
+        }
+        else {
+            arrays[k][0] = 0;
+            lens[k] = 0;
+        }
+        freeReplyObject(rds_reply);
+    }
+
+    // 3. add records to arrays
+    for(i = 0; i < n; i++) {
+        if( (k = rec_key[i]) < 0 )
+            continue;
+        record = (ST_RECORD *)msgs[i];
+
+        /* create JSON string aka:
+        { "imei": "1234567890", "datetime": 1700000000, "lon": 55.5400, "lat": 65.6500, ... }
+        */
+        snprintf(json, MAX_JSON_SIZE, "{\"imei\": \"%s\", \"datetime\": %lld, \"lon\": %03.07lf, \"lat\": %03.07lf, "
+                        "\"speed\": %03.01lf, \"curs\": %d, \"port\": %d, \"satellites\": %d, "
+                        "\"height\": %d, \"valid\": %d, \"vbort\": %02.01lf, \"vbatt\": %02.01lf, "
+                        "\"temperature\": %d, \"hdop\": %d, \"outputs\": %d, \"inputs\": %d, "
+                        "\"fuel0\": %d, \"fuel1\": %d, \"probeg\": %04.03lf, \"zaj\": %d, \"alarm\": %d, "
+                        "\"recnum\": %d, \"status\": %d}",
+                    record->imei,
+                    (long long)record->data + record->time,
+                    record->lon,
+                    record->lat,
+                    record->speed,
+                    record->curs,
+                    record->port,
+                    record->satellites,
+                    record->height,
+                    record->valid,
+                    record->vbort,
+                    record->vbatt,
+                    record->temperature,
+                    record->hdop,
+                    record->outputs,
+                    record->inputs,
+                    record->fuel[0],
+                    record->fuel[1],
+                    record->probeg,
+                    record->zaj,
+                    record->alarm,
+                    record->recnum,
+                    record->status);
+        json_size = strlen(json);
+        if( !strcmp(stConfigServer.log_imei, record->imei) ) {
+            logging("write_data_to_db: %s", json);
+        }
+
+        if( lens[k] > 0 && MAX_ARRAY_SIZE - lens[k] > json_size + 3 ) {
+            // add to existing array
+            snprintf(&arrays[k][lens[k] - 1], json_size + 3, ",%s]", json);
+            lens[k] += json_size + 1;
+        }
+        else {
+            // create new array
+            snprintf(arrays[k], json_size + 3, "[%s]", json);
+            lens[k] = json_size + 2;
+        }
+
+        for(j = 0; j < nsadd && !(sadd_key[j] == k && sadd_port[j] == record->port); j++)
+            ;
+        if( j == nsadd ) {
+            sadd_key[nsadd] = k;
+            sadd_port[nsadd] = record->port;
+            nsadd++;
+        }
+        written++;
+    }
+
+    // 4. Set REDIS keys and add them to port sets: one pipeline
+    // https://redis.io/commands/set
+    // https://redis.io/commands/sadd
+    for(k = 0; k < nkeys; k++)
+        redisAppendCommand(rds_context, "SET %s %b", keys[k], arrays[k], lens[k]);
+    for(j = 0; j < nsadd; j++)
+        redisAppendCommand(rds_context, "SADD gd_port__%d %s", sadd_port[j], keys[sadd_key[j]]);
+
+    for(i = 0; i < nkeys + nsadd; i++) {
+        if( redisGetReply(rds_context, (void **)&rds_reply) != REDIS_OK || !rds_reply ) {
+            logging("database thread[%ld]: write_batch_to_db: redisCommand() return NULL\n", syscall(SYS_gettid));
+            return 0;   /* db_thread sees rds_context->err and reconnects */
+        }
+        if( rds_reply->type == REDIS_REPLY_ERROR ) {
+            logging("database thread[%ld]: write_batch_to_db: redisCommand() error: %s\n", syscall(SYS_gettid), rds_reply->str);
+            result = 0;
+        }
+        freeReplyObject(rds_reply);
+    }
+
+    return result ? written : 0;
+}
+//------------------------------------------------------------------------------
+
+/*
    write_data_to_db:
-   record encoded gps/glonass terminal message to database
-   connection - database connection
+   record one encoded gps/glonass terminal message to database
    msg - pointer to ST_RECORD structure
    return 1 if success or 0 if error
 */
 static int write_data_to_db(char *msg, redisContext *rds_context)
 {
-    redisReply *rds_reply;
-    ST_RECORD *record;
-    char json[MAX_JSON_SIZE];
-    char json_array[MAX_ARRAY_SIZE];
-    size_t array_size, json_size;
-    char key[25];
-    int result = 0;
-
-    if( !rds_context )
-        return result;
-
-    record = (ST_RECORD *)msg;
-
-    /* Drop stale records before touching Redis.
-       After a receiver outage the units dump their black-box archive, and that
-       archive squeezes real-time data out of the queue. The check sits before
-       GET/SET so an archived point costs no round-trip at all. */
-    if( stConfigServer.max_record_age > 0 ) {
-        long long rec_ts = (long long)record->data + record->time;
-        long long rec_age = (long long)time(NULL) - rec_ts;
-        if( rec_ts > 0 && rec_age > stConfigServer.max_record_age ) {
-            if( ++records_dropped % 1000 == 1 )
-                logging("database thread[%ld]: stale records dropped: %lld (last: imei %s, age %lld s)\n",
-                        syscall(SYS_gettid), records_dropped, record->imei, rec_age);
-            return 1;   /* accepted and deliberately dropped, not a write error */
-        }
-    }
-
-    /* create JSON string aka:
-    { "imei": "1234567890", "data": 0, "time": 50400, "lon": 55.5400, "lat": 65.6500, "speed": 20.0, "curs": 40, "port": 19005 }
-    */
-
-    /*
-    with json-c library:
-        https://linuxprograms.wordpress.com/2010/08/19/json_object_new_object/
-
-    json_object * jobj = json_object_new_object();
-    //                              key        value
-    json_object_object_add(jobj, "imei", json_object_new_string(record->imei));
-    json_object_object_add(jobj, "data", json_object_new_int64(record->data));
-    json_object_object_add(jobj, "time", json_object_new_int(record->time));
-    json_object_object_add(jobj, "lon", json_object_new_double(record->lon));
-    json_object_object_add(jobj, "lat", json_object_new_double(record->lat));
-    json_object_object_add(jobj, "speed", json_object_new_double(record->speed));
-    json_object_object_add(jobj, "curs", json_object_new_int(record->curs));
-    json_object_object_add(jobj, "port", json_object_new_int(record->port));
-
-    rds_reply = redisCommand(rds_context, "SET gd_%s %s", record->imei, json_object_to_json_string(jobj));
-    */
-
-    /*
-    without json-c library
-    */
-    snprintf(json, MAX_JSON_SIZE, "{\"imei\": \"%s\", \"datetime\": %lld, \"lon\": %03.07lf, \"lat\": %03.07lf, "
-                    "\"speed\": %03.01lf, \"curs\": %d, \"port\": %d, \"satellites\": %d, "
-                    "\"height\": %d, \"valid\": %d, \"vbort\": %02.01lf, \"vbatt\": %02.01lf, "
-                    "\"temperature\": %d, \"hdop\": %d, \"outputs\": %d, \"inputs\": %d, "
-                    "\"fuel0\": %d, \"fuel1\": %d, \"probeg\": %04.03lf, \"zaj\": %d, \"alarm\": %d, "
-                    "\"recnum\": %d, \"status\": %d}",
-                record->imei,
-                (long long)record->data + record->time,
-                record->lon,
-                record->lat,
-                record->speed,
-                record->curs,
-                record->port,
-                record->satellites,
-                record->height,
-                record->valid,
-                record->vbort,
-                record->vbatt,
-                record->temperature,
-                record->hdop,
-                record->outputs,
-                record->inputs,
-                record->fuel[0],
-                record->fuel[1],
-                record->probeg,
-                record->zaj,
-                record->alarm,
-                record->recnum,
-                record->status);
-    json_size = strlen(json);
-    if( !strcmp(stConfigServer.log_imei, record->imei) ) {
-        logging("write_data_to_db: %s", json);
-    }
-
-    sprintf(key, "gd__%s", record->imei);
-
-    // get exists data
-    rds_reply = redisCommand(rds_context, "GET %s", key);
-
-    /* redisCommand() returns NULL on any connection error. Without this check
-       rds_reply->str (offset 0x20) was dereferenced on NULL, which is exactly
-       the "segfault at 20 ... in rds.so" crash: 196 of them since 2026-03-17. */
-    if( !rds_reply ) {
-        logging("database thread[%ld]: write_data_to_db: GET %s returned NULL: %s\n",
-                syscall(SYS_gettid), key,
-                rds_context->err ? rds_context->errstr : "no error text");
-        return 0;   /* db_thread sees rds_context->err and reconnects */
-    }
-
-    if( rds_reply->str && rds_reply->str[0] == '[' ){
-        // add to existing array
-        array_size = strlen(rds_reply->str);
-        if( array_size > 0 && MAX_ARRAY_SIZE - array_size > json_size + 3 ) {
-            // add
-            strncpy(json_array, rds_reply->str, MAX_ARRAY_SIZE);
-            snprintf(&json_array[array_size - 1], json_size + 3, ",%s]", json);
-        }
-        else {
-            // create new array
-            snprintf(json_array, json_size + 3, "[%s]", json);
-        }
-    }
-    else {
-        // create new array
-        snprintf(json_array, json_size + 3, "[%s]", json);
-    }
-    freeReplyObject(rds_reply);
-
-    // Set a REDIS key
-    // https://redis.io/commands/set
-    rds_reply = redisCommand(rds_context, "SET %s %s", key, json_array);
-    result = rds_reply ? rds_reply->type != REDIS_REPLY_ERROR : 0;
-
-    if( result ){
-        freeReplyObject(rds_reply);
-        // https://redis.io/commands/sadd
-        rds_reply = redisCommand(rds_context, "SADD gd_port__%d %s", record->port, key);
-        result = result && rds_reply ? rds_reply->type != REDIS_REPLY_ERROR : 0;
-    }
-
-    if( !result ){
-        if( rds_reply )
-            logging("database thread[%ld]: write_data_to_db: redisCommand() error: %s\n", syscall(SYS_gettid), rds_reply->str);
-        else
-            logging("database thread[%ld]: write_data_to_db: redisCommand() return NULL\n", syscall(SYS_gettid));
-    }
-
-    freeReplyObject(rds_reply);
-
-    return result;
+    return write_batch_to_db(&msg, 1, rds_context) > 0;
 }
 //------------------------------------------------------------------------------
 
@@ -336,6 +382,11 @@ void *db_thread(void *arg)
     static __thread struct rlimit rlim;
     static __thread ssize_t msg_size;
     static __thread size_t buf_size;
+    /* union keeps every slot aligned as ST_RECORD: a plain char[233] stride would not */
+    static __thread union { ST_RECORD record; char raw[sizeof(ST_RECORD) + 1]; } batch_buf[DB_BATCH_SIZE];
+    static __thread char *batch_msgs[DB_BATCH_SIZE];
+    static __thread int batch_n;
+    static __thread struct timespec no_wait;
 
     // error handler:
     void exit_db(void * arg) {
@@ -411,6 +462,8 @@ void *db_thread(void *arg)
 
     // calculate buffer size for messages
     buf_size = queue_attr.mq_msgsize + 1;
+    for(batch_n = 0; batch_n < DB_BATCH_SIZE; batch_n++)
+        batch_msgs[batch_n] = batch_buf[batch_n].raw;
 
     // queue files located in: /dev/mqueue
     queue_workers = mq_open(QUEUE_WORKER, O_RDONLY | O_CREAT, S_IRUSR | S_IWUSR, &queue_attr);
@@ -431,9 +484,17 @@ void *db_thread(void *arg)
         pthread_testcancel();
 
         if( rds_context && !rds_context->err ) {
-            msg_size = mq_receive(queue_workers, msg_buf, buf_size, NULL);
-            if( msg_size > 0 )
-                write_data_to_db(msg_buf, rds_context);	// write message to database
+            msg_size = mq_receive(queue_workers, batch_msgs[0], buf_size, NULL);
+            if( msg_size > 0 ) {
+                /* take what is already waiting in the queue, without blocking,
+                   and write it all with one batch */
+                batch_n = 1;
+                clock_gettime(CLOCK_REALTIME, &no_wait);
+                while( batch_n < DB_BATCH_SIZE &&
+                       mq_timedreceive(queue_workers, batch_msgs[batch_n], buf_size, NULL, &no_wait) > 0 )
+                    batch_n++;
+                write_batch_to_db(batch_msgs, batch_n, rds_context);	// write messages to database
+            }
             else if ( msg_size < 0 && errno == EAGAIN )
                 sleep(0.01);	// wait
         }
