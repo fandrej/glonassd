@@ -98,7 +98,11 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
             snprintf(record->hard, SIZE_TRACKER_FIELD, "%d", 1);
             snprintf(record->soft, SIZE_TRACKER_FIELD, "%d", 1);
 
-            record->valid = (record->satellites > 2 && record->lat > 0.0 && record->lon > 0.0);
+            // достоверна при >2 спутниках; «Мультитул» не всегда знает число спутников (0) и шлёт точность, м,
+            // в поле 13 (ainputs[6]) — тогда достоверна при точности не хуже 50 м
+            record->valid = (record->lat > 0.0 && record->lon > 0.0 &&
+                             (record->satellites > 2 ||
+                              (record->satellites == 0 && record->ainputs[6] > 0 && record->ainputs[6] <= 50)));
 
             record->ainputs[0] = (record->status & 1);    //  кнопка SOS
             record->alarm = record->ainputs[0];
