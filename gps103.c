@@ -44,7 +44,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 
         memset(&answer->lastpoint, 0, sizeof(ST_RECORD));
 
-        iTemp = sscanf(parcel, "##,imei:%[^,],%*s", answer->lastpoint.imei);
+        iTemp = sscanf(parcel, "##,imei:%15[^,],%*s", answer->lastpoint.imei);
 
         if( iTemp == 1 && strlen(answer->lastpoint.imei) ) {
             iAnswerSize = 5;    // 4 + завершающий 0
@@ -80,7 +80,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
             memset(cMode, 0, 16);
 
             //                           1     2     3           4   5    6  7   8  9  10  11
-            iTemp = sscanf(cRec, "imei:%[^,],%[^,],%[^,],%*[^,],%c,%[^,],%c,%lf,%c,%lf,%c,%lf,",
+            iTemp = sscanf(cRec, "imei:%15[^,],%15[^,],%10[^,],%*[^,],%c,%10[^,],%c,%lf,%c,%lf,%c,%lf,",
                                 answer->lastpoint.imei,        // 1
                                 cMode,             // 2 tracker, move, help me, etc...
                                 cDateTime,     // 3    datetime:    YYMMDDhhmm

@@ -64,9 +64,9 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 
             memset(answer->lastpoint.imei, 0, SIZE_TRACKER_FIELD);
             if( cRec[4] == '.' && cRec[6] == ';' )
-                iFields = sscanf(cRec, "#L#2.0;%[^;];%*s", answer->lastpoint.imei);
+                iFields = sscanf(cRec, "#L#2.0;%15[^;];%*s", answer->lastpoint.imei);
             else
-                iFields = sscanf(cRec, "#L#%[^;];%*s", answer->lastpoint.imei);
+                iFields = sscanf(cRec, "#L#%15[^;];%*s", answer->lastpoint.imei);
 
             if( iFields == 1 && strlen(answer->lastpoint.imei) ) {
                 iAnswerSize = 8;    // 7 + завершающий 0
@@ -101,7 +101,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
                 answer->size += snprintf(&answer->answer[answer->size], iAnswerSize, "#ASD#1\r\n");
             }    // if( !answer->count )
 
-            iFields = sscanf(cRec, "#SD#%[^;];%[^;];%lf;%c;%lf;%c;%d;%d;%lf;%d%*s",
+            iFields = sscanf(cRec, "#SD#%9[^;];%9[^;];%lf;%c;%lf;%c;%d;%d;%lf;%d%*s",
                                 cDate, // 1
                                 cTime, // 2
                                 &dLat, // 3
@@ -200,7 +200,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
                 answer->size += snprintf(&answer->answer[answer->size], iAnswerSize, "#AD#1\r\n");
             }    // if( !answer->count )
 
-            iFields = sscanf(cRec, "#D#%[^;];%[^;];%lf;%c;%lf;%c;%d;%d;%lf;%d;%lf;%d;%d;%*s",
+            iFields = sscanf(cRec, "#D#%9[^;];%9[^;];%lf;%c;%lf;%c;%d;%d;%lf;%d;%lf;%d;%d;%*s",
                                 cDate, // 1
                                 cTime, // 2
                                 &dLat, // 3
@@ -323,7 +323,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
             while(cRec1) {
                 ++iReadedRecords;   // кол-во считанных сообщений
                 //                       1      2   3   4  5   6  7  8  9  10   11
-                iFields = sscanf(cRec1, "%[^;];%[^;];%lf;%c;%lf;%c;%d;%d;%lf;%d;%*[^|]",
+                iFields = sscanf(cRec1, "%9[^;];%9[^;];%lf;%c;%lf;%c;%d;%d;%lf;%d;%*[^|]",
                                     cDate, // 1
                                     cTime, // 2
                                     &dLat, // 3
@@ -420,7 +420,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 
             // лень сохранять
             //                         1  2  3   4     5    6
-            iFields = sscanf(cRec, "#AI#%d;%d;%d;%[^;];%[^;];%*s",
+            iFields = sscanf(cRec, "#AI#%d;%d;%d;%9[^;];%9[^;];%*s",
                                 &iSpeed, // 1
                                 &iCurs, // 2
                                 &iSatellits, // 3

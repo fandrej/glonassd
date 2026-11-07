@@ -46,14 +46,19 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
     while( cPart ) {
 
         if( rec_ok ) {
-            if( answer->count < MAX_RECORDS - 1 )
-                answer->count++;
+            if( answer->count >= MAX_RECORDS - 1 ) {
+                // массив полон: остальные строки отбрасываем (раньше они молча затирали последнюю запись)
+                if( worker->listener->log_err )
+                    logging("terminal_decode[%s:%d]: more than %d records in parcel, rest dropped\n", worker->listener->name, worker->listener->port, MAX_RECORDS - 1);
+                break;
+            }
+            answer->count++;
             record = initST_RECORD(&answer->records[answer->count - 1]);
             rec_ok = 0;
         }    // if( rec_ok )
 
         //                        1     2   3  4   5  6  7  8   9 10 11  12 13 14
-        iTemp = sscanf(cPart, "^%[^;];%lu;%lf;%c;%lf;%c;%d;%d;%lf;%u;%u;%lf;%u;%u",
+        iTemp = sscanf(cPart, "^%15[^;];%lu;%lf;%c;%lf;%c;%d;%d;%lf;%u;%u;%lf;%u;%u",
                             record->imei, // 1
                             &ulliTmp, // 2
                             &record->lat, // 3
@@ -72,8 +77,10 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 
         if( iTemp == 1 ) {
             // пришел ответ на команду
-            iTemp = sscanf(cPart, "^%[^;];%s", record->imei, cTemp);
-            answer->count = 0;
+            // (не обнуляем всю посылку: такой же вид имеет и обрезок «^ID» в конце разрезанной посылки);
+            // посылка из одних ответов останется без записей, и OK не отправится, как и раньше
+            iTemp = sscanf(cPart, "^%15[^;];%s", record->imei, cTemp);
+            initST_RECORD(record);
         }
         else if( iTemp >= 10 ) {
             // отметка
@@ -113,11 +120,20 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 
             memcpy(&answer->lastpoint, record, sizeof(ST_RECORD));
         }    // if( iTemp == 14 )
-        else
-            answer->count = 0;
+        else {
+            // испорченная строка (например, посылка разрезана посреди строки): пропускаем только её,
+            // запись не заполнена (rec_ok == 0) — её место займёт следующая строка
+            if( worker->listener->log_err )
+                logging("terminal_decode[%s:%d]: bad record skipped (%d fields)\n", worker->listener->name, worker->listener->port, iTemp);
+            initST_RECORD(record);
+        }
 
         cPart = strtok(NULL, "\n");
     }    // while( cPart )
+
+    // последняя запись так и не заполнилась (испорченная строка в конце)
+    if( answer->count && !rec_ok )
+        answer->count--;
 
     if( answer->count )
         answer->size = snprintf(answer->answer, 4, "OK\n");
