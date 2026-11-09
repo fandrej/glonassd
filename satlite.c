@@ -10,6 +10,7 @@
 */
 
 #include <stdlib.h> /* malloc */
+#include <stddef.h> /* offsetof */
 #include <string.h> /* memset */
 #include <errno.h>  /* errno */
 #include <stdint.h> /* uint8_t, etc... */
@@ -35,8 +36,12 @@ static uint16_t crc16(unsigned char *pcBlock, uint16_t len);
 void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER *worker)
 {
 
-    if( !parcel || parcel_size <= 0 || !answer )
+    if( !parcel || parcel_size < 3 || !answer )
         return;
+
+    // strtok в текстовом разборе идёт до '\0': буфер сокета заполнен целиком — терминатора нет
+    if( parcel_size >= SOCKET_BUF_SIZE )
+        parcel[SOCKET_BUF_SIZE - 1] = 0;
 
     //log2file("/var/www/locman.org/tmp/gcc/satlite_", parcel, parcel_size);
 
@@ -87,7 +92,7 @@ static void satlite_decode_txt(char *parcel, int parcel_size, ST_ANSWER *answer)
                 iHard = 2;
                 if( cRec[6] == ',' ) {
                     //                            1     2    3  4  5  6  7  8  9 10 11 12 13  14     15    16   17  18   19    20
-                    iFields = sscanf(&cRec[4], "%[^,],%[^,],%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%[^,],%[^,],%[^,],%lf,%lf,%[^,],%[^*]",
+                    iFields = sscanf(&cRec[4], "%9[^,],%15[^,],%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%9[^,],%11[^,],%11[^,],%lf,%lf,%9[^,],%9[^*]",
                                           //        1       2       3       4       5        6         7         8            9
                                           cVers, cImei, &iSerial, &iVIN, &iVBAT, &iFSDATA, &iISSTOP, &iISEGNITION, &iD_STATE,
                                           //                10                 11           12          13        14      15      16        17       18
@@ -112,7 +117,7 @@ static void satlite_decode_txt(char *parcel, int parcel_size, ST_ANSWER *answer)
                     //                                                17         21
 
                     //                             1    2    3  4  5  6  7  8  9 10 11 12 13 14 15  16     17    18   19  20   21  22 23 24   25
-                    iFields = sscanf(&cRec[4], "%[^,],%[^,],%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%[^,],%[^,],%[^,],%lf,%lf,%[^,],%d,%d,%d,%[^*]",
+                    iFields = sscanf(&cRec[4], "%9[^,],%15[^,],%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%9[^,],%11[^,],%11[^,],%lf,%lf,%9[^,],%d,%d,%d,%9[^*]",
                                           //         1     2        3        4      5       6          7           8            9
                                           cVers, cImei, &iSerial, &iVIN, &iVBAT, &iFSDATA, &iISSTOP, &iISEGNITION, &iD_STATE,
                                           //         10        11       12       13       14         15         16      17       18
@@ -137,7 +142,7 @@ static void satlite_decode_txt(char *parcel, int parcel_size, ST_ANSWER *answer)
                         //$AV,V4,71169,8430,1210,416,-1,1,1,192,0,0,0,0,0,0,,,000026,5959.4886N,03014.9790E,0.0,0.0,060180,10,0,32767,*7C
                         //$AV,V4,84542,25532,1237,424,-1,1,1,192,0,0,0,0,0,0,,,233958,4333.4757N,03946.4132E,0.0,0.0,230816,10,0,32767,*79
                         //                            1     2    3  4  5  6  7  8  9 10 11 12 13 14 15     18    19    20   21  22   23  24 25 26
-                        iFields = sscanf(&cRec[4], "%[^,],%[^,],%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,,,%[^,],%[^,],%[^,],%lf,%lf,%[^,],%d,%d,%d,%[^*]",
+                        iFields = sscanf(&cRec[4], "%9[^,],%15[^,],%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,,,%9[^,],%11[^,],%11[^,],%lf,%lf,%9[^,],%d,%d,%d,%9[^*]",
                                               //        1      2       3         4      5        6         7          8            9
                                               cVers, cImei, &iSerial, &iVIN, &iVBAT, &iFSDATA, &iISSTOP, &iISEGNITION, &iD_STATE,
                                               //         10       11       12         13         14         15          16         17
@@ -150,7 +155,7 @@ static void satlite_decode_txt(char *parcel, int parcel_size, ST_ANSWER *answer)
                         //$AV,V4,71169,8430,1210,416,-1,1,1,192,0,0,0,0,0,0,,,000026,5959.4886N,03014.9790E,0.0,0.0,060180,10,0,32767,*7C
                         //$AV,V4,84542,25532,1237,424,-1,1,1,192,0,0,0,0,0,0,,,233958,4333.4757N,03946.4132E,0.0,0.0,230816,10,0,32767,*79
                         //                            1     2    3  4  5  6  7  8  9 10 11 12 13 14 15   16    17    18    19    20   21  22   23  24 25 26
-                        iFields = sscanf(&cRec[4], "%[^,],%[^,],%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%[^,],%[^,],%[^,],%[^,],%[^,],%lf,%lf,%[^,],%d,%d,%d,%[^*]",
+                        iFields = sscanf(&cRec[4], "%9[^,],%15[^,],%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%9[^,],%9[^,],%9[^,],%11[^,],%11[^,],%lf,%lf,%9[^,],%d,%d,%d,%9[^*]",
                                               //        1      2       3         4      5        6         7          8            9
                                               cVers, cImei, &iSerial, &iVIN, &iVBAT, &iFSDATA, &iISSTOP, &iISEGNITION, &iD_STATE,
                                               //         10       11       12         13         14         15          16         17
@@ -180,7 +185,7 @@ static void satlite_decode_txt(char *parcel, int parcel_size, ST_ANSWER *answer)
                         //     1   2      3    4   5  6  7 8  9 10  12  14   16     17       18        19        20    21     22   23    25   26
                         //$AV,V5,206804,2046,1312,422,-1,0,1,192,0,0,0,0,0,2,18,,,034906,5526.6511N,06526.8890E,6.60,199.59,240816,36,0,32767,*59
                         //                            1     2    3  4  5  6  7  8  9 10 11 12 13 14 15 16     17    18    19   20  21   22  23 24 25
-                        iFields = sscanf(&cRec[4], "%[^,],%[^,],%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,,,%[^,],%[^,],%[^,],%lf,%lf,%[^,],%d,%d,%d,%[^*]",
+                        iFields = sscanf(&cRec[4], "%9[^,],%15[^,],%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,,,%9[^,],%11[^,],%11[^,],%lf,%lf,%9[^,],%d,%d,%d,%9[^*]",
                                               //        1      2        3       4       5        6         7          8            9
                                               cVers, cImei, &iSerial, &iVIN, &iVBAT, &iFSDATA, &iISSTOP, &iISEGNITION, &iD_STATE,
                                               //         10       11        12       13          14          15          16
@@ -192,7 +197,7 @@ static void satlite_decode_txt(char *parcel, int parcel_size, ST_ANSWER *answer)
                             //     1   2      3    4    5  6  7 8  9 10  12  14  16     17       18  19    20   21 22  23   24
                             //$AV,V5,206664,15285,1396,418,-1,0,1,192,0,0,0,0,1,0,0,,,075516,,,0.00,0.00,230816,49,0,32767,*6D
                             //                            1     2    3  4  5  6  7  8  9 10 11 12 13 14 15 16     17     18  19   20  21 22 23  24
-                            iFields = sscanf(&cRec[4], "%[^,],%[^,],%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,,,%[^,],,,%lf,%lf,%[^,],%d,%d,%d,%[^*]",
+                            iFields = sscanf(&cRec[4], "%9[^,],%15[^,],%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,,,%9[^,],,,%lf,%lf,%9[^,],%d,%d,%d,%9[^*]",
                                                   //        1      2        3       4       5        6         7          8            9
                                                   cVers, cImei, &iSerial, &iVIN, &iVBAT, &iFSDATA, &iISSTOP, &iISEGNITION, &iD_STATE,
                                                   //         10       11        12       13          14          15          16
@@ -204,7 +209,7 @@ static void satlite_decode_txt(char *parcel, int parcel_size, ST_ANSWER *answer)
                     }    // if( strstr(cRec, ",,,") )
                     else {
                         //$AV,V5,203747,44942,1199,424,-1,0,1,192,0,0,0,0,0,1,20,74.1,-19.2,160110,5527.2197N,06521.0973E,0.00,0.00,120215,25,0,32767,*41
-                        iFields = sscanf(&cRec[4], "%[^,],%[^,],%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%[^,],%[^,],%[^,],%[^,],%[^,],%lf,%lf,%[^,],%d,%d,%d,%[^*]",
+                        iFields = sscanf(&cRec[4], "%9[^,],%15[^,],%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%9[^,],%9[^,],%9[^,],%11[^,],%11[^,],%lf,%lf,%9[^,],%d,%d,%d,%9[^*]",
                                               cVers, cImei, &iSerial, &iVIN, &iVBAT, &iFSDATA, &iISSTOP, &iISEGNITION, &iD_STATE,
                                               &iFREQ1, &iCOUNT1, &iFREQ2, &iCOUNT2, &iANT_STATE, &iFIXTYPE, &iSATCOUNNT, cAltitude, cGeoidheight,
                                               cTime, cXCOORD, cYCOORD, &dSPEED, &dCOURSE, cDate, &iADC1, &iCOUNTER3, &iTS_TEMP, cArchive);
@@ -585,13 +590,17 @@ static void satlite_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer)
     */
 
     static time_t prevTime = 0;                    // prev. packet time
-    int i, iBuffPosition;
+    int i, iBuffPosition, iEnd;
+    size_t avail;    // байт полезных данных текущего пакета, реально пришедших
     struct tm tm_data;
     time_t ulliTmp = 0;
     t_binary_container *binary_container;
     t_common_data_header *common_data_header;
 
     iBuffPosition = 0;
+
+    if( parcel_size < (int)sizeof(t_binary_container) )
+        return;
 
     // parcel header
     binary_container = (t_binary_container *)&parcel[iBuffPosition];
@@ -604,8 +613,10 @@ static void satlite_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer)
     }
 
     iBuffPosition += sizeof(t_binary_container);
+    // конец данных: по полю data_len, но не дальше реально принятого (data_len приходит из сети)
+    iEnd = MIN((int)sizeof(t_binary_container) + binary_container->data_len, parcel_size);
 
-    while( iBuffPosition < binary_container->data_len ) {
+    while( iBuffPosition + (int)sizeof(t_common_data_header) <= iEnd ) {
 
         record = initST_RECORD(&answer->records[answer->count]);
 
@@ -616,6 +627,8 @@ static void satlite_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer)
 
         common_data_header = (t_common_data_header *)&parcel[iBuffPosition];
         iBuffPosition += sizeof(t_common_data_header);
+        // данные пакета, которые действительно есть в посылке: структуры ниже читаются, только если помещаются
+        avail = (size_t)MIN((int)common_data_header->packet_len, iEnd - iBuffPosition);
 
         if( !common_data_header->timestamp ) {
             iBuffPosition += common_data_header->packet_len;
@@ -665,6 +678,8 @@ static void satlite_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer)
         case 0xFFFF:    // пустой пакет (для подтверждения приема контйнера). Данных нет, поле packet_len=0
             break;
         case 0x0001:    // содержит в себе данные датчиков трекера:
+            // в пакете — только поля до adc_data (дальше в структуре указатели, на проводе их нет)
+            if( avail < offsetof(t_sensor_data, adc_data) ) break;
             sensor_data = (t_sensor_data *)&parcel[iBuffPosition];
 
             record->inputs = sensor_data->d_state; // текущее состояние дискретных входов
@@ -684,6 +699,7 @@ static void satlite_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer)
         case 0x0002:    // содержит в себе данные по GSM каналу
             break;
         case 0x0003:    // данные GPS
+            if( avail < sizeof(t_gps_data_v4) ) break;
             gps_data_v4 = (t_gps_data_v4 *)&parcel[iBuffPosition];
 
             record->fuel[0] = gps_data_v4->fs_data; // данные топливного датчика
@@ -708,6 +724,7 @@ static void satlite_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer)
 
             break;
         case 0x0004:    // данные топливного датчика
+            if( avail < sizeof(t_dut_e_struct) ) break;
             dut_e_struct = (t_dut_e_struct *)&parcel[iBuffPosition];
             record->fuel[0] = dut_e_struct->n; // текущий уровень топлива;
 
@@ -715,6 +732,7 @@ static void satlite_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer)
         case 0x0005:    // данные с CAN шины
             break;
         case 0x000A:    // данные тревожной кнопки
+            if( avail < sizeof(t_alarm_data_v1) ) break;
             alarm_data_v1 = (t_alarm_data_v1 *)&parcel[iBuffPosition];
 
             record->speed = alarm_data_v1->gps_speed; // Скорость в момент возникновения тревожного события
@@ -745,6 +763,7 @@ static void satlite_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer)
         case 0x000D:    // данные с CANLog (дочерней платы расширения или модуля подключаемого по интерфейсу RS232/485);
             break;
         case 0x0040:    // информация о GPS-координатах
+            if( avail < sizeof(t_l2b_gps_info) ) break;
             l2b_gps_info = (t_l2b_gps_info *)&parcel[iBuffPosition];
 
             record->vbort = 0.01 * l2b_gps_info->v1224;    // напряжение на аккумуляторе автомобиля, сотые доли вольта
@@ -770,6 +789,7 @@ static void satlite_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer)
         case 0x0041: // информация о GSM-сети
             break;
         case 0x0042: // информация о датчиках
+            if( avail < sizeof(t_l2b_sd_line) ) break;
             l2b_sd_line = (t_l2b_sd_line *)&parcel[iBuffPosition];
 
             for(i = 0; i < 4; i++) {
@@ -783,6 +803,7 @@ static void satlite_decode_bin(char *parcel, int parcel_size, ST_ANSWER *answer)
         case 0x0044: // информация о датчиках 1-wire
             break;
         case 0x0045: // минимальная информация о маршруте
+            if( avail < sizeof(t_l2b_gps_info_min) ) break;
             l2b_gps_info_min = (t_l2b_gps_info_min *)&parcel[iBuffPosition];
 
             record->satellites = l2b_gps_info_min->sat_count; // количество спутников в обзоре
