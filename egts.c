@@ -63,7 +63,7 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
         }
 
 
-        if( parcel_size > 16 && parcel[parcel_pointer + pak_head->FDL + 2] == 1 ){
+        if( parcel_pointer + pak_head->FDL + 2 < parcel_size && parcel[parcel_pointer + pak_head->FDL + 2] == 1 ){
             /* отвтет, за которым идут данные */
             parcel_pointer += (pak_head->FDL + 2);
             goto again;
@@ -515,6 +515,17 @@ int Parse_EGTS_PACKET_HEADER(ST_ANSWER *answer, char *pc, int parcel_size, ST_WO
 {
     int retval = 0;
 	EGTS_PACKET_HEADER *ph = (EGTS_PACKET_HEADER *)pc;
+
+	// bound the wire-supplied lengths against the received data before using them:
+	// reject if the buffer is smaller than the fixed header, or if the declared packet
+	// (header HL + data FDL + 2-byte SFRCS) does not fit in what was actually received.
+	// Without this the HL/FDL fields drive reads past the receive buffer.
+	if( parcel_size < (int)sizeof(EGTS_PACKET_HEADER) )
+		return 1;
+	if( (int)ph->HL + (int)ph->FDL + 2 > parcel_size ) {
+		answer->size += responce_add_teledata_result(answer->answer, answer->size, EGTS_TELEDATA_SERVICE, ph->PID, EGTS_PC_INC_HEADERFORM);
+		return 1;
+	}
 
 	if( ph->PRV != 1 /*|| (ph->PRF & 192)*/ ) {
 		answer->size += responce_add_teledata_result(answer->answer, answer->size, EGTS_TELEDATA_SERVICE, ph->PID, EGTS_PC_UNS_PROTOCOL);
