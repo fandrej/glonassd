@@ -68,3 +68,7 @@ COMMENT ON COLUMN tgpsdata.nprobegc IS 'Пробег, расчитанный с�
 COMMENT ON COLUMN tgpsdata.cmessage IS 'Произвольное сообщение от оборудования';
 
 CREATE INDEX igpsdata ON tgpsdata USING btree (ddata, ntime, cimei, nvalid);
+
+-- 11.11.26: «Мультитул» (ID mt…) — одна точка на устройство и время: повтор пачки отсекает ON CONFLICT DO NOTHING в pg.sql.
+-- Частичный: у остальных трекеров записи с одинаковым временем бывают (в т.ч. пустые 2000-01-01) — для них не меняется.
+CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS tgpsdata_multitool_uniq ON gps.tgpsdata (cimei, ttime) WHERE cimei LIKE 'mt%';

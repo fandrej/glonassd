@@ -18,6 +18,20 @@
 #include "lib.h"    // MIN, MAX, BETWEEN, CRC, etc...
 #include "logger.h"
 
+/*
+   Строка, разрезанная между чтениями сокета (11.11.26). Воркер читает посылку «по паузам» (worker.c: recv + 10 мс),
+   и посылка, пришедшая двумя кусками, раньше теряла разрезанную строку, а OK отправлялся на каждый кусок — «Мультитул»
+   принимал лишний OK за подтверждение следующей пачки. Теперь хвост без \n хранится до следующего чтения этого же
+   соединения (один поток на соединение — __thread) и склеивается с продолжением; OK — только когда хвоста нет, т.е.
+   пачка пришла целиком (один OK на пачку). Точки из уже пришедших целых строк пишутся сразу; если соединение
+   оборвётся, OK не будет и приложение пошлёт пачку снова — повторы отсекает pg.c (FAVA: cimei + ttime).
+   Другие клиенты fava (строка без \n в конце) — их нет (Андрей, 11.11.26).
+*/
+#define FAVA_TAIL_MAX 1024
+static __thread char fava_tail[FAVA_TAIL_MAX];
+static __thread int fava_tail_len = 0;
+static __thread char fava_buf[FAVA_TAIL_MAX + SOCKET_BUF_SIZE + 1];
+
 
 /*
    decode function
@@ -35,6 +49,34 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
 
     if( !parcel || parcel_size <= 0 || !answer )
         return;
+
+    // хвост прошлого чтения + новые данные
+    int len = 0;
+    if( fava_tail_len ) {
+        memcpy(fava_buf, fava_tail, fava_tail_len);
+        len = fava_tail_len;
+        fava_tail_len = 0;
+    }
+    if( parcel_size > SOCKET_BUF_SIZE )
+        parcel_size = SOCKET_BUF_SIZE;
+    memcpy(fava_buf + len, parcel, parcel_size);
+    len += parcel_size;
+    fava_buf[len] = 0;
+
+    // всё после последнего \n — незаконченная строка: ждёт продолжения
+    int end = len;
+    while( end > 0 && fava_buf[end - 1] != '\n' )
+        end--;
+    if( end < len ) {
+        if( len - end < FAVA_TAIL_MAX ) {
+            memcpy(fava_tail, fava_buf + end, len - end);
+            fava_tail_len = len - end;
+        }
+        else if( worker->listener->log_err )
+            logging("terminal_decode[%s:%d]: line without \\n longer than %d, dropped\n", worker->listener->name, worker->listener->port, FAVA_TAIL_MAX);
+        fava_buf[end] = 0;
+    }
+    parcel = fava_buf;
 
     //          ID        DataTime     Lat    NS   Lon    EW Bear Alt Speed Sat Flags 3field-reserv (0,0.0,0.0)
     //  0        1          2           3      4     5      6  7  8   9 10 11 12 13 14
@@ -139,8 +181,13 @@ void terminal_decode(char *parcel, int parcel_size, ST_ANSWER *answer, ST_WORKER
     if( answer->count && !rec_ok )
         answer->count--;
 
-    if( answer->count )
-        answer->size = snprintf(answer->answer, 4, "OK\n");
+    if( answer->count ) {
+        // OK — только на пачку целиком: пока ждём конец разрезанной строки, точки пишутся, но без ответа
+        if( fava_tail_len )
+            answer->size = 0;
+        else
+            answer->size = snprintf(answer->answer, 4, "OK\n");
+    }
     else
         memset(answer, 0, sizeof(ST_ANSWER));
 }

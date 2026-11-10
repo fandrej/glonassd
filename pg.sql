@@ -76,4 +76,7 @@ INSERT INTO gps.tgpsdata (
 	$36::real,
 	timezone('utc', to_timestamp($37::bigint)),
     ST_PointFromText($38::varchar, 4326)::geometry --https://postgis.net/docs/ST_PointFromText.html
-);
+)
+-- повтор пачки «Мультитула» (ID mt…, частичный уникальный индекс gps.tgpsdata_multitool_uniq по cimei+ttime) не пишется;
+-- у остальных трекеров уникальных индексов нет — для них ничего не меняется (11.11.26)
+ON CONFLICT DO NOTHING;
